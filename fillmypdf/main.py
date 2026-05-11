@@ -211,6 +211,7 @@ async def root():
             "template_library": HAS_TEMPLATES,
             "async_jobs": HAS_JOBS,
             "webhooks": HAS_JOBS,
+            "webhooks_manual_redelivery": HAS_JOBS,
             "webhooks_hmac": HAS_JOBS,
             "async_extract_jobs": HAS_JOBS,
             "jobs_list_filters": HAS_JOBS,

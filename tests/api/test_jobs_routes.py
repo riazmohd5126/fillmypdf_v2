@@ -295,6 +295,75 @@ class TestGetJob:
 
 
 # ---------------------------------------------------------------------------
+# Retry webhook
+# ---------------------------------------------------------------------------
+
+
+class TestRetryWebhook:
+
+    def test_retry_accepted_terminal_job(self, client, pro_api_key):
+        done = _done_job()
+        done.webhook_url = "https://hooks.example.invalid/cb"
+
+        with patch("fillmypdf.api.routes.jobs._repo") as mock_repo:
+            mock_repo.return_value.get.return_value = done
+            with patch("fillmypdf.api.routes.jobs.get_runner") as mock_runner:
+                resp = client.post(
+                    f"{BASE}/job_abc123/retry-webhook",
+                    headers={"X-API-Key": _plain(pro_api_key)},
+                )
+        assert resp.status_code == 202
+        assert resp.json()["job_id"] == "job_abc123"
+        mock_runner.return_value.enqueue_webhook_redelivery.assert_called_once_with(
+            "job_abc123"
+        )
+
+    def test_retry_409_while_running(self, client, pro_api_key):
+        running = _queued_job()
+        running.status = "running"
+        running.webhook_url = "https://hooks.example.invalid/cb"
+
+        with patch("fillmypdf.api.routes.jobs._repo") as mock_repo:
+            mock_repo.return_value.get.return_value = running
+            with patch("fillmypdf.api.routes.jobs.get_runner") as mock_runner:
+                resp = client.post(
+                    f"{BASE}/job_abc123/retry-webhook",
+                    headers={"X-API-Key": _plain(pro_api_key)},
+                )
+        assert resp.status_code == 409
+        mock_runner.return_value.enqueue_webhook_redelivery.assert_not_called()
+
+    def test_retry_400_no_webhook_url(self, client, pro_api_key):
+        done = _done_job()
+        done.webhook_url = None
+
+        with patch("fillmypdf.api.routes.jobs._repo") as mock_repo:
+            mock_repo.return_value.get.return_value = done
+            with patch("fillmypdf.api.routes.jobs.get_runner") as mock_runner:
+                resp = client.post(
+                    f"{BASE}/job_abc123/retry-webhook",
+                    headers={"X-API-Key": _plain(pro_api_key)},
+                )
+        assert resp.status_code == 400
+        mock_runner.return_value.enqueue_webhook_redelivery.assert_not_called()
+
+    def test_retry_404_missing_job(self, client, pro_api_key):
+        with patch("fillmypdf.api.routes.jobs._repo") as mock_repo:
+            mock_repo.return_value.get.return_value = None
+            with patch("fillmypdf.api.routes.jobs.get_runner") as mock_runner:
+                resp = client.post(
+                    f"{BASE}/ghost/retry-webhook",
+                    headers={"X-API-Key": _plain(pro_api_key)},
+                )
+        assert resp.status_code == 404
+        mock_runner.return_value.enqueue_webhook_redelivery.assert_not_called()
+
+    def test_retry_requires_auth(self, client):
+        resp = client.post(f"{BASE}/job_x/retry-webhook")
+        assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
 # Download redirect
 # ---------------------------------------------------------------------------
 

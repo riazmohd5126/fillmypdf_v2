@@ -17,6 +17,9 @@ Optional webhook: pass ``webhook_url``; completion is a JSON POST. If env
 ``WEBHOOK_SIGNING_SECRET`` **or** multipart ``webhook_secret`` is set, the POST
 also includes ``X-FillMyPDF-Timestamp`` and ``X-FillMyPDF-Signature`` (hex HMAC-v1).
 
+After a terminal job, use ``POST /jobs/{job_id}/retry-webhook`` to queue another
+delivery (same signing and retry/backoff as the automatic POST).
+
 Body fields align with polling ``GET /api/v1/jobs/{job_id}`` (``kind``,
 ``progress_pct``, totals, timestamps, legacy ``successful`` / ``failed``).
 """
@@ -44,6 +47,7 @@ from ...models.job import (
     JobSubmitResponse,
     JobSummary,
     JobStatus,
+    WebhookRedeliveryResponse,
 )
 from ...repositories.job_repository import JobRepository
 from ...services.job_runner import get_runner
@@ -351,6 +355,39 @@ async def get_job(job_id: str):
     if job is None:
         raise HTTPException(404, f"Job '{job_id}' not found")
     return repo.to_summary(job)
+
+
+@router.post(
+    "/{job_id}/retry-webhook",
+    response_model=WebhookRedeliveryResponse,
+    status_code=202,
+    summary="Re-queue completion webhook",
+)
+async def retry_job_webhook(job_id: str):
+    """
+    Queue another POST to ``webhook_url`` with the latest job snapshot.
+
+    Only for terminal jobs (**done**, **failed**, or **cancelled**).
+    Requires the job was originally submitted with ``webhook_url``.
+    Uses the same HMAC signing and exponential retry policy as automatic delivery.
+    """
+    repo = _repo()
+    job = repo.get(job_id)
+    if job is None:
+        raise HTTPException(404, f"Job '{job_id}' not found")
+    if job.status in ("queued", "running"):
+        raise HTTPException(
+            409,
+            f"Job '{job_id}' is still {job.status}; webhook reflects final state only.",
+        )
+    if not job.webhook_url:
+        raise HTTPException(400, f"Job '{job_id}' has no webhook_url configured")
+
+    get_runner().enqueue_webhook_redelivery(job_id)
+    return WebhookRedeliveryResponse(
+        job_id=job_id,
+        message="Completion webhook queued (delivered asynchronously).",
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -39,6 +39,11 @@ from ..services.template_service import TemplateService
 from ..services.webhook_signing import resolve_signing_secret, signature_headers
 
 
+def _enqueue_webhook_redelivery_worker(job_id: str) -> None:
+    """Runs in the executor — same retries/backoff as the automatic completion POST."""
+    JobRunner._fire_webhook(job_id, JobRepository())
+
+
 def _maybe_stash_webhook_secret(payload: Dict[str, Any], secret: Optional[str]) -> None:
     if secret and str(secret).strip():
         payload["webhook_secret"] = str(secret).strip()
@@ -241,6 +246,10 @@ class JobRunner:
         self._repo.save_payload(job_id, payload)
         self._executor.submit(self._run_template_batch, job_id)
         return job
+
+    def enqueue_webhook_redelivery(self, job_id: str) -> None:
+        """Schedule another outbound completion webhook (non-blocking)."""
+        self._executor.submit(_enqueue_webhook_redelivery_worker, job_id)
 
     # ------------------------------------------------------------------
     # Internal workers

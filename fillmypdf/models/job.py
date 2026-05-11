@@ -113,3 +113,8 @@ class JobSubmitResponse(BaseModel):
     status: JobStatus
     message: str
     status_url: str
+
+
+class WebhookRedeliveryResponse(BaseModel):
+    job_id: str
+    message: str
