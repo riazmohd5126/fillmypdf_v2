@@ -1,0 +1,16 @@
+services:
+  api:
+    build: .
+    image: fillmypdf-api:local
+    ports:
+      - "8000:8000"
+    environment:
+      API_HOST: "0.0.0.0"
+    # Optional: copy `.env.example` → `.env` and run:
+    #   docker compose --env-file .env up --build
+    #
+    # Optional persistence (mkdir docker-data first). Uncomment if needed:
+    # volumes:
+    #   - ./docker-data/profiles:/app/fillmypdf/storage/profiles
+    #   - ./docker-data/jobs:/app/fillmypdf/storage/jobs
+    #   - ./docker-data/temp:/app/fillmypdf/storage/temp

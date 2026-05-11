@@ -41,6 +41,9 @@ fillmypdf/storage/temp/
 fillmypdf/storage/jobs/
 fillmypdf/storage/usage_stats.json
 
+# Local compose bind-mount data (see docker-compose.yml)
+/docker-data/
+
 # Local batch / scratch outputs (repo root)
 pa21_*/
 *_output/
