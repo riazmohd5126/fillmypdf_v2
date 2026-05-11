@@ -1,0 +1,159 @@
+{
+  "id": "pa_xifaxan_gateway",
+  "name": "Xifaxan PA \u2014 Gateway Health (Multi-indication)",
+  "category": "prior_authorization",
+  "specialty": "gi_motility",
+  "drug": {
+    "name": "Xifaxan",
+    "generic_name": "rifaximin",
+    "strengths": [
+      "200mg",
+      "550mg"
+    ],
+    "form": "tablet"
+  },
+  "payer": {
+    "name": "Gateway Health",
+    "plan_type": "commercial",
+    "fax": "(888) 245-2049",
+    "phone": "(800) 392-1147"
+  },
+  "indications": [
+    "traveler's diarrhea",
+    "hepatic encephalopathy",
+    "irritable bowel syndrome with diarrhea"
+  ],
+  "questions": [
+    {
+      "key": "indication_traveler_diarrhea",
+      "text": "Is the medication being used for Traveler's Diarrhea?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "td_200mg",
+      "text": "[Traveler's Diarrhea] Is the strength being prescribed Xifaxan 200mg?",
+      "type": "yesno",
+      "required": false,
+      "section": "traveler_diarrhea"
+    },
+    {
+      "key": "td_age_12",
+      "text": "[Traveler's Diarrhea] Is member 12 years of age or older?",
+      "type": "yesno",
+      "required": false,
+      "section": "traveler_diarrhea"
+    },
+    {
+      "key": "td_e_coli",
+      "text": "[Traveler's Diarrhea] Does member have diagnosis of traveler's diarrhea caused by non-invasive strains of E. coli?",
+      "type": "yesno",
+      "required": false,
+      "section": "traveler_diarrhea"
+    },
+    {
+      "key": "td_fever_bloody",
+      "text": "[Traveler's Diarrhea] Does member have diarrhea complicated by fever or bloody stools?",
+      "type": "yesno",
+      "required": false,
+      "section": "traveler_diarrhea"
+    },
+    {
+      "key": "indication_he",
+      "text": "Is the medication being used for Hepatic Encephalopathy?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "he_550mg",
+      "text": "[Hepatic Encephalopathy] Is strength Xifaxan 550mg?",
+      "type": "yesno",
+      "required": false,
+      "section": "he"
+    },
+    {
+      "key": "he_age_18",
+      "text": "[Hepatic Encephalopathy] Is member 18 years of age or older?",
+      "type": "yesno",
+      "required": false,
+      "section": "he"
+    },
+    {
+      "key": "he_lactulose_trial",
+      "text": "[Hepatic Encephalopathy] Does member have history of trial/failure/contraindication/intolerance of at least 2 days of nonabsorbable disaccharides (lactulose, lactitol)?",
+      "type": "yesno",
+      "required": false,
+      "section": "he"
+    },
+    {
+      "key": "indication_ibs_d",
+      "text": "Is the medication being used for IBS with diarrhea?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "ibs_550mg",
+      "text": "[IBS-D] Is strength Xifaxan 550mg?",
+      "type": "yesno",
+      "required": false,
+      "section": "ibs_d"
+    },
+    {
+      "key": "ibs_age_18",
+      "text": "[IBS-D] Is member 18 years of age or older?",
+      "type": "yesno",
+      "required": false,
+      "section": "ibs_d"
+    },
+    {
+      "key": "ibs_dietary_failed",
+      "text": "[IBS-D] Has member failed dietary modifications (lactose-restricted, low-carb, low-FODMAP)?",
+      "type": "yesno",
+      "required": false,
+      "section": "ibs_d"
+    },
+    {
+      "key": "ibs_failed_antispasmodic",
+      "text": "[IBS-D] Has member failed a two-week trial of antispasmodic agents (e.g. dicyclomine)?",
+      "type": "yesno",
+      "required": false,
+      "section": "ibs_d"
+    },
+    {
+      "key": "ibs_failed_tca",
+      "text": "[IBS-D] Has member failed a six-week trial of tricyclic antidepressants (e.g. amitriptyline)?",
+      "type": "yesno",
+      "required": false,
+      "section": "ibs_d"
+    },
+    {
+      "key": "reauth_he_mental_improvement",
+      "text": "[Reauth - HE] Is there clinical documentation of improvement in member's mental status?",
+      "type": "yesno",
+      "required": false,
+      "section": "reauthorization_he"
+    },
+    {
+      "key": "reauth_ibs_improvement",
+      "text": "[Reauth - IBS-D] Has the member experienced significant improvement with treatment?",
+      "type": "yesno",
+      "required": false,
+      "section": "reauthorization_ibs"
+    }
+  ],
+  "tags": [
+    "commercial",
+    "gi",
+    "hepatic-encephalopathy",
+    "ibs-d",
+    "traveler-diarrhea",
+    "xifaxan",
+    "rifaximin",
+    "gateway"
+  ],
+  "version": "Updated 05/2019 PARP Approved 06/2019",
+  "pages": 4,
+  "is_public": true,
+  "created_at": "2026-05-09T00:00:00+00:00",
+  "updated_at": "2026-05-09T00:00:00+00:00"
+}

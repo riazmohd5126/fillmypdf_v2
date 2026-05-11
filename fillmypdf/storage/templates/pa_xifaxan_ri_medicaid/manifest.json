@@ -1,0 +1,66 @@
+{
+  "id": "pa_xifaxan_ri_medicaid",
+  "name": "Xifaxan 550mg PA \u2014 RI Medicaid FFS (PA21 Form)",
+  "category": "prior_authorization",
+  "specialty": "gi_motility",
+  "drug": {
+    "name": "Xifaxan",
+    "generic_name": "rifaximin",
+    "strengths": [
+      "550mg"
+    ],
+    "form": "tablet"
+  },
+  "payer": {
+    "name": "Rhode Island Medicaid FFS / Gainwell Technologies",
+    "plan_type": "medicaid",
+    "state": "RI",
+    "fax": "1-401-784-3889",
+    "phone": "1-401-784-8100"
+  },
+  "indications": [
+    "hepatic encephalopathy"
+  ],
+  "questions": [
+    {
+      "key": "he_diagnosis",
+      "text": "Is there a diagnosis of Hepatic Encephalopathy?",
+      "type": "yesno",
+      "required": true,
+      "notes": "Provide ICD10 code"
+    },
+    {
+      "key": "age_18_plus",
+      "text": "Is the patient 18 years of age or older?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "lactulose_history",
+      "text": "Is there a history of treatment with lactulose?",
+      "type": "yesno",
+      "required": true,
+      "notes": "Provide date of treatment with lactulose"
+    },
+    {
+      "key": "lactulose_inadequate",
+      "text": "Is there inadequate response or contraindication to lactulose?",
+      "type": "yesno",
+      "required": true
+    }
+  ],
+  "tags": [
+    "medicaid",
+    "gi",
+    "hepatic-encephalopathy",
+    "xifaxan",
+    "rifaximin",
+    "rhode-island",
+    "pa21"
+  ],
+  "version": "Revised 10.2020 PA21",
+  "pages": 1,
+  "is_public": true,
+  "created_at": "2026-05-09T00:00:00+00:00",
+  "updated_at": "2026-05-09T00:00:00+00:00"
+}

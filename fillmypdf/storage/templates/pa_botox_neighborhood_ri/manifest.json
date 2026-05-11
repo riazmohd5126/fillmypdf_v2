@@ -1,0 +1,151 @@
+{
+  "id": "pa_botox_neighborhood_ri",
+  "name": "Botox Prior Authorization \u2014 Neighborhood Health Plan of RI",
+  "category": "prior_authorization",
+  "specialty": "neurology",
+  "drug": {
+    "name": "Botox",
+    "generic_name": "onabotulinumtoxinA",
+    "j_code": "J0585",
+    "form": "injection"
+  },
+  "payer": {
+    "name": "Neighborhood Health Plan of Rhode Island",
+    "plan_type": "medicaid",
+    "state": "RI",
+    "fax": "1-866-423-0945",
+    "phone": "1-401-427-8200"
+  },
+  "indications": [
+    "chronic migraine prophylaxis",
+    "blepharospasm",
+    "cervical dystonia",
+    "spasticity",
+    "overactive bladder",
+    "hyperhidrosis"
+  ],
+  "questions": [
+    {
+      "key": "concurrent_botulinum",
+      "text": "Is the patient on concurrent treatment with another botulinum toxin product?",
+      "type": "yesno",
+      "required": true,
+      "section": "universal"
+    },
+    {
+      "key": "continuation_request",
+      "text": "Is this a continuation of therapy request?",
+      "type": "yesno",
+      "required": true,
+      "section": "continuation"
+    },
+    {
+      "key": "continuation_start_date",
+      "text": "If continuation, date the member started on therapy",
+      "type": "date",
+      "required": false,
+      "section": "continuation"
+    },
+    {
+      "key": "continuation_tolerating",
+      "text": "Is the patient tolerating treatment with Botox?",
+      "type": "yesno",
+      "required": false,
+      "section": "continuation"
+    },
+    {
+      "key": "continuation_no_toxicity",
+      "text": "Is the member experiencing an absence of unacceptable toxicity from the drug?",
+      "type": "yesno",
+      "required": false,
+      "section": "continuation"
+    },
+    {
+      "key": "migraine_prophylactic_modalities",
+      "text": "[Chronic Migraine - Initial] Is the patient utilizing prophylactic intervention modalities?",
+      "type": "yesno",
+      "required": false,
+      "section": "chronic_migraine_initial"
+    },
+    {
+      "key": "migraine_15_days",
+      "text": "[Chronic Migraine - Initial] Has the patient had 15 or more headache days per month for at least 3 months?",
+      "type": "yesno",
+      "required": false,
+      "section": "chronic_migraine_initial"
+    },
+    {
+      "key": "migraine_5_attacks",
+      "text": "[Chronic Migraine - Initial] Has the patient had at least 5 attacks consistent with migraine?",
+      "type": "yesno",
+      "required": false,
+      "section": "chronic_migraine_initial"
+    },
+    {
+      "key": "migraine_8_days_triptan",
+      "text": "[Chronic Migraine - Initial] On at least 8 days per month for 3 months, does the member have migraines relieved by a triptan or ergot derivative?",
+      "type": "yesno",
+      "required": false,
+      "section": "chronic_migraine_initial"
+    },
+    {
+      "key": "migraine_failed_2_oral",
+      "text": "[Chronic Migraine - Initial] Has the patient failed at least an 8-week trial of any two oral medications for migraine prevention?",
+      "type": "yesno",
+      "required": false,
+      "section": "chronic_migraine_initial",
+      "notes": "Please list medications"
+    },
+    {
+      "key": "migraine_cont_decrease",
+      "text": "[Chronic Migraine - Continuation] Has the member had a significant decrease in headache number, frequency, and/or intensity?",
+      "type": "yesno",
+      "required": false,
+      "section": "chronic_migraine_continuation"
+    },
+    {
+      "key": "migraine_cont_function",
+      "text": "[Chronic Migraine - Continuation] Has the member had an improvement in function?",
+      "type": "yesno",
+      "required": false,
+      "section": "chronic_migraine_continuation"
+    },
+    {
+      "key": "blepharospasm_age_12",
+      "text": "[Blepharospasm - Initial] Is the patient at least 12 years of age?",
+      "type": "yesno",
+      "required": false,
+      "section": "blepharospasm_initial"
+    },
+    {
+      "key": "cervical_dystonia_age_16",
+      "text": "[Cervical Dystonia - Initial] Is the patient at least 16 years of age?",
+      "type": "yesno",
+      "required": false,
+      "section": "cervical_dystonia_initial"
+    },
+    {
+      "key": "oab_diagnosis",
+      "text": "[Overactive Bladder - Initial] Does the patient have overactive bladder?",
+      "type": "yesno",
+      "required": false,
+      "section": "oab_initial"
+    }
+  ],
+  "tags": [
+    "medicaid",
+    "neurology",
+    "migraine",
+    "botox",
+    "botulinum",
+    "rhode-island",
+    "cervical-dystonia",
+    "spasticity",
+    "oab"
+  ],
+  "version": "Botox PA Form - 5 pages",
+  "pages": 5,
+  "is_public": true,
+  "created_at": "2026-05-09T00:00:00+00:00",
+  "updated_at": "2026-05-09T00:00:00+00:00"
+}

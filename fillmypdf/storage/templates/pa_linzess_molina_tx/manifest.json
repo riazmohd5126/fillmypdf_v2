@@ -1,0 +1,97 @@
+{
+  "id": "pa_linzess_molina_tx",
+  "name": "Linzess (Linaclotide) PA \u2014 Molina Healthcare of Texas (Medicaid)",
+  "category": "prior_authorization",
+  "specialty": "gi_motility",
+  "drug": {
+    "name": "Linzess",
+    "generic_name": "linaclotide",
+    "strengths": [
+      "72mcg",
+      "145mcg",
+      "290mcg"
+    ],
+    "form": "capsule"
+  },
+  "payer": {
+    "name": "Molina Healthcare of Texas",
+    "plan_type": "medicaid",
+    "state": "TX",
+    "fax": "1-888-487-9251",
+    "phone": "1-855-322-4080"
+  },
+  "indications": [
+    "chronic idiopathic constipation",
+    "irritable bowel syndrome with constipation"
+  ],
+  "questions": [
+    {
+      "key": "court_order",
+      "text": "Is the requested drug required per court order?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "age_18_plus",
+      "text": "Is the patient 18 years of age or older?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "diagnosis_cic_or_ibs",
+      "text": "Does the patient have a diagnosis of chronic idiopathic constipation or IBS in the last 365 days?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "gi_obstruction",
+      "text": "Does the patient have a history of GI obstruction in the last 730 days?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "qty_one_per_day",
+      "text": "Is the quantity being requested less than or equal to 1 capsule per day?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "non_preferred",
+      "text": "Is this request for a non-preferred drug?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "failed_preferred_30d",
+      "text": "Has the patient failed a 30-day treatment trial with at least 1 preferred agent (including GI motility OTC products) within the last 180 days?",
+      "type": "yesno",
+      "required": false
+    },
+    {
+      "key": "allergy_contraindication",
+      "text": "Is there a documented allergy or contraindication to preferred agents in this class?",
+      "type": "yesno",
+      "required": false
+    },
+    {
+      "key": "stage4_cancer",
+      "text": "Is the drug necessary for treatment of stage-4 advanced metastatic cancer and associated conditions?",
+      "type": "yesno",
+      "required": false
+    }
+  ],
+  "tags": [
+    "medicaid",
+    "gi",
+    "ibs-c",
+    "constipation",
+    "linzess",
+    "linaclotide",
+    "texas"
+  ],
+  "version": "MHTPA121115-95.05042021-C14614-A",
+  "pages": 2,
+  "is_public": true,
+  "created_at": "2026-05-09T00:00:00+00:00",
+  "updated_at": "2026-05-09T00:00:00+00:00"
+}

@@ -1,0 +1,48 @@
+# Environment & secrets
+.env
+.env.local
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+ENV/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Test & tools
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+htmlcov/
+.coverage
+
+# Local sample archives / CI artifacts (avoid large binaries in repo)
+*.zip
+
+# Pytest/client fixture output trees
+test_output_*/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Runtime data (regenerated at runtime; do not commit keys or user profiles)
+fillmypdf/storage/profiles/
+fillmypdf/storage/temp/
+fillmypdf/storage/jobs/
+fillmypdf/storage/usage_stats.json
+
+# Local batch / scratch outputs (repo root)
+pa21_*/
+*_output/
+linzess_output/
+employees.csv

@@ -1,0 +1,31 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # pdf2image is imported by some pipelines; avoids optional runtime failures later
+      - name: Install poppler
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pytest
+        env:
+          BCRYPT_ROUNDS: "4"
+          DEBUG: "True"
+          PROFILES_ENCRYPTION_KEY: test-key-32-bytes-long-aaaaaaaaaa
+        run: python -m pytest tests/ -q --tb=short

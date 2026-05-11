@@ -1,0 +1,101 @@
+{
+  "id": "pa_viberzi_selecthealth",
+  "name": "Viberzi PA \u2014 SelectHealth Medicare",
+  "category": "prior_authorization",
+  "specialty": "gi_motility",
+  "drug": {
+    "name": "Viberzi",
+    "generic_name": "eluxadoline",
+    "strengths": [
+      "75mg",
+      "100mg"
+    ],
+    "form": "tablet"
+  },
+  "payer": {
+    "name": "SelectHealth",
+    "plan_type": "medicare",
+    "state": "UT",
+    "fax": "801-442-3006",
+    "phone": "801-442-9988"
+  },
+  "indications": [
+    "irritable bowel syndrome with diarrhea"
+  ],
+  "questions": [
+    {
+      "key": "ibs_d_diagnosis",
+      "text": "Has the patient been diagnosed with irritable bowel syndrome with diarrhea?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "gastroenterologist",
+      "text": "Is the prescribing physician a gastroenterologist?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "failed_preferred_1",
+      "text": "Has the patient tried and failed on one preferred therapy? (select one: Dicyclomine, Hyoscyamine, Loperamide, Xifaxan, None, Other)",
+      "type": "select",
+      "options": [
+        "Dicyclomine",
+        "Hyoscyamine",
+        "Loperamide",
+        "Xifaxan",
+        "None",
+        "Other"
+      ],
+      "required": true,
+      "section": "trial1"
+    },
+    {
+      "key": "failed_preferred_1_other",
+      "text": "If 'Other' for first preferred therapy \u2014 provide medication name, dosage, strength, length of therapy",
+      "type": "text",
+      "required": false,
+      "section": "trial1"
+    },
+    {
+      "key": "failed_preferred_2",
+      "text": "Has the patient tried and failed on a second preferred therapy? (select one: Dicyclomine, Hyoscyamine, Loperamide, Xifaxan, None, Other)",
+      "type": "select",
+      "options": [
+        "Dicyclomine",
+        "Hyoscyamine",
+        "Loperamide",
+        "Xifaxan",
+        "None",
+        "Other"
+      ],
+      "required": true,
+      "section": "trial2"
+    },
+    {
+      "key": "failed_preferred_2_other",
+      "text": "If 'Other' for second preferred therapy \u2014 provide medication name, dosage, strength, length of therapy",
+      "type": "text",
+      "required": false,
+      "section": "trial2"
+    },
+    {
+      "key": "additional_comments",
+      "text": "Additional Comments",
+      "type": "text",
+      "required": false
+    }
+  ],
+  "tags": [
+    "medicare",
+    "gi",
+    "ibs-d",
+    "viberzi",
+    "eluxadoline",
+    "utah"
+  ],
+  "pages": 2,
+  "is_public": true,
+  "created_at": "2026-05-09T00:00:00+00:00",
+  "updated_at": "2026-05-09T00:00:00+00:00"
+}

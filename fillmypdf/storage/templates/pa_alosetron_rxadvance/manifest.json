@@ -1,0 +1,108 @@
+{
+  "id": "pa_alosetron_rxadvance",
+  "name": "Alosetron PA \u2014 RxAdvance / Nirvana Health",
+  "category": "prior_authorization",
+  "specialty": "gi_motility",
+  "drug": {
+    "name": "Alosetron",
+    "generic_name": "alosetron",
+    "strengths": [
+      "0.5mg",
+      "1mg"
+    ],
+    "form": "tablet"
+  },
+  "payer": {
+    "name": "Nirvana Health / RxAdvance",
+    "plan_type": "commercial",
+    "fax": "+1(866) 871-8565"
+  },
+  "indications": [
+    "severe diarrhea-predominant irritable bowel syndrome"
+  ],
+  "questions": [
+    {
+      "key": "provider_attestation",
+      "text": "I, as the provider or designated representative, certify the information provided is complete and accurate.",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "currently_on_medication",
+      "text": "Is the member currently treated with this medication?",
+      "type": "yesno",
+      "required": true,
+      "notes": "If yes, provide start date of therapy"
+    },
+    {
+      "key": "diagnosis_ibs",
+      "text": "What is the member's diagnosis? (Severe Diarrhea-Predominant IBS or Other)",
+      "type": "select",
+      "options": [
+        "Severe Diarrhea-Predominant Irritable Bowel Syndrome (IBS)",
+        "Other"
+      ],
+      "required": true
+    },
+    {
+      "key": "ibs_symptoms_persist",
+      "text": "Does the member have symptoms of IBS that continue to persist?",
+      "type": "yesno",
+      "required": true,
+      "notes": "If yes, specify symptoms"
+    },
+    {
+      "key": "positive_clinical_response",
+      "text": "Does the member have documentation supporting positive clinical response to therapy?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "diagnosis_confirm",
+      "text": "Confirm diagnosis: Severe Diarrhea-Predominant IBS?",
+      "type": "select",
+      "options": [
+        "Severe Diarrhea-Predominant Irritable Bowel Syndrome (IBS)",
+        "Other"
+      ],
+      "required": true
+    },
+    {
+      "key": "symptoms_six_months",
+      "text": "Does the member have severe diarrhea-predominant IBS symptoms that lasted at least six months?",
+      "type": "yesno",
+      "required": true,
+      "notes": "If yes, specify duration"
+    },
+    {
+      "key": "female_member",
+      "text": "Is the member a female?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "failed_loperamide",
+      "text": "Has the member had an inadequate response, contraindication, or intolerance to an antidiarrheal agent (e.g., loperamide)?",
+      "type": "yesno",
+      "required": true,
+      "notes": "If yes, specify drug name, intolerance, start/end dates"
+    },
+    {
+      "key": "age_18_plus",
+      "text": "Is the member 18 years of age or older?",
+      "type": "yesno",
+      "required": true
+    }
+  ],
+  "tags": [
+    "commercial",
+    "gi",
+    "ibs-d",
+    "alosetron",
+    "women"
+  ],
+  "pages": 3,
+  "is_public": true,
+  "created_at": "2026-05-09T00:00:00+00:00",
+  "updated_at": "2026-05-09T00:00:00+00:00"
+}

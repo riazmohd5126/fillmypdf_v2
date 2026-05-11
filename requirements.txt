@@ -1,0 +1,40 @@
+# FillMyPDF OOP - Requirements
+# ==============================
+
+# Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Data Validation
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# PDF Processing
+pypdf>=3.17.0
+commonforms>=0.1.0
+pdf2image>=1.16.3
+Pillow>=10.0.0
+
+# AI Integration
+openai>=1.6.0
+
+# Security
+cryptography>=41.0.0
+bcrypt>=4.1.0
+slowapi>=0.1.9
+
+# Utilities
+python-dotenv>=1.0.0
+openpyxl>=3.1.0
+
+# Testing (dev only)
+pytest>=8.0.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.23.0
+# Pin below 0.28: Starlette 0.27 + httpx>=0.28 breaks TestClient(`app=` removed)
+httpx>=0.27.0,<0.28.0  # For FastAPI TestClient
+
+# System dependency (install separately):
+# macOS: brew install poppler
+# Ubuntu: sudo apt install poppler-utils

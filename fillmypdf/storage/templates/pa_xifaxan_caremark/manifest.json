@@ -1,0 +1,78 @@
+{
+  "id": "pa_xifaxan_caremark",
+  "name": "Xifaxan 550mg PA \u2014 CareFirst / CVS Caremark",
+  "category": "prior_authorization",
+  "specialty": "gi_motility",
+  "drug": {
+    "name": "Xifaxan",
+    "generic_name": "rifaximin",
+    "strengths": [
+      "550mg"
+    ],
+    "form": "tablet"
+  },
+  "payer": {
+    "name": "CareFirst BlueCross BlueShield / CVS Caremark",
+    "plan_type": "commercial",
+    "fax": "1-888-836-0730",
+    "phone": "1-855-582-2022"
+  },
+  "indications": [
+    "hepatic encephalopathy",
+    "irritable bowel syndrome with diarrhea"
+  ],
+  "questions": [
+    {
+      "key": "he_recurrence",
+      "text": "Is the requested drug being prescribed to reduce the risk of overt hepatic encephalopathy (HE) recurrence?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "addon_lactulose",
+      "text": "Is the requested drug being used as add-on therapy to lactulose?",
+      "type": "yesno",
+      "required": false,
+      "section": "he"
+    },
+    {
+      "key": "ibs_d_diagnosis",
+      "text": "Does the patient have the diagnosis of irritable bowel syndrome with diarrhea (IBS-D)?",
+      "type": "yesno",
+      "required": true
+    },
+    {
+      "key": "previous_treatment",
+      "text": "Has the patient previously received treatment with the requested drug?",
+      "type": "yesno",
+      "required": false,
+      "section": "ibs_d"
+    },
+    {
+      "key": "recurrence_symptoms",
+      "text": "Is the patient experiencing a recurrence of symptoms?",
+      "type": "yesno",
+      "required": false,
+      "section": "ibs_d"
+    },
+    {
+      "key": "completed_courses",
+      "text": "Has the patient already received an initial 14-day course AND two additional 14-day courses of treatment with the requested drug?",
+      "type": "yesno",
+      "required": false,
+      "section": "ibs_d"
+    }
+  ],
+  "tags": [
+    "commercial",
+    "gi",
+    "ibs-d",
+    "hepatic-encephalopathy",
+    "xifaxan",
+    "rifaximin"
+  ],
+  "pages": 2,
+  "is_public": true,
+  "created_at": "2026-05-09T00:00:00+00:00",
+  "updated_at": "2026-05-09T00:00:00+00:00"
+}

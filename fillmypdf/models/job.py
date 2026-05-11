@@ -1,0 +1,115 @@
+"""
+Async Job Models
+=================
+Represents a long-running PDF batch fill job that runs in the background.
+
+States:
+  queued   → submitted, not yet picked up by a worker
+  running  → actively processing records
+  done     → all records processed (some may have failed)
+  failed   → job-level error before any records were processed
+  cancelled→ cancelled by the caller
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Literal, Optional
+
+from pydantic import BaseModel, Field
+
+
+JobStatus = Literal["queued", "running", "done", "failed", "cancelled"]
+
+JobKindFilter = Literal["batch_fill", "batch_fill_xlsx", "template_fill", "extract_pdf"]
+
+
+class JobProgress(BaseModel):
+    total: int = 0
+    completed: int = 0
+    successful: int = 0
+    failed: int = 0
+
+    @property
+    def pct(self) -> float:
+        if not self.total:
+            return 0.0
+        return round(self.completed / self.total * 100, 1)
+
+
+class Job(BaseModel):
+    """Full job record — persisted to disk as {job_id}.json."""
+    id: str
+    status: JobStatus = "queued"
+    kind: JobKindFilter = "batch_fill"
+
+    # Who submitted it
+    api_key_id: Optional[str] = None
+
+    # What to process
+    template_id: Optional[str] = None   # set when kind == "template_fill"
+    record_count: int = 0
+
+    # Progress
+    progress: JobProgress = Field(default_factory=JobProgress)
+
+    # Timing
+    created_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
+    # Result
+    download_url: Optional[str] = None
+    avg_confidence: Optional[float] = None
+    cache_hits: int = 0
+
+    # Error (job-level, not per-record)
+    error: Optional[str] = None
+
+    # Webhook
+    webhook_url: Optional[str] = None
+    webhook_delivered: bool = False
+    webhook_error: Optional[str] = None
+
+    # Opaque payload used by the runner to (re-)start the job.
+    # Stored separately in {job_id}_payload.json to keep the main record small.
+    # This field is never returned to callers.
+    _has_payload: bool = False
+
+    custom: Dict[str, Any] = Field(default_factory=dict)
+
+
+class JobSummary(BaseModel):
+    """Lightweight view returned by GET /jobs and GET /jobs/{id}."""
+    id: str
+    status: JobStatus
+    kind: str
+    template_id: Optional[str] = None
+    record_count: int
+    progress_pct: float
+    completed: int
+    successful: int
+    failed: int
+    created_at: str
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    download_url: Optional[str] = None
+    avg_confidence: Optional[float] = None
+    cache_hits: int = 0
+    error: Optional[str] = None
+    webhook_url: Optional[str] = None
+    webhook_delivered: bool = False
+
+
+class JobListResponse(BaseModel):
+    jobs: List[JobSummary]
+    total: int
+
+
+class JobSubmitResponse(BaseModel):
+    job_id: str
+    status: JobStatus
+    message: str
+    status_url: str
