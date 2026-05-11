@@ -20,6 +20,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -515,7 +516,11 @@ class JobRunner:
 
     @staticmethod
     def _fire_webhook(job_id: str, repo: JobRepository) -> None:
-        """POST a JSON snapshot to webhook_url — fields align with GET /jobs/{id}."""
+        """POST a JSON snapshot to webhook_url — fields align with GET /jobs/{id}.
+
+        Uses ``WEBHOOK_MAX_ATTEMPTS`` and exponential ``WEBHOOK_RETRY_BASE_DELAY_SEC``
+        backoff on network/HTTP errors (``URLError`` / ``HTTPError``, ``OSError``).
+        """
         job = repo.get(job_id)
         if job is None or not job.webhook_url:
             return
@@ -565,17 +570,29 @@ class JobRunner:
             headers=headers,
             method="POST",
         )
-        try:
-            with urlopen(req, timeout=10):
-                pass
-            repo.update_status(job_id, status=job.status, webhook_delivered=True)
-        except (URLError, OSError) as exc:
-            repo.update_status(
-                job_id,
-                status=job.status,
-                webhook_delivered=False,
-                webhook_error=str(exc),
-            )
+        attempts = max(1, int(getattr(settings, "WEBHOOK_MAX_ATTEMPTS", 4)))
+        base_delay = float(getattr(settings, "WEBHOOK_RETRY_BASE_DELAY_SEC", 1.0))
+        last_exc: Optional[BaseException] = None
+
+        for attempt in range(attempts):
+            try:
+                with urlopen(req, timeout=10):
+                    pass
+                repo.update_status(job_id, status=job.status, webhook_delivered=True)
+                return
+            except (URLError, OSError) as exc:
+                last_exc = exc
+                if attempt + 1 >= attempts:
+                    break
+                delay = base_delay * (2**attempt)
+                time.sleep(delay)
+
+        repo.update_status(
+            job_id,
+            status=job.status,
+            webhook_delivered=False,
+            webhook_error=str(last_exc) if last_exc else "webhook delivery failed",
+        )
 
     # ------------------------------------------------------------------
     # Lifecycle

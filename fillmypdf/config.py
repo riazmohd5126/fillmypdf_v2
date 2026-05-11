@@ -66,6 +66,10 @@ class Settings(BaseSettings):
     # Outbound webhook HMAC — when set, completion POSTs add X-FillMyPDF-Signature
     # unless the submitter passes an empty webhook_secret and no per-job secret.
     WEBHOOK_SIGNING_SECRET: Optional[str] = None
+    # Completion webhook delivery: total HTTP attempts (≥1) with exponential backoff.
+    WEBHOOK_MAX_ATTEMPTS: int = 4
+    WEBHOOK_RETRY_BASE_DELAY_SEC: float = 1.0
+
     # Confidence threshold — fields mapped below this score are skipped.
     # 0.0 = write everything the AI returns (old behaviour).
     # 0.5 = skip guesses, keep plausible/certain matches.
