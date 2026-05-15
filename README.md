@@ -16,11 +16,14 @@ Version 4.0.0 - Production Ready
 - ✅ **AI Vision Auto-Fill** - Gemini reads form labels, maps data by position
 - ✅ **PDF Conversion** - Static PDF → Fillable PDF
 - ✅ **Clean OOP Architecture** - Scalable, maintainable codebase
+- ✅ **API keys + rate limits** (`X-API-Key`), async jobs, template library, bulk extract/webhooks ([feature matrix](./docs/FEATURE_MATRIX_ROUTE.md))
 
 ### **Coming Soon** 🔜
-- 🔜 **API Authentication** - API keys & rate limiting (Day 2)
-- 🔜 **Form Templates** - Pre-configured W-4, 1099, I-9 templates
-- 🔜 **E-Signatures** - Integrated signing workflow
+- 🔜 **User dashboard product UI** — history, billing, onboarding (outside this FastAPI package)
+- 🔜 **E-Signatures / multi-sign** — roadmap Phase 3 (see [`docs/feature-matrix.json`](./docs/feature-matrix.json))
+- 🔜 **Official Zapier app** — today: completion webhooks + REST (Catch Hook compatible)
+
+Canonical roadmap: **`docs/FEATURE_MATRIX_ROUTE.md`** · React matrix viewer · **`docs/FeatureMatrix.jsx`** + **`docs/feature-matrix.json`**
 
 ---
 

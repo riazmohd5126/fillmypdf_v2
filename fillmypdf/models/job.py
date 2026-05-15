@@ -16,7 +16,28 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+_JOB_SUMMARY_SCHEMA_EXAMPLE = {
+    "id": "job_a1b2c3d4e5f6",
+    "status": "done",
+    "kind": "batch_fill",
+    "template_id": None,
+    "record_count": 2,
+    "progress_pct": 100.0,
+    "completed": 2,
+    "successful": 2,
+    "failed": 0,
+    "created_at": "2026-05-09T12:00:00+00:00",
+    "started_at": "2026-05-09T12:00:01+00:00",
+    "completed_at": "2026-05-09T12:03:45+00:00",
+    "download_url": "/api/v1/batch/download/job_a1b2c3d4e5f6.zip",
+    "avg_confidence": 0.94,
+    "cache_hits": 1,
+    "error": None,
+    "webhook_url": "https://hooks.example.invalid/fillmypdf",
+    "webhook_delivered": True,
+}
 
 
 JobStatus = Literal["queued", "running", "done", "failed", "cancelled"]
@@ -83,6 +104,11 @@ class Job(BaseModel):
 
 class JobSummary(BaseModel):
     """Lightweight view returned by GET /jobs and GET /jobs/{id}."""
+
+    model_config = ConfigDict(
+        json_schema_extra={"example": _JOB_SUMMARY_SCHEMA_EXAMPLE}
+    )
+
     id: str
     status: JobStatus
     kind: str
@@ -107,6 +133,15 @@ class JobListResponse(BaseModel):
     jobs: List[JobSummary]
     total: int
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "jobs": [_JOB_SUMMARY_SCHEMA_EXAMPLE],
+                "total": 1,
+            }
+        }
+    )
+
 
 class JobSubmitResponse(BaseModel):
     job_id: str
@@ -114,7 +149,27 @@ class JobSubmitResponse(BaseModel):
     message: str
     status_url: str
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "job_id": "job_a1b2c3d4e5f6",
+                "status": "queued",
+                "message": "Job queued — 2 records",
+                "status_url": "/api/v1/jobs/job_a1b2c3d4e5f6",
+            }
+        }
+    )
+
 
 class WebhookRedeliveryResponse(BaseModel):
     job_id: str
     message: str
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "job_id": "job_a1b2c3d4e5f6",
+                "message": "Completion webhook queued (delivered asynchronously).",
+            }
+        }
+    )

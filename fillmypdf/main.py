@@ -53,6 +53,8 @@ except ImportError as e:
     HAS_EXTRACT = False
     print(f"⚠️  Extract routes not available: {e}")
 
+# Visual e-sign (uses batch download for the signed PDF)
+HAS_SIGNING = False
 
 # ---------------------------------------------------------------------------
 # Persistent usage stats (survives restarts via JSON file)
@@ -130,6 +132,7 @@ async def lifespan(app: FastAPI):
     print(f"🔐 Encryption:     {'Enabled' if settings.PROFILES_ENCRYPTION_ENABLED else 'Disabled'}")
     print(f"📊 Profile limits: {settings.PROFILE_LIMITS}")
     print(f"📦 Batch:          {'Enabled' if HAS_BATCH else 'Disabled'}")
+    print(f"✍️  E-sign overlay: {'Enabled' if HAS_SIGNING else 'Disabled'}")
     print(f"🔑 Auth:           Enabled (X-API-Key required)")
     print(f"⏱️  Rate limits:    {settings.RATE_LIMITS}")
     print(f"🌐 CORS origins:   {settings.CORS_ORIGINS}")
@@ -155,12 +158,48 @@ async def lifespan(app: FastAPI):
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
+_OPENAPI_TAGS = [
+    {
+        "name": "profiles",
+        "description": "Encrypted profiles and merge-ready field bags for batches.",
+    },
+    {
+        "name": "batch",
+        "description": "Synchronous fills: JSON, CSV, Excel — returns when processing finishes.",
+    },
+    {
+        "name": "templates",
+        "description": "Stored library PDFs and single-/multi-record fills keyed by ``template_id``.",
+    },
+    {
+        "name": "jobs",
+        "description": (
+            "Async queue: submitted work returns ``202``; poll ``GET /jobs/{job_id}`` or use webhooks "
+            "(HMAC optional, retries + manual replay)."
+        ),
+    },
+    {"name": "extract", "description": "AcroForm field dumps to JSON or CSV."},
+    {
+        "name": "signing",
+        "description": "Visual signature overlay (PNG stamp — not certificate-based PAdES).",
+    },
+    {
+        "name": "api-keys",
+        "description": "Administrative API-key lifecycle for ``X-API-Key`` auth.",
+    },
+    {"name": "system", "description": "Health and usage probes (typically unauthenticated where noted)."},
+]
+
 app = FastAPI(
     title=settings.APP_NAME,
-    description="AI-Powered PDF Auto-Fill with Batch Processing & User Profiles",
+    description=(
+        "AI-assisted PDF filling: synchronous batch/template routes plus optional **async jobs** "
+        "(``POST /api/v1/jobs/...``) with progress polling and completion webhooks."
+    ),
     version=settings.APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
+    openapi_tags=_OPENAPI_TAGS,
     lifespan=lifespan,
 )
 
@@ -216,7 +255,10 @@ async def root():
             "async_extract_jobs": HAS_JOBS,
             "jobs_list_filters": HAS_JOBS,
             "smart_extraction": HAS_EXTRACT,
+            "esign_visual": HAS_SIGNING,
             "authentication": True,
+            "openapi_tagged_sections": True,
+            "openapi_schema_examples": True,
             "rate_limiting": True,
         },
     }
@@ -247,6 +289,13 @@ app.include_router(profiles.router, prefix="/api/v1")
 
 if HAS_BATCH:
     app.include_router(batch_routes.router, prefix="/api/v1")
+    try:
+        from .api.routes import signing_routes
+
+        app.include_router(signing_routes.router, prefix="/api/v1")
+        HAS_SIGNING = True
+    except ImportError as e:
+        print(f"⚠️  Signing routes not available: {e}")
 
 if HAS_TEMPLATES:
     app.include_router(template_routes.router, prefix="/api/v1")

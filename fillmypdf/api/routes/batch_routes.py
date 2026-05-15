@@ -19,6 +19,13 @@ from ...services.template_cache import TemplateCache
 from ...config import settings
 from ..dependencies.auth import require_api_key, require_admin
 from ...models import FormTemplateInspectionResponse
+from ..openapi_form_examples import (
+    EX_AI_API_KEY,
+    EX_AI_BASE_URL,
+    EX_AI_MODEL,
+    EX_JSON_RECORDS_TWO,
+    EX_PROFILE_ID,
+)
 
 
 router = APIRouter(
@@ -88,15 +95,38 @@ async def inspect_template_fields(
 @router.post("/fill-json")
 async def batch_fill_json(
     file: UploadFile = File(..., description="PDF template to fill"),
-    user_data_array: str = Form(..., description="JSON array of data objects"),
-    ai_api_key: str = Form(..., description="AI provider API key"),
-    ai_base_url: str = Form(
-        default="https://generativelanguage.googleapis.com/v1beta/openai/",
-        description="AI API base URL"
+    user_data_array: str = Form(
+        ...,
+        description="JSON array of data objects",
+        examples=[EX_JSON_RECORDS_TWO],
     ),
-    ai_model: str = Form(default="gemini-2.5-flash", description="AI model name"),
-    dpi: int = Form(default=200, ge=150, le=300, description="Image DPI"),
-    profile_id: Optional[str] = Form(None, description="Optional saved profile ID"),
+    ai_api_key: str = Form(
+        ...,
+        description="AI provider API key",
+        examples=[EX_AI_API_KEY],
+    ),
+    ai_base_url: str = Form(
+        default=EX_AI_BASE_URL,
+        description="AI API base URL",
+        examples=[EX_AI_BASE_URL],
+    ),
+    ai_model: str = Form(
+        default="gemini-2.5-flash",
+        description="AI model name",
+        examples=[EX_AI_MODEL],
+    ),
+    dpi: int = Form(
+        default=200,
+        ge=150,
+        le=300,
+        description="Image DPI",
+        examples=[200],
+    ),
+    profile_id: Optional[str] = Form(
+        None,
+        description="Optional saved profile ID",
+        examples=[EX_PROFILE_ID],
+    ),
     background_tasks: BackgroundTasks = None,
 ):
     """
@@ -182,14 +212,33 @@ async def batch_fill_json(
 async def batch_fill_csv(
     pdf_template: UploadFile = File(..., description="PDF template to fill"),
     csv_file: UploadFile = File(..., description="CSV file with data"),
-    ai_api_key: str = Form(..., description="AI provider API key"),
-    ai_base_url: str = Form(
-        default="https://generativelanguage.googleapis.com/v1beta/openai/",
-        description="AI API base URL"
+    ai_api_key: str = Form(
+        ...,
+        description="AI provider API key",
+        examples=[EX_AI_API_KEY],
     ),
-    ai_model: str = Form(default="gemini-2.5-flash", description="AI model name"),
-    dpi: int = Form(default=200, ge=150, le=300, description="Image DPI"),
-    profile_id: Optional[str] = Form(None, description="Optional saved profile ID"),
+    ai_base_url: str = Form(
+        default=EX_AI_BASE_URL,
+        description="AI API base URL",
+        examples=[EX_AI_BASE_URL],
+    ),
+    ai_model: str = Form(
+        default="gemini-2.5-flash",
+        description="AI model name",
+        examples=[EX_AI_MODEL],
+    ),
+    dpi: int = Form(
+        default=200,
+        ge=150,
+        le=300,
+        description="Image DPI",
+        examples=[200],
+    ),
+    profile_id: Optional[str] = Form(
+        None,
+        description="Optional saved profile ID",
+        examples=[EX_PROFILE_ID],
+    ),
     background_tasks: BackgroundTasks = None,
 ):
     """
@@ -279,14 +328,33 @@ async def batch_fill_csv(
 async def batch_fill_xlsx(
     pdf_template: UploadFile = File(..., description="PDF template to fill"),
     xlsx_file: UploadFile = File(..., description=".xlsx with header row"),
-    ai_api_key: str = Form(..., description="AI provider API key"),
-    ai_base_url: str = Form(
-        default="https://generativelanguage.googleapis.com/v1beta/openai/",
-        description="AI API base URL",
+    ai_api_key: str = Form(
+        ...,
+        description="AI provider API key",
+        examples=[EX_AI_API_KEY],
     ),
-    ai_model: str = Form(default="gemini-2.5-flash", description="AI model name"),
-    dpi: int = Form(default=200, ge=150, le=300, description="Image DPI"),
-    profile_id: Optional[str] = Form(None, description="Optional saved profile ID"),
+    ai_base_url: str = Form(
+        default=EX_AI_BASE_URL,
+        description="AI API base URL",
+        examples=[EX_AI_BASE_URL],
+    ),
+    ai_model: str = Form(
+        default="gemini-2.5-flash",
+        description="AI model name",
+        examples=[EX_AI_MODEL],
+    ),
+    dpi: int = Form(
+        default=200,
+        ge=150,
+        le=300,
+        description="Image DPI",
+        examples=[200],
+    ),
+    profile_id: Optional[str] = Form(
+        None,
+        description="Optional saved profile ID",
+        examples=[EX_PROFILE_ID],
+    ),
     background_tasks: BackgroundTasks = None,
 ):
     """
@@ -363,12 +431,13 @@ async def download_batch_result(filename: str):
     suffix = file_path.suffix.lower()
     media = {
         ".zip": "application/zip",
+        ".pdf": "application/pdf",
         ".json": "application/json",
         ".csv": "text/csv; charset=utf-8",
     }.get(suffix)
     if not media:
         raise HTTPException(
-            400, "Unsupported file type — expecting .zip, .json, or .csv",
+            400, "Unsupported file type — expecting .zip, .pdf, .json, or .csv",
         )
 
     return FileResponse(

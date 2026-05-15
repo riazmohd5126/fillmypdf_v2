@@ -51,11 +51,13 @@ async def extract_pdf_fields(
     include_labels: bool = Query(
         default=True,
         description="Merge pdfplumber-inferred labels per field (no AI cost)",
+        examples=[True, False],
     ),
     fmt: Literal["json", "csv"] = Query(
         default="json",
         alias="format",
         description="Structured JSON response or downloadable CSV",
+        examples=["json", "csv"],
     ),
 ):
     """

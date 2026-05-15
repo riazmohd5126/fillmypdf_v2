@@ -52,6 +52,16 @@ from ...models.job import (
 from ...repositories.job_repository import JobRepository
 from ...services.job_runner import get_runner
 from ..dependencies.auth import require_api_key, get_current_key_id
+from ..openapi_form_examples import (
+    EX_AI_API_KEY,
+    EX_AI_BASE_URL,
+    EX_AI_MODEL,
+    EX_JSON_RECORDS_TWO,
+    EX_PROFILE_ID,
+    EX_TEMPLATE_ID,
+    EX_WEBHOOK_SECRET,
+    EX_WEBHOOK_URL,
+)
 
 router = APIRouter(
     prefix="/jobs",
@@ -78,21 +88,31 @@ def _repo() -> JobRepository:
 async def submit_batch_job(
     request: Request,
     file: UploadFile = File(..., description="PDF template"),
-    records: str = Form(..., description="JSON array of patient records"),
-    ai_api_key: str = Form(...),
-    ai_base_url: str = Form(
-        default="https://generativelanguage.googleapis.com/v1beta/openai/"
+    records: str = Form(
+        ...,
+        description="JSON array of patient records",
+        examples=[EX_JSON_RECORDS_TWO],
     ),
-    ai_model: str = Form(default="gemini-2.5-flash"),
-    dpi: int = Form(default=200, ge=150, le=300),
-    profile_id: Optional[str] = Form(None),
+    ai_api_key: str = Form(..., examples=[EX_AI_API_KEY]),
+    ai_base_url: str = Form(
+        default=EX_AI_BASE_URL,
+        examples=[EX_AI_BASE_URL],
+    ),
+    ai_model: str = Form(
+        default="gemini-2.5-flash",
+        examples=[EX_AI_MODEL],
+    ),
+    dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
+    profile_id: Optional[str] = Form(None, examples=[EX_PROFILE_ID]),
     webhook_url: Optional[str] = Form(
         None,
         description="URL to POST a completion event to (optional)",
+        examples=[EX_WEBHOOK_URL],
     ),
     webhook_secret: Optional[str] = Form(
         None,
         description="Secret for X-FillMyPDF-Signature (overrides WEBHOOK_SIGNING_SECRET)",
+        examples=[EX_WEBHOOK_SECRET],
     ),
 ):
     """
@@ -156,19 +176,32 @@ async def submit_batch_job(
 )
 async def submit_template_batch_job(
     request: Request,
-    template_id: str = Form(..., description="Template ID from the library"),
-    records: str = Form(..., description="JSON array of patient records"),
-    ai_api_key: str = Form(...),
-    ai_base_url: str = Form(
-        default="https://generativelanguage.googleapis.com/v1beta/openai/"
+    template_id: str = Form(
+        ...,
+        description="Template ID from the library",
+        examples=[EX_TEMPLATE_ID],
     ),
-    ai_model: str = Form(default="gemini-2.5-flash"),
-    dpi: int = Form(default=200, ge=150, le=300),
-    profile_id: Optional[str] = Form(None),
-    webhook_url: Optional[str] = Form(None),
+    records: str = Form(
+        ...,
+        description="JSON array of patient records",
+        examples=[EX_JSON_RECORDS_TWO],
+    ),
+    ai_api_key: str = Form(..., examples=[EX_AI_API_KEY]),
+    ai_base_url: str = Form(
+        default=EX_AI_BASE_URL,
+        examples=[EX_AI_BASE_URL],
+    ),
+    ai_model: str = Form(
+        default="gemini-2.5-flash",
+        examples=[EX_AI_MODEL],
+    ),
+    dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
+    profile_id: Optional[str] = Form(None, examples=[EX_PROFILE_ID]),
+    webhook_url: Optional[str] = Form(None, examples=[EX_WEBHOOK_URL]),
     webhook_secret: Optional[str] = Form(
         None,
         description="Webhook HMAC secret (overrides WEBHOOK_SIGNING_SECRET)",
+        examples=[EX_WEBHOOK_SECRET],
     ),
 ):
     """
@@ -224,17 +257,22 @@ async def submit_xlsx_job(
     request: Request,
     file: UploadFile = File(..., description="PDF template"),
     xlsx_file: UploadFile = File(..., description="Excel .xlsx (header row + data)"),
-    ai_api_key: str = Form(...),
+    ai_api_key: str = Form(..., examples=[EX_AI_API_KEY]),
     ai_base_url: str = Form(
-        default="https://generativelanguage.googleapis.com/v1beta/openai/"
+        default=EX_AI_BASE_URL,
+        examples=[EX_AI_BASE_URL],
     ),
-    ai_model: str = Form(default="gemini-2.5-flash"),
-    dpi: int = Form(default=200, ge=150, le=300),
-    profile_id: Optional[str] = Form(None),
-    webhook_url: Optional[str] = Form(None),
+    ai_model: str = Form(
+        default="gemini-2.5-flash",
+        examples=[EX_AI_MODEL],
+    ),
+    dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
+    profile_id: Optional[str] = Form(None, examples=[EX_PROFILE_ID]),
+    webhook_url: Optional[str] = Form(None, examples=[EX_WEBHOOK_URL]),
     webhook_secret: Optional[str] = Form(
         None,
         description="Webhook HMAC secret (overrides WEBHOOK_SIGNING_SECRET)",
+        examples=[EX_WEBHOOK_SECRET],
     ),
 ):
     """Queue a spreadsheet batch job and return immediately with a ``job_id``."""
@@ -289,18 +327,22 @@ async def submit_extract_job(
     include_labels: bool = Form(
         True,
         description="pdfplumber-inferred labels merged per field when true",
+        examples=[True],
     ),
     output_format: Literal["json", "csv"] = Form(
         "json",
         description="Downloadable artifact type when status is done",
+        examples=["json"],
     ),
     webhook_url: Optional[str] = Form(
         None,
         description="URL to POST completion event to",
+        examples=[EX_WEBHOOK_URL],
     ),
     webhook_secret: Optional[str] = Form(
         None,
         description="Webhook HMAC secret (overrides WEBHOOK_SIGNING_SECRET)",
+        examples=[EX_WEBHOOK_SECRET],
     ),
 ):
     """

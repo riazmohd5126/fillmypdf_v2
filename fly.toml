@@ -1,5 +1,11 @@
-# Fly.io — run: fly launch (set app name) then fly deploy
-# https://fly.io/docs/reference/configuration/
+# Fly.io (https://fly.io/docs/reference/configuration/)
+#
+# Typical flow:
+#   fly launch          # creates app / aligns fly.toml — set app name
+#   fly deploy          # first deploy may create volume if initial_size is set
+#
+# Persistence: profiles, uploads, outputs, jobs, usage_stats live under
+# fillmypdf/storage → mount must match Dockerfile layout (/app/fillmypdf/storage).
 
 app = "fillmypdf-api"
 primary_region = "iad"
@@ -14,7 +20,23 @@ primary_region = "iad"
   min_machines_running = 1
   processes = ["app"]
 
+  # Long-running multipart PDF / batch uploads via Fly Proxy
+  [http_service.http_options]
+    idle_timeout = 600
+
+[[http_service.checks]]
+  grace_period = "15s"
+  interval = "30s"
+  method = "GET"
+  timeout = "5s"
+  path = "/health"
+
 [[vm]]
   memory = "1gb"
   cpu_kind = "shared"
   cpus = 1
+
+[mounts]
+  source = "fillmypdf_storage"
+  destination = "/app/fillmypdf/storage"
+  initial_size = "3gb"

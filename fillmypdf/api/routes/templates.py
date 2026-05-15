@@ -49,6 +49,15 @@ from ...models.template import (
 )
 from ...services.template_service import TemplateService
 from ..dependencies.auth import require_api_key, require_admin
+from ..openapi_form_examples import (
+    EX_AI_API_KEY,
+    EX_AI_BASE_URL,
+    EX_AI_MODEL,
+    EX_JSON_RECORDS_TWO,
+    EX_MANIFEST_JSON_MIN,
+    EX_PROFILE_ID,
+    EX_USER_DATA_SINGLE,
+)
 
 router = APIRouter(
     prefix="/templates",
@@ -71,12 +80,36 @@ def _get_service() -> TemplateService:
 
 @router.get("", response_model=TemplateListResponse, summary="List form templates")
 async def list_templates(
-    category: Optional[str] = Query(None, description="e.g. prior_authorization"),
-    drug: Optional[str] = Query(None, description="Drug name substring, e.g. linzess"),
-    payer: Optional[str] = Query(None, description="Payer name substring, e.g. molina"),
-    state: Optional[str] = Query(None, description="2-letter state, e.g. TX"),
-    specialty: Optional[str] = Query(None, description="e.g. gi_motility"),
-    tag: Optional[str] = Query(None, description="Tag match, e.g. medicaid"),
+    category: Optional[str] = Query(
+        None,
+        description="e.g. prior_authorization",
+        examples=["prior_authorization"],
+    ),
+    drug: Optional[str] = Query(
+        None,
+        description="Drug name substring, e.g. linzess",
+        examples=["linzess"],
+    ),
+    payer: Optional[str] = Query(
+        None,
+        description="Payer name substring, e.g. molina",
+        examples=["molina"],
+    ),
+    state: Optional[str] = Query(
+        None,
+        description="2-letter state, e.g. TX",
+        examples=["TX"],
+    ),
+    specialty: Optional[str] = Query(
+        None,
+        description="e.g. gi_motility",
+        examples=["gi_motility"],
+    ),
+    tag: Optional[str] = Query(
+        None,
+        description="Tag match, e.g. medicaid",
+        examples=["medicaid"],
+    ),
 ):
     """
     Browse the template library.  All filters are optional and can be combined.
@@ -186,17 +219,28 @@ async def get_template_pdf(template_id: str):
 async def fill_template(
     template_id: str,
     background_tasks: BackgroundTasks,
-    ai_api_key: str = Form(..., description="AI provider API key"),
+    ai_api_key: str = Form(..., description="AI provider API key", examples=[EX_AI_API_KEY]),
     ai_base_url: str = Form(
-        default="https://generativelanguage.googleapis.com/v1beta/openai/",
+        default=EX_AI_BASE_URL,
         description="AI API base URL",
+        examples=[EX_AI_BASE_URL],
     ),
-    ai_model: str = Form(default="gemini-2.5-flash", description="AI model"),
+    ai_model: str = Form(
+        default="gemini-2.5-flash",
+        description="AI model",
+        examples=[EX_AI_MODEL],
+    ),
     user_data: str = Form(
-        ..., description="JSON object with patient / prescriber / drug data"
+        ...,
+        description="JSON object with patient / prescriber / drug data",
+        examples=[EX_USER_DATA_SINGLE],
     ),
-    profile_id: Optional[str] = Form(None, description="Saved profile ID to merge"),
-    dpi: int = Form(default=200, ge=150, le=300),
+    profile_id: Optional[str] = Form(
+        None,
+        description="Saved profile ID to merge",
+        examples=[EX_PROFILE_ID],
+    ),
+    dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
 ):
     """
     Fill a stored PA template with one patient record.
@@ -247,14 +291,22 @@ async def fill_template(
 async def batch_fill_template(
     template_id: str,
     background_tasks: BackgroundTasks,
-    ai_api_key: str = Form(...),
+    ai_api_key: str = Form(..., examples=[EX_AI_API_KEY]),
     ai_base_url: str = Form(
-        default="https://generativelanguage.googleapis.com/v1beta/openai/"
+        default=EX_AI_BASE_URL,
+        examples=[EX_AI_BASE_URL],
     ),
-    ai_model: str = Form(default="gemini-2.5-flash"),
-    records: str = Form(..., description="JSON array of patient records"),
-    profile_id: Optional[str] = Form(None),
-    dpi: int = Form(default=200, ge=150, le=300),
+    ai_model: str = Form(
+        default="gemini-2.5-flash",
+        examples=[EX_AI_MODEL],
+    ),
+    records: str = Form(
+        ...,
+        description="JSON array of patient records",
+        examples=[EX_JSON_RECORDS_TWO],
+    ),
+    profile_id: Optional[str] = Form(None, examples=[EX_PROFILE_ID]),
+    dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
 ):
     """
     Fill a stored PA template for many patients at once and return a ZIP.
@@ -334,7 +386,11 @@ async def download_filled(filename: str):
 )
 async def upload_template(
     file: UploadFile = File(..., description="Static or fillable PDF"),
-    manifest_json: str = Form(..., description="TemplateManifest fields as JSON"),
+    manifest_json: str = Form(
+        ...,
+        description="TemplateManifest fields as JSON",
+        examples=[EX_MANIFEST_JSON_MIN],
+    ),
 ):
     """
     Add a new template to the library.  Requires an **admin** API key.
@@ -380,7 +436,10 @@ async def upload_template(
     summary="Update template manifest (admin)",
     dependencies=[Depends(require_admin)],
 )
-async def update_template(template_id: str, manifest_json: str = Form(...)):
+async def update_template(
+    template_id: str,
+    manifest_json: str = Form(..., examples=[EX_MANIFEST_JSON_MIN]),
+):
     """Update the metadata of an existing template without replacing the PDF."""
     try:
         raw = json.loads(manifest_json)

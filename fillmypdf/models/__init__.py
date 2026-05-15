@@ -4,7 +4,7 @@ FillMyPDF Models
 Pydantic models for data validation
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional, Dict, Any, Literal, List
 from datetime import datetime
 import re
@@ -19,6 +19,17 @@ Tier = Literal["free", "pro", "business", "admin"]
 
 class APIKeyCreate(BaseModel):
     """Request body for creating a new API key"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "CI — production fills",
+                "tier": "pro",
+                "owner": "integrations@company.example",
+            }
+        }
+    )
+
     name: str = Field(..., min_length=1, max_length=100,
                       description="Human-friendly name (e.g. 'Production server')")
     tier: Tier = Field(default="free",
@@ -49,6 +60,24 @@ class APIKey(BaseModel):
 
 class APIKeyCreateResponse(APIKey):
     """One-time response that includes the plaintext key (shown only at creation)"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "id": "key_demo01",
+                "name": "CI — production fills",
+                "tier": "pro",
+                "owner": "integrations@company.example",
+                "prefix": "fmp_demo01",
+                "created_at": "2026-05-09T14:22:33",
+                "last_used_at": None,
+                "request_count": 0,
+                "revoked": False,
+                "key": "fmp_live_REDACTED_SAVE_ONCE",
+            }
+        }
+    )
+
     key: str = Field(..., description="The plaintext API key. SAVE IT NOW — it will never be shown again.")
 
 
@@ -58,6 +87,17 @@ class APIKeyCreateResponse(APIKey):
 
 class ProfileCreate(BaseModel):
     """Create new profile"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "Metro Cardiology Clinic",
+                "profile_type": "business",
+                "data": {"npi": "1234567890", "tax_id_last4": "9012", "phone": "(555) 010-9876"},
+            }
+        }
+    )
+
     name: str = Field(..., min_length=1, max_length=100)
     profile_type: Literal["personal", "business", "spouse", "dependent", "custom"] = "personal"
     data: Dict[str, str] = Field(default_factory=dict)
@@ -79,6 +119,22 @@ class ProfileUpdate(BaseModel):
 
 class Profile(BaseModel):
     """Profile response model"""
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "prof_demo01",
+                "name": "Metro Cardiology Clinic",
+                "profile_type": "business",
+                "created_at": "2026-05-01T10:00:00",
+                "updated_at": "2026-05-09T11:45:22",
+                "usage_count": 14,
+                "data_preview": {"npi": "1234567890", "tax_id_last4": "9012"},
+            }
+        },
+    )
+
     id: str
     name: str
     profile_type: str
@@ -86,9 +142,6 @@ class Profile(BaseModel):
     updated_at: datetime
     usage_count: int = 0
     data_preview: Dict[str, str] = Field(default_factory=dict)
-    
-    class Config:
-        from_attributes = True
 
 
 # ============================================================================
@@ -97,12 +150,29 @@ class Profile(BaseModel):
 
 class HealthResponse(BaseModel):
     """Health check response"""
+
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"status": "healthy", "version": "4.0.0"}}
+    )
+
     status: str
     version: str
 
 
 class UsageStats(BaseModel):
     """Usage statistics"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "total_requests": 12840,
+                "requests_today": 312,
+                "profiles_created": 42,
+                "last_reset": "2026-05-09T00:05:01",
+            }
+        }
+    )
+
     total_requests: int
     requests_today: int
     profiles_created: int
@@ -130,6 +200,23 @@ class BatchResult(BaseModel):
 
 class BatchResponse(BaseModel):
     """Batch processing response"""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "success": True,
+                "batch_id": "batch_a1b2c3",
+                "total_records": 120,
+                "successful": 118,
+                "failed": 2,
+                "success_rate": 98.333,
+                "download_url": "/api/v1/batch/download/batch_a1b2c3_results.zip",
+                "profile_used": "prof_demo01",
+                "message": "Batch completed with 118 successful fills",
+            }
+        }
+    )
+
     success: bool
     batch_id: str
     total_records: int
@@ -185,3 +272,25 @@ class FormTemplateInspectionResponse(BaseModel):
     fields_detected: int
     fields: List[FormFieldInspectionItem] = Field(default_factory=list)
     message: Optional[str] = None
+
+
+class SignatureApplyResponse(BaseModel):
+    """Visual signature overlay applied (PNG stamp — not cryptographic PAdES)."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "success": True,
+                "filename": "signed_a1b2c3d4.pdf",
+                "download_url": "/api/v1/batch/download/signed_a1b2c3d4.pdf",
+                "page_index": 0,
+                "message": "Signature overlay applied.",
+            }
+        }
+    )
+
+    success: bool = True
+    filename: str
+    download_url: str
+    page_index: int
+    message: str = "Signature overlay applied."
