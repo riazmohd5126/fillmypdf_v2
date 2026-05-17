@@ -13,7 +13,7 @@ The **intent** remains from your product notes: PDF-driven UX, reusable profiles
 |----------------|-------|--------------------|
 | **0** | Core vision | Done: static→fillable path, Gemini vision mapping, batch/templates |
 | **1** | Foundation | Done on API side: REST surface under `/api/v1/*`, encrypted profiles, template library manifests, `/usage`; **dashboard** stays product/UI—not this FastAPI tree |
-| **2** | Automation | Done: CSV/JSON/XLSX bulk (sync), async **`/jobs`**, extract jobs, outbound **webhooks** + HMAC + retries + manual webhook replay; **Zapier** = partial (Catch Hook/workflow—not published app); Chrome extension tracked as **parallel Cowork lane** |
+| **2** | Automation | Done: CSV/JSON/XLSX bulk (sync), async **`/jobs`**, extract jobs, outbound **webhooks** + HMAC + retries + manual webhook replay; **integrations** = API-first (same REST/OpenAPI powers autofill for custom code, Zapier/Make, etc.); published Zapier **app** remains optional UX; Chrome extension tracked as **parallel Cowork lane** |
 
 Phases **3–5** (signing bundle, CRM, enterprise SSO, etc.) largely **unchanged roadmap** versus matrix—most are not implemented here yet.
 
@@ -27,7 +27,7 @@ Interpretation keyed to **`docs/feature-matrix.json`** `status`/`recommendation`
 - ***public-api:** paths differ from matrix stub (`POST /api/convert` …); conceptual box is ✅.
 - ****form-templates:** matrix imagined tax catalogs; shipped focus is pharma PA manifests—grow categories intentionally.
 - ***smart-extraction:** shipped = AcroForm/structured extract; richer “Vision read any scan” is still backlog if you distinguish it later.
-- **BUILD / ACTIVE:** `dashboard` (web app), Phase 3 **signing** cluster, **`zapier` + `browser-extension`** (external tracks), OpenAPI parity across non-job routes  
+- **BUILD / ACTIVE:** `dashboard` (web app), Phase 3 **signing** cluster, **`zapier`** row = no-code consumers of the **autofill API** + webhooks (`browser-extension` external), OpenAPI parity across non-job routes  
 - **LATER:** workflow rule engine, SSO/teams/HIPAA, CRM/Drive/etc.
 - **SKIP:** unchanged from matrix rationale
 
@@ -37,7 +37,7 @@ Interpretation keyed to **`docs/feature-matrix.json`** `status`/`recommendation`
 
 1. **Stabilise the API narrative** — OpenAPI/schema **examples** on core models (`fillmypdf/models/__init__.py`); **multipart** `Form(..., examples=[...])` on batch + jobs; **Query** examples on sync **extract** + **template list** filters; template **fill/batch** + admin **manifest_json** use shared `openapi_form_examples.py`.  
 2. **Dashboard** unifies JSX/HTML prototype—history, API keys UX, billing stub.  
-3. **Official Zapier** + **Agents** tooling only after payloads + auth ergonomics freeze (today: generic webhook + REST).  
+3. **Optional published Zapier app** + **Agents** tooling only after REST payloads + auth ergonomics freeze; **today** integrations use the public API + completion webhooks (Catch Hook compatible).  
 4. **Signing** milestone after bulk + extract are monetisation-ready—pulls audit + multi-sign dependencies.  
 
 Infra deployments (Docker/Fly/CI) are **orthogonal** gates; defer until Feature Matrix phases 1–2 are boxed on product.

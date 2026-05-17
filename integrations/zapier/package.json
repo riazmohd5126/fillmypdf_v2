@@ -1,0 +1,22 @@
+{
+  "name": "fillmypdf",
+  "version": "1.0.0",
+  "description": "Zapier integration for FillMyPDF — async batch/template autofill via REST API.",
+  "main": "index.js",
+  "scripts": {
+    "validate": "zapier validate",
+    "test": "jest --testTimeout 15000"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "form-data": "^4.0.0",
+    "zapier-platform-core": "15.19.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "zapier-platform-cli": "15.19.0"
+  },
+  "private": true
+}

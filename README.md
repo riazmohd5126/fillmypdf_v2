@@ -21,7 +21,7 @@ Version 4.0.0 - Production Ready
 ### **Coming Soon** 🔜
 - 🔜 **User dashboard product UI** — history, billing, onboarding (outside this FastAPI package)
 - 🔜 **E-Signatures / multi-sign** — roadmap Phase 3 (see [`docs/feature-matrix.json`](./docs/feature-matrix.json))
-- 🔜 **Official Zapier app** — today: completion webhooks + REST (Catch Hook compatible)
+- 🔜 **Optional Zapier marketplace app** — **today:** same **REST + OpenAPI** autofill API for any client; job **webhooks** work with Zapier Catch Hook / similar tools. **Private Zap CLI app:** [`integrations/zapier/README.md`](./integrations/zapier/README.md)
 
 Canonical roadmap: **`docs/FEATURE_MATRIX_ROUTE.md`** · React matrix viewer · **`docs/FeatureMatrix.jsx`** + **`docs/feature-matrix.json`**
 

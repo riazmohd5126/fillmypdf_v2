@@ -343,7 +343,7 @@ FEATURES = [
     },
     {
         "id": "zapier",
-        "name": "Zapier Integration",
+        "name": "No-code automation (Zapier & peers)",
         "category": "integration",
         "status": "build",
         "priority": "high",
@@ -351,11 +351,18 @@ FEATURES = [
         "impact": 4,
         "revenue": 3,
         "phase": 2,
-        "description": "Official Zapier app (triggers/actions) vs generic HTTP tool",
-        "recommendation": "PARTIAL — webhooks usable with Catch Hook today; Zapier Agents app TBD",
+        "description": "API-first access to batch/template autofill, profiles, extract, and jobs; Zapier/Make/n8n consume the same REST surface + outbound completion webhooks.",
+        "recommendation": "PARTIAL — full integration via REST + OpenAPI today; Zapier Catch Hook works for job completion; optional published Zapier app later for UX shortcuts.",
         "details": {
-            "planned": ["Published Zapier app", "Structured triggers/actions naming matrix events"],
-            "now": ["POST completion payload to Zapier webhook URL"],
+            "planned": [
+                "Optional published Zapier app (ergonomic wrappers)",
+                "Structured triggers/actions naming matrix events",
+            ],
+            "now": [
+                "REST: batch & template fills, profiles, extract, visual signature — X-API-Key",
+                "POST job completion payloads to any HTTPS URL (e.g. Zapier Catch Hook)",
+                "Private Zapier Platform CLI bundle at integrations/zapier (npm run validate / zapier push)",
+            ],
         },
     },
     {

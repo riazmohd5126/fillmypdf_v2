@@ -1,0 +1,671 @@
+{
+  "categories": {
+    "core": {
+      "label": "Core Platform",
+      "color": "blue",
+      "icon": "🏗️"
+    },
+    "automation": {
+      "label": "Automation",
+      "color": "green",
+      "icon": "⚡"
+    },
+    "signing": {
+      "label": "Signing",
+      "color": "purple",
+      "icon": "✍️"
+    },
+    "ai": {
+      "label": "AI Features",
+      "color": "pink",
+      "icon": "🤖"
+    },
+    "integration": {
+      "label": "Integrations",
+      "color": "orange",
+      "icon": "🔌"
+    },
+    "enterprise": {
+      "label": "Enterprise",
+      "color": "red",
+      "icon": "🏢"
+    },
+    "consumer": {
+      "label": "Consumer",
+      "color": "teal",
+      "icon": "👤"
+    },
+    "utility": {
+      "label": "Utilities",
+      "color": "gray",
+      "icon": "🔧"
+    }
+  },
+  "features": [
+    {
+      "id": "static-to-fillable",
+      "name": "Static → Fillable PDF",
+      "category": "core",
+      "status": "done",
+      "priority": "critical",
+      "effort": 3,
+      "impact": 5,
+      "revenue": 4,
+      "phase": 0,
+      "description": "Convert any static PDF to fillable using AI field detection (CommonForms)",
+      "recommendation": "DONE ✅",
+      "details": {
+        "whatItDoes": "Uses computer vision to detect text boxes and checkboxes, creates AcroForm fields",
+        "techStack": "CommonForms, FFDNet-S model, pypdf",
+        "status": "Production ready"
+      }
+    },
+    {
+      "id": "ai-autofill",
+      "name": "AI Vision Auto-Fill",
+      "category": "core",
+      "status": "done",
+      "priority": "critical",
+      "effort": 4,
+      "impact": 5,
+      "revenue": 5,
+      "phase": 0,
+      "description": "Vision AI reads form labels and maps user data to fields using position matching",
+      "recommendation": "DONE ✅",
+      "details": {
+        "whatItDoes": "Sends PDF image + field positions to Gemini; AI matches visual labels to fields",
+        "techStack": "Gemini 2.5 Flash, pypdf, position-based mapping",
+        "status": "Production ready"
+      }
+    },
+    {
+      "id": "public-api",
+      "name": "Public REST API",
+      "category": "core",
+      "status": "done",
+      "priority": "critical",
+      "effort": 2,
+      "impact": 5,
+      "revenue": 5,
+      "phase": 1,
+      "description": "Expose endpoints for developers to integrate PDF filling into their apps",
+      "recommendation": "Shipped → align OpenAPI/examples (see FEATURE_MATRIX_ROUTE.md)",
+      "details": {
+        "whatItDoes": "REST API with authentication, rate limiting, usage counters",
+        "endpoints_note": "This repo exposes /api/v1/* (profiles, batch, templates, extract, jobs) — differs from early matrix stub paths (/api/convert, …); treat matrix as conceptual."
+      }
+    },
+    {
+      "id": "user-profiles",
+      "name": "Saved User Profiles",
+      "category": "core",
+      "status": "done",
+      "priority": "high",
+      "effort": 1,
+      "impact": 4,
+      "revenue": 3,
+      "phase": 1,
+      "description": "Save personal/business data once, auto-fill any form instantly",
+      "recommendation": "DONE (backend)",
+      "details": {
+        "security": "AES-256 envelope in this codebase; tier limits enforced"
+      }
+    },
+    {
+      "id": "form-templates",
+      "name": "Form Template Library",
+      "category": "core",
+      "status": "done",
+      "priority": "high",
+      "effort": 1,
+      "impact": 4,
+      "revenue": 3,
+      "phase": 1,
+      "description": "Pre-built library of common forms ready to fill",
+      "recommendation": "DONE — server-side manifests + APIs (starts with curated medical PAs)",
+      "details": {
+        "repository_note": "Matrix lists broad tax catalogs; shipped library starts with pharma PA templates—expand categories over time."
+      }
+    },
+    {
+      "id": "dashboard",
+      "name": "User Dashboard",
+      "category": "core",
+      "status": "build",
+      "priority": "high",
+      "effort": 2,
+      "impact": 3,
+      "revenue": 2,
+      "phase": 1,
+      "description": "Web interface to manage documents, profiles, and account",
+      "recommendation": "NEXT — unify React/HTML prototype + Cowork roadmap",
+      "details": {
+        "sections": "History, favorites, billing, API keys UX not in FastAPI repo"
+      }
+    },
+    {
+      "id": "bulk-fill",
+      "name": "Bulk Fill (CSV/Excel)",
+      "category": "automation",
+      "status": "done",
+      "priority": "critical",
+      "effort": 2,
+      "impact": 5,
+      "revenue": 5,
+      "phase": 2,
+      "description": "Upload spreadsheet → fill hundreds of PDFs with different data",
+      "recommendation": "DONE — sync routes + async /api/v1/jobs (+ webhooks)",
+      "details": {
+        "flow": [
+          "JSON/CSV/XLSX",
+          "ZIP output",
+          "optional async + progress"
+        ]
+      }
+    },
+    {
+      "id": "smart-extraction",
+      "name": "Smart Data Extraction",
+      "category": "automation",
+      "status": "done",
+      "priority": "high",
+      "effort": 2,
+      "impact": 4,
+      "revenue": 4,
+      "phase": 2,
+      "description": "Extract data FROM filled PDFs into structured JSON/CSV",
+      "recommendation": "DONE — AcroForm extract sync + extract_pdf async job",
+      "details": {
+        "note": "Vision ‘read handwritten PDF’ backlog differs from shipped AcroForm pipeline"
+      }
+    },
+    {
+      "id": "workflow-automation",
+      "name": "Workflow Automation",
+      "category": "automation",
+      "status": "later",
+      "priority": "medium",
+      "effort": 4,
+      "impact": 4,
+      "revenue": 4,
+      "phase": 4,
+      "description": "If-then rules when form filled → email / CRM / branch logic",
+      "recommendation": "PARTIAL NOW — outbound webhooks on job completion only",
+      "details": {
+        "defer": "Rule builder + multi-event engine per matrix"
+      }
+    },
+    {
+      "id": "scheduled-jobs",
+      "name": "Scheduled Processing",
+      "category": "automation",
+      "status": "later",
+      "priority": "low",
+      "effort": 2,
+      "impact": 2,
+      "revenue": 2,
+      "phase": 5,
+      "description": "Schedule bulk jobs to run at specific times",
+      "recommendation": "DEFER TO PHASE 5",
+      "details": {}
+    },
+    {
+      "id": "esignature",
+      "name": "E-Signature",
+      "category": "signing",
+      "status": "build",
+      "priority": "critical",
+      "effort": 3,
+      "impact": 5,
+      "revenue": 5,
+      "phase": 3,
+      "description": "Add legally-binding digital signatures to filled PDFs",
+      "recommendation": "BUILD PHASE 3 ✍️ (not implemented in backend yet)",
+      "details": {}
+    },
+    {
+      "id": "multi-party-signing",
+      "name": "Multi-Party Signing",
+      "category": "signing",
+      "status": "build",
+      "priority": "high",
+      "effort": 2,
+      "impact": 4,
+      "revenue": 4,
+      "phase": 3,
+      "description": "Send documents for signature by multiple parties in order",
+      "recommendation": "BUILD PHASE 3 ✍️",
+      "details": {}
+    },
+    {
+      "id": "audit-trail",
+      "name": "Audit Trail & Certificates",
+      "category": "signing",
+      "status": "build",
+      "priority": "high",
+      "effort": 1,
+      "impact": 3,
+      "revenue": 3,
+      "phase": 3,
+      "description": "Track who signed what, when, tamper-proof history",
+      "recommendation": "BUILD PHASE 3 ✍️",
+      "details": {}
+    },
+    {
+      "id": "signature-templates",
+      "name": "Signature Field Templates",
+      "category": "signing",
+      "status": "build",
+      "priority": "medium",
+      "effort": 1,
+      "impact": 3,
+      "revenue": 2,
+      "phase": 3,
+      "description": "Pre-place signature spots on reusable templates",
+      "recommendation": "BUILD PHASE 3 ✍️",
+      "details": {}
+    },
+    {
+      "id": "notarization",
+      "name": "Remote Online Notarization",
+      "category": "signing",
+      "status": "skip",
+      "priority": "low",
+      "effort": 5,
+      "impact": 2,
+      "revenue": 3,
+      "phase": null,
+      "description": "Connect with notary services for documents requiring notarization",
+      "recommendation": "SKIP ❌",
+      "details": {
+        "whySkip": "Partnerships + jurisdictional overhead vs focus"
+      }
+    },
+    {
+      "id": "ai-form-builder",
+      "name": "AI Form Builder",
+      "category": "ai",
+      "status": "later",
+      "priority": "medium",
+      "effort": 3,
+      "impact": 4,
+      "revenue": 3,
+      "phase": 5,
+      "description": "Describe form in plain English → AI creates fillable PDF",
+      "recommendation": "DEFER TO PHASE 5",
+      "details": {}
+    },
+    {
+      "id": "ocr-handwriting",
+      "name": "Handwriting Recognition (OCR)",
+      "category": "ai",
+      "status": "later",
+      "priority": "low",
+      "effort": 3,
+      "impact": 3,
+      "revenue": 3,
+      "phase": 5,
+      "description": "Scan hand-filled forms and digitize the data",
+      "recommendation": "DEFER TO PHASE 5",
+      "details": {}
+    },
+    {
+      "id": "smart-field-detection",
+      "name": "Enhanced Field Detection",
+      "category": "ai",
+      "status": "later",
+      "priority": "medium",
+      "effort": 2,
+      "impact": 3,
+      "revenue": 2,
+      "phase": 4,
+      "description": "Improve detection for tables, radios, grouped checkboxes",
+      "recommendation": "DEFER TO PHASE 4",
+      "details": {}
+    },
+    {
+      "id": "ai-validation",
+      "name": "AI Data Validation",
+      "category": "ai",
+      "status": "later",
+      "priority": "medium",
+      "effort": 2,
+      "impact": 3,
+      "revenue": 2,
+      "phase": 4,
+      "description": "AI validates completeness / consistency post-fill",
+      "recommendation": "DEFER TO PHASE 4",
+      "details": {}
+    },
+    {
+      "id": "document-chat",
+      "name": "Chat with Document",
+      "category": "ai",
+      "status": "skip",
+      "priority": "low",
+      "effort": 3,
+      "impact": 2,
+      "revenue": 1,
+      "phase": null,
+      "description": "Ask questions about PDF content using AI",
+      "recommendation": "SKIP ❌",
+      "details": {
+        "whySkip": "Out of core fill workflow"
+      }
+    },
+    {
+      "id": "webhooks",
+      "name": "Webhook Integrations",
+      "category": "integration",
+      "status": "done",
+      "priority": "high",
+      "effort": 1,
+      "impact": 4,
+      "revenue": 3,
+      "phase": 2,
+      "description": "Send data to external systems via HTTP notifications",
+      "recommendation": "DONE — async completion webhooks + HMAC + retries + manual replay",
+      "details": {
+        "events": [
+          "job.completed (success or failure payloads)"
+        ]
+      }
+    },
+    {
+      "id": "zapier",
+      "name": "No-code automation (Zapier & peers)",
+      "category": "integration",
+      "status": "build",
+      "priority": "high",
+      "effort": 2,
+      "impact": 4,
+      "revenue": 3,
+      "phase": 2,
+      "description": "API-first access to batch/template autofill, profiles, extract, and jobs; Zapier/Make/n8n consume the same REST surface + outbound completion webhooks.",
+      "recommendation": "PARTIAL — full integration via REST + OpenAPI today; Zapier Catch Hook works for job completion; optional published Zapier app later for UX shortcuts.",
+      "details": {
+        "planned": [
+          "Optional published Zapier app (ergonomic wrappers)",
+          "Structured triggers/actions naming matrix events"
+        ],
+        "now": [
+          "REST: batch & template fills, profiles, extract, visual signature — X-API-Key",
+          "POST job completion payloads to any HTTPS URL (e.g. Zapier Catch Hook)",
+          "Private Zapier Platform CLI bundle at integrations/zapier (npm run validate / zapier push)"
+        ]
+      }
+    },
+    {
+      "id": "google-drive",
+      "name": "Google Drive Integration",
+      "category": "integration",
+      "status": "later",
+      "priority": "medium",
+      "effort": 2,
+      "impact": 3,
+      "revenue": 2,
+      "phase": 4,
+      "description": "Save filled PDFs directly to Google Drive",
+      "recommendation": "DEFER TO PHASE 4",
+      "details": {}
+    },
+    {
+      "id": "dropbox",
+      "name": "Dropbox Integration",
+      "category": "integration",
+      "status": "later",
+      "priority": "low",
+      "effort": 2,
+      "impact": 2,
+      "revenue": 1,
+      "phase": 5,
+      "description": "Save filled PDFs to Dropbox",
+      "recommendation": "DEFER TO PHASE 5",
+      "details": {}
+    },
+    {
+      "id": "salesforce",
+      "name": "Salesforce Integration",
+      "category": "integration",
+      "status": "later",
+      "priority": "medium",
+      "effort": 3,
+      "impact": 3,
+      "revenue": 4,
+      "phase": 4,
+      "description": "Generate documents from Salesforce records",
+      "recommendation": "DEFER TO PHASE 4",
+      "details": {}
+    },
+    {
+      "id": "hubspot",
+      "name": "HubSpot Integration",
+      "category": "integration",
+      "status": "later",
+      "priority": "medium",
+      "effort": 3,
+      "impact": 3,
+      "revenue": 3,
+      "phase": 4,
+      "description": "Generate documents from HubSpot CRM",
+      "recommendation": "DEFER TO PHASE 4",
+      "details": {}
+    },
+    {
+      "id": "slack",
+      "name": "Slack Notifications",
+      "category": "integration",
+      "status": "later",
+      "priority": "low",
+      "effort": 1,
+      "impact": 2,
+      "revenue": 1,
+      "phase": 4,
+      "description": "Send notifications to Slack channels",
+      "recommendation": "DEFER TO PHASE 4",
+      "details": {}
+    },
+    {
+      "id": "team-workspaces",
+      "name": "Team Workspaces",
+      "category": "enterprise",
+      "status": "later",
+      "priority": "high",
+      "effort": 3,
+      "impact": 4,
+      "revenue": 5,
+      "phase": 4,
+      "description": "Shared workspace with roles and permissions",
+      "recommendation": "BUILD PHASE 4 🏢",
+      "details": {}
+    },
+    {
+      "id": "sso-saml",
+      "name": "SSO / SAML",
+      "category": "enterprise",
+      "status": "later",
+      "priority": "high",
+      "effort": 2,
+      "impact": 3,
+      "revenue": 4,
+      "phase": 4,
+      "description": "Enterprise SSO providers",
+      "recommendation": "BUILD PHASE 4 🏢",
+      "details": {}
+    },
+    {
+      "id": "soc2",
+      "name": "SOC 2 Certification",
+      "category": "enterprise",
+      "status": "later",
+      "priority": "medium",
+      "effort": 5,
+      "impact": 3,
+      "revenue": 5,
+      "phase": 4,
+      "description": "Third-party SOC 2 attestation path",
+      "recommendation": "PROCESS — parallel with enterprise demand",
+      "details": {}
+    },
+    {
+      "id": "hipaa",
+      "name": "HIPAA Compliance",
+      "category": "enterprise",
+      "status": "later",
+      "priority": "medium",
+      "effort": 4,
+      "impact": 3,
+      "revenue": 4,
+      "phase": 4,
+      "description": "Healthcare PHI safeguards + BAAs",
+      "recommendation": "DEFER TO PHASE 4",
+      "details": {}
+    },
+    {
+      "id": "approval-workflows",
+      "name": "Approval Workflows",
+      "category": "enterprise",
+      "status": "later",
+      "priority": "medium",
+      "effort": 3,
+      "impact": 3,
+      "revenue": 3,
+      "phase": 4,
+      "description": "Internal approval gates before finalize/sign",
+      "recommendation": "DEFER TO PHASE 4",
+      "details": {}
+    },
+    {
+      "id": "custom-branding",
+      "name": "Custom Branding",
+      "category": "enterprise",
+      "status": "later",
+      "priority": "low",
+      "effort": 1,
+      "impact": 2,
+      "revenue": 2,
+      "phase": 4,
+      "description": "Logo/colors white-label surfaces",
+      "recommendation": "DEFER TO PHASE 4",
+      "details": {}
+    },
+    {
+      "id": "browser-extension",
+      "name": "Browser Extension",
+      "category": "consumer",
+      "status": "build",
+      "priority": "medium",
+      "effort": 2,
+      "impact": 3,
+      "revenue": 2,
+      "phase": 2,
+      "description": "Chrome extension enhancements — fill PDFs in-browser",
+      "recommendation": "Cowork lane — complements API + PDF-driven JSX prototype",
+      "details": {}
+    },
+    {
+      "id": "mobile-app",
+      "name": "Mobile App (iOS/Android)",
+      "category": "consumer",
+      "status": "later",
+      "priority": "medium",
+      "effort": 5,
+      "impact": 4,
+      "revenue": 3,
+      "phase": 5,
+      "description": "Native mobile flows for fill/sign",
+      "recommendation": "DEFER TO PHASE 5",
+      "details": {}
+    },
+    {
+      "id": "desktop-app",
+      "name": "Desktop App",
+      "category": "consumer",
+      "status": "skip",
+      "priority": "low",
+      "effort": 4,
+      "impact": 2,
+      "revenue": 1,
+      "phase": null,
+      "description": "Native Windows/Mac client",
+      "recommendation": "SKIP ❌",
+      "details": {
+        "whySkip": "Web + mobile coverage"
+      }
+    },
+    {
+      "id": "pdf-merge",
+      "name": "Merge PDFs",
+      "category": "utility",
+      "status": "later",
+      "priority": "low",
+      "effort": 1,
+      "impact": 2,
+      "revenue": 1,
+      "phase": 3,
+      "description": "Combine multiple PDFs",
+      "recommendation": "DEFER TO PHASE 3",
+      "details": {}
+    },
+    {
+      "id": "pdf-split",
+      "name": "Split PDFs",
+      "category": "utility",
+      "status": "later",
+      "priority": "low",
+      "effort": 1,
+      "impact": 2,
+      "revenue": 1,
+      "phase": 3,
+      "description": "Extract/page-range split utilities",
+      "recommendation": "DEFER TO PHASE 3",
+      "details": {}
+    },
+    {
+      "id": "pdf-compress",
+      "name": "Compress PDFs",
+      "category": "utility",
+      "status": "skip",
+      "priority": "low",
+      "effort": 1,
+      "impact": 1,
+      "revenue": 0,
+      "phase": null,
+      "description": "Reduce PDF file size",
+      "recommendation": "SKIP ❌",
+      "details": {
+        "whySkip": "Commodity tooling"
+      }
+    },
+    {
+      "id": "pdf-convert",
+      "name": "Convert to/from PDF",
+      "category": "utility",
+      "status": "skip",
+      "priority": "low",
+      "effort": 2,
+      "impact": 1,
+      "revenue": 0,
+      "phase": null,
+      "description": "Word/Excel/Image conversions",
+      "recommendation": "SKIP ❌",
+      "details": {
+        "whySkip": "Outside core mission"
+      }
+    },
+    {
+      "id": "conditional-fields",
+      "name": "Conditional Field Logic",
+      "category": "utility",
+      "status": "later",
+      "priority": "medium",
+      "effort": 2,
+      "impact": 3,
+      "revenue": 2,
+      "phase": 4,
+      "description": "Dynamic show/hide + calculated PDF fields",
+      "recommendation": "DEFER TO PHASE 4",
+      "details": {}
+    }
+  ]
+}

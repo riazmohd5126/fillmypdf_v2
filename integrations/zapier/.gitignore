@@ -1,0 +1,5 @@
+node_modules/
+.environment
+*.log
+build/
+.dep-cache/
