@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Templates — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body { font-family: system-ui,-apple-system,sans-serif; }</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- Nav -->
+  <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
+    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <span class="font-semibold text-gray-800">Template Library</span>
+    <span id="template-count" class="ml-auto text-sm text-gray-400"></span>
+  </nav>
+
+  <main class="max-w-5xl mx-auto px-4 py-8">
+
+    <!-- Search + filters -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
+      <div class="flex flex-wrap gap-3">
+        <input id="search-input" type="text" placeholder="Search by name, drug, payer…"
+          oninput="applyFilters()"
+          class="flex-1 min-w-48 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        <select id="f-category" onchange="applyFilters()"
+          class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          <option value="">All categories</option>
+        </select>
+        <select id="f-state" onchange="applyFilters()"
+          class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          <option value="">All states</option>
+        </select>
+        <button onclick="clearFilters()" class="text-sm text-gray-400 hover:text-indigo-600 px-3 py-2">Clear</button>
+      </div>
+    </div>
+
+    <!-- Template grid -->
+    <div id="template-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    <div id="empty-state" class="hidden text-center py-16 text-gray-400">
+      <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      <p class="font-medium">No templates match your filters</p>
+      <button onclick="clearFilters()" class="text-sm text-indigo-600 mt-2 hover:underline">Clear filters</button>
+    </div>
+  </main>
+
+  <!-- Template Detail + Fill Modal -->
+  <div id="detail-modal" class="fixed inset-0 bg-black/40 flex items-start justify-center z-50 hidden overflow-y-auto py-8">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4">
+      <div class="p-6 border-b border-gray-100 flex items-start justify-between">
+        <div>
+          <h2 id="d-name" class="text-lg font-bold text-gray-900"></h2>
+          <p id="d-subtitle" class="text-sm text-gray-400 mt-0.5"></p>
+        </div>
+        <button onclick="closeDetail()" class="text-gray-400 hover:text-gray-600 ml-4 flex-shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex border-b border-gray-100 px-6">
+        <button onclick="switchDetailTab('info')" id="dtab-info" class="py-3 mr-6 text-sm border-b-2 border-indigo-500 text-indigo-600 font-semibold">Info</button>
+        <button onclick="switchDetailTab('fill')" id="dtab-fill" class="py-3 mr-6 text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700">Fill</button>
+        <button onclick="switchDetailTab('fields')" id="dtab-fields" class="py-3 text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700">Fields</button>
+      </div>
+
+      <!-- Info panel -->
+      <div id="dpanel-info" class="p-6 space-y-3">
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-400 mb-1">Category</p><p id="d-category" class="font-medium text-gray-800"></p></div>
+          <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-400 mb-1">Drug</p><p id="d-drug" class="font-medium text-gray-800"></p></div>
+          <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-400 mb-1">Payer</p><p id="d-payer" class="font-medium text-gray-800"></p></div>
+          <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-400 mb-1">State</p><p id="d-state" class="font-medium text-gray-800"></p></div>
+        </div>
+        <div id="d-description" class="text-sm text-gray-600 leading-relaxed"></div>
+        <div id="d-tags" class="flex flex-wrap gap-1"></div>
+        <a id="d-pdf-link" href="#" target="_blank" class="inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Preview PDF
+        </a>
+      </div>
+
+      <!-- Fill panel -->
+      <div id="dpanel-fill" class="p-6 hidden">
+        <p class="text-sm text-gray-500 mb-4">Paste a JSON object with data to fill, or load a saved profile.</p>
+        <div class="mb-3 flex gap-2 items-center">
+          <select id="fill-profile" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <option value="">Select a profile (optional)</option>
+          </select>
+          <button onclick="loadProfileData()" class="text-sm bg-gray-100 text-gray-700 rounded-lg px-3 py-2 hover:bg-gray-200">Load</button>
+        </div>
+        <div class="mb-3">
+          <label class="text-xs font-medium text-gray-600 mb-1 block">Gemini API Key</label>
+          <input id="fill-ai-key" type="password" placeholder="AIza…"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        </div>
+        <label class="text-xs font-medium text-gray-600 mb-1 block">Data (JSON)</label>
+        <textarea id="fill-data" rows="8" placeholder='{"patient_name": "Jane Doe", "dob": "1980-01-15"}'
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none mb-3"></textarea>
+        <div id="fill-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-3"></div>
+        <button onclick="fillTemplate()" id="fill-btn"
+          class="w-full bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-indigo-700">
+          Fill & Download PDF
+        </button>
+      </div>
+
+      <!-- Fields panel -->
+      <div id="dpanel-fields" class="p-6 hidden">
+        <p class="text-xs text-gray-400 mb-3">Detected AcroForm fields in this template:</p>
+        <div id="fields-list" class="space-y-1.5 max-h-80 overflow-y-auto"></div>
+        <button onclick="loadFields()" id="fields-load-btn" class="mt-3 text-sm text-indigo-600 hover:underline">Load fields</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
+  let allTemplates = [];
+  let currentTemplateId = null;
+
+  // ── Load templates ────────────────────────────────────────────
+  async function loadTemplates() {
+    const key = getKey();
+    if (!key) { document.getElementById('template-grid').innerHTML = '<p class="col-span-3 text-center text-red-500 py-8">No API key. <a href="/ui/index.html" class="underline">Set it on the dashboard.</a></p>'; return; }
+    try {
+      const r = await fetch('/api/v1/templates', { headers: { 'X-API-Key': key } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      allTemplates = data.templates || [];
+      document.getElementById('template-count').textContent = `${allTemplates.length} template${allTemplates.length !== 1 ? 's' : ''}`;
+      buildFilterOptions();
+      renderGrid(allTemplates);
+      await loadProfileOptions();
+    } catch (e) { document.getElementById('template-grid').innerHTML = `<p class="col-span-3 text-center text-red-500 py-8">${e.message}</p>`; }
+  }
+
+  function buildFilterOptions() {
+    const cats = [...new Set(allTemplates.map(t => t.category).filter(Boolean))].sort();
+    const states = [...new Set(allTemplates.map(t => t.state).filter(Boolean))].sort();
+    const catSel = document.getElementById('f-category');
+    cats.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; catSel.appendChild(o); });
+    const stateSel = document.getElementById('f-state');
+    states.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; stateSel.appendChild(o); });
+  }
+
+  function applyFilters() {
+    const q = document.getElementById('search-input').value.toLowerCase();
+    const cat = document.getElementById('f-category').value;
+    const state = document.getElementById('f-state').value;
+    const filtered = allTemplates.filter(t =>
+      (!q || [t.name, t.drug?.name, t.payer?.name, t.description].join(' ').toLowerCase().includes(q)) &&
+      (!cat || t.category === cat) &&
+      (!state || t.state === state)
+    );
+    renderGrid(filtered);
+  }
+
+  function clearFilters() {
+    document.getElementById('search-input').value = '';
+    document.getElementById('f-category').value = '';
+    document.getElementById('f-state').value = '';
+    applyFilters();
+  }
+
+  const CAT_COLORS = {
+    'prior-authorization': 'bg-blue-100 text-blue-700',
+    'tax': 'bg-green-100 text-green-700',
+    'employment': 'bg-yellow-100 text-yellow-700',
+    'real-estate': 'bg-orange-100 text-orange-700',
+  };
+
+  function renderGrid(list) {
+    const grid = document.getElementById('template-grid');
+    const empty = document.getElementById('empty-state');
+    if (!list.length) { grid.innerHTML = ''; empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+    grid.innerHTML = list.map(t => `
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition cursor-pointer" onclick="openDetail('${esc(t.id)}')">
+        <div class="flex items-start justify-between gap-2">
+          <span class="text-xs px-2 py-0.5 rounded-full font-medium ${CAT_COLORS[t.category] || 'bg-gray-100 text-gray-600'}">${esc(t.category || 'general')}</span>
+          ${t.state ? `<span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">${esc(t.state)}</span>` : ''}
+        </div>
+        <div>
+          <h3 class="font-semibold text-gray-900 text-sm leading-snug">${esc(t.name)}</h3>
+          ${t.drug?.name ? `<p class="text-xs text-gray-400 mt-1">${esc(t.drug.name)}</p>` : ''}
+          ${t.payer?.name ? `<p class="text-xs text-gray-400">${esc(t.payer.name)}</p>` : ''}
+        </div>
+        <button onclick="event.stopPropagation(); openDetail('${esc(t.id)}', 'fill')"
+          class="mt-auto text-sm text-indigo-600 font-medium hover:text-indigo-800 flex items-center gap-1">
+          Fill this form →
+        </button>
+      </div>
+    `).join('');
+  }
+
+  // ── Detail modal ──────────────────────────────────────────────
+  function openDetail(id, tab = 'info') {
+    const t = allTemplates.find(x => x.id === id);
+    if (!t) return;
+    currentTemplateId = id;
+
+    document.getElementById('d-name').textContent = t.name || id;
+    document.getElementById('d-subtitle').textContent = t.description || '';
+    document.getElementById('d-category').textContent = t.category || '—';
+    document.getElementById('d-drug').textContent = t.drug?.name || '—';
+    document.getElementById('d-payer').textContent = t.payer?.name || '—';
+    document.getElementById('d-state').textContent = t.state || '—';
+    document.getElementById('d-description').textContent = t.description || '';
+    document.getElementById('d-pdf-link').href = `/api/v1/templates/${id}/pdf`;
+    const tags = document.getElementById('d-tags');
+    tags.innerHTML = (t.tags || []).map(tg => `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">${esc(tg)}</span>`).join('');
+
+    document.getElementById('fields-list').innerHTML = '';
+    document.getElementById('fill-error').classList.add('hidden');
+    document.getElementById('detail-modal').classList.remove('hidden');
+    switchDetailTab(tab);
+  }
+
+  function closeDetail() { document.getElementById('detail-modal').classList.add('hidden'); currentTemplateId = null; }
+
+  function switchDetailTab(tab) {
+    ['info','fill','fields'].forEach(t => {
+      document.getElementById(`dpanel-${t}`).classList.toggle('hidden', t !== tab);
+      const btn = document.getElementById(`dtab-${t}`);
+      btn.className = t === tab
+        ? 'py-3 mr-6 text-sm border-b-2 border-indigo-500 text-indigo-600 font-semibold'
+        : 'py-3 mr-6 text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700';
+    });
+  }
+
+  // ── Fill ──────────────────────────────────────────────────────
+  async function loadProfileOptions() {
+    const key = getKey();
+    if (!key) return;
+    try {
+      const r = await fetch('/api/v1/profiles', { headers: { 'X-API-Key': key } });
+      if (!r.ok) return;
+      const profiles = await r.json();
+      const sel = document.getElementById('fill-profile');
+      profiles.forEach(p => {
+        const o = document.createElement('option'); o.value = p.id; o.textContent = `${p.name} (${p.profile_type})`;
+        sel.appendChild(o);
+      });
+    } catch {}
+  }
+
+  async function loadProfileData() {
+    const id = document.getElementById('fill-profile').value;
+    if (!id) { document.getElementById('fill-data').value = '{}'; return; }
+    const key = getKey();
+    try {
+      const r = await fetch(`/api/v1/profiles/${id}`, { headers: { 'X-API-Key': key } });
+      if (!r.ok) throw new Error();
+      const p = await r.json();
+      document.getElementById('fill-data').value = JSON.stringify(p.data_preview || {}, null, 2);
+    } catch {}
+  }
+
+  async function fillTemplate() {
+    const key = getKey();
+    if (!key) { showFillErr('No API key set.'); return; }
+    const aiKey = document.getElementById('fill-ai-key').value.trim();
+    if (!aiKey) { showFillErr('Gemini API key is required.'); return; }
+    const rawData = document.getElementById('fill-data').value.trim();
+    let data = {};
+    if (rawData) { try { data = JSON.parse(rawData); } catch { showFillErr('Invalid JSON.'); return; } }
+
+    const btn = document.getElementById('fill-btn');
+    btn.disabled = true; btn.textContent = 'Filling…';
+    document.getElementById('fill-error').classList.add('hidden');
+
+    const fd = new FormData();
+    fd.append('user_data', JSON.stringify(data));
+    fd.append('ai_api_key', aiKey);
+
+    const profileId = document.getElementById('fill-profile').value;
+    if (profileId) fd.append('profile_id', profileId);
+
+    try {
+      const r = await fetch(`/api/v1/templates/${currentTemplateId}/fill`, {
+        method: 'POST', headers: { 'X-API-Key': key }, body: fd,
+      });
+      if (!r.ok) { const e = await r.json().catch(() => {}); throw new Error(e?.detail || `HTTP ${r.status}`); }
+      const result = await r.json();
+      const dlUrl = result.download_url;
+      const dlR = await fetch(dlUrl, { headers: { 'X-API-Key': key } });
+      const blob = await dlR.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url;
+      a.download = result.filename || `${currentTemplateId}_filled.pdf`; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { showFillErr(e.message); }
+    finally { btn.disabled = false; btn.textContent = 'Fill & Download PDF'; }
+  }
+
+  function showFillErr(msg) {
+    const el = document.getElementById('fill-error');
+    el.textContent = msg; el.classList.remove('hidden');
+  }
+
+  // ── Fields ────────────────────────────────────────────────────
+  async function loadFields() {
+    const key = getKey();
+    if (!key || !currentTemplateId) return;
+    document.getElementById('fields-load-btn').textContent = 'Loading…';
+    try {
+      const r = await fetch(`/api/v1/templates/${currentTemplateId}/fields`, { headers: { 'X-API-Key': key } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      const list = document.getElementById('fields-list');
+      const fields = data.fields || [];
+      list.innerHTML = fields.length
+        ? fields.map(f => `
+          <div class="flex items-center gap-2 text-xs bg-gray-50 rounded-lg px-3 py-2">
+            <span class="font-mono text-gray-700 flex-1 truncate">${esc(f.name || f.field_name || '')}</span>
+            <span class="text-gray-400">${esc(f.field_type || f.type || '')}</span>
+            ${f.label ? `<span class="text-indigo-500 truncate max-w-24">${esc(f.label)}</span>` : ''}
+          </div>`).join('')
+        : '<p class="text-gray-400 text-xs">No fields found.</p>';
+      document.getElementById('fields-load-btn').classList.add('hidden');
+    } catch (e) { document.getElementById('fields-list').innerHTML = `<p class="text-red-500 text-xs">${e.message}</p>`; document.getElementById('fields-load-btn').textContent = 'Retry'; }
+  }
+
+  function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  loadTemplates();
+</script>
+</body>
+</html>

@@ -7,9 +7,11 @@ Production-ready API with modular OOP architecture
 import json
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
 
 from .api.dependencies.rate_limit import limiter
@@ -53,7 +55,7 @@ except ImportError as e:
     HAS_EXTRACT = False
     print(f"⚠️  Extract routes not available: {e}")
 
-# Visual e-sign (uses batch download for the signed PDF)
+# Visual e-sign — resolved at startup inside lifespan
 HAS_SIGNING = False
 
 # ---------------------------------------------------------------------------
@@ -305,6 +307,16 @@ if HAS_JOBS:
 
 if HAS_EXTRACT:
     app.include_router(extract_routes.router, prefix="/api/v1")
+
+# ---------------------------------------------------------------------------
+# Serve UI static pages at /ui/*
+# ---------------------------------------------------------------------------
+_UI_DIR = Path(__file__).parent / "ui"
+_STATIC_DIR = Path(__file__).parent / "static"
+if _UI_DIR.exists():
+    app.mount("/ui", StaticFiles(directory=str(_UI_DIR), html=True), name="ui")
+if _STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 
 if __name__ == "__main__":

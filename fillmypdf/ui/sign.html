@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>E-Signature — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; }
+    #sig-canvas { cursor: crosshair; touch-action: none; }
+    .typed-preview { font-family: 'Georgia', 'Times New Roman', serif; font-style: italic; color: #0a2864; font-size: 2.2rem; letter-spacing: 0.02em; }
+    .tab-active { border-bottom: 2px solid #4f46e5; color: #4f46e5; font-weight: 600; }
+    .tab-inactive { border-bottom: 2px solid transparent; color: #6b7280; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- Nav -->
+  <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
+    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <span class="font-semibold text-gray-800">E-Signature</span>
+  </nav>
+
+  <main class="max-w-2xl mx-auto px-4 py-10">
+
+    <!-- Step 1: Signature -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
+      <h2 class="font-semibold text-gray-900 mb-4">Step 1 — Create your signature</h2>
+
+      <!-- Tabs -->
+      <div class="flex gap-6 mb-5 border-b border-gray-100">
+        <button id="tab-draw" onclick="switchTab('draw')" class="pb-2 text-sm tab-active">Draw</button>
+        <button id="tab-type" onclick="switchTab('type')" class="pb-2 text-sm tab-inactive">Type</button>
+      </div>
+
+      <!-- Draw Panel -->
+      <div id="panel-draw">
+        <div class="border-2 border-dashed border-gray-300 rounded-xl overflow-hidden bg-white" style="height:140px">
+          <canvas id="sig-canvas" class="w-full h-full" width="600" height="140"></canvas>
+        </div>
+        <div class="flex gap-2 mt-3">
+          <button onclick="clearCanvas()" class="text-sm text-gray-500 hover:text-red-500 flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            Clear
+          </button>
+          <span class="text-xs text-gray-400 ml-auto self-center">Sign within the box above</span>
+        </div>
+      </div>
+
+      <!-- Type Panel -->
+      <div id="panel-type" class="hidden">
+        <input id="sig-text" type="text" placeholder="Your full name…"
+          oninput="updatePreview()"
+          class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+        <div class="border-2 border-dashed border-gray-300 rounded-xl bg-white min-h-[80px] flex items-center justify-center px-6">
+          <span id="typed-preview" class="typed-preview text-gray-300">Your signature will appear here</span>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">Rendered as italic serif — will appear in navy ink on the PDF.</p>
+      </div>
+    </div>
+
+    <!-- Step 2: Upload PDF -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
+      <h2 class="font-semibold text-gray-900 mb-4">Step 2 — Upload your PDF</h2>
+      <label class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl py-8 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition" id="drop-zone">
+        <svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+        <span class="text-sm text-gray-500" id="pdf-label">Click to upload PDF or drag & drop</span>
+        <input id="pdf-file" type="file" accept=".pdf" class="hidden" onchange="onPdfSelected()" />
+      </label>
+    </div>
+
+    <!-- Step 3: Position -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
+      <h2 class="font-semibold text-gray-900 mb-4">Step 3 — Position</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Page (0-based)</label>
+          <input id="page-idx" type="number" value="0" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Left edge (% of width)</label>
+          <input id="x-pct" type="number" value="55" min="0" max="100" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Bottom edge (% of height)</label>
+          <input id="y-pct" type="number" value="5" min="0" max="100" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Width (%)</label>
+          <input id="w-pct" type="number" value="40" min="1" max="100" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <button id="submit-btn" onclick="submitSignature()"
+      class="w-full bg-indigo-600 text-white rounded-xl py-3 font-semibold text-sm hover:bg-indigo-700 transition disabled:opacity-50">
+      Apply Signature & Download PDF
+    </button>
+
+    <!-- Status -->
+    <div id="status" class="mt-4 hidden text-sm text-center rounded-lg px-4 py-3"></div>
+  </main>
+
+<script>
+  const API_BASE = '';
+  function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
+  let activeTab = 'draw';
+
+  // ── Tab switching ─────────────────────────────────────────────
+  function switchTab(tab) {
+    activeTab = tab;
+    document.getElementById('panel-draw').classList.toggle('hidden', tab !== 'draw');
+    document.getElementById('panel-type').classList.toggle('hidden', tab !== 'type');
+    document.getElementById('tab-draw').className = `pb-2 text-sm ${tab === 'draw' ? 'tab-active' : 'tab-inactive'}`;
+    document.getElementById('tab-type').className = `pb-2 text-sm ${tab === 'type' ? 'tab-active' : 'tab-inactive'}`;
+  }
+
+  // ── Typed preview ─────────────────────────────────────────────
+  function updatePreview() {
+    const val = document.getElementById('sig-text').value;
+    const el = document.getElementById('typed-preview');
+    if (val) { el.textContent = val; el.classList.remove('text-gray-300'); el.classList.add('text-blue-900'); }
+    else { el.textContent = 'Your signature will appear here'; el.classList.add('text-gray-300'); el.classList.remove('text-blue-900'); }
+  }
+
+  // ── Canvas draw ───────────────────────────────────────────────
+  const canvas = document.getElementById('sig-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#0a2864';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  let drawing = false, lastX = 0, lastY = 0;
+
+  function canvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const src = e.touches ? e.touches[0] : e;
+    return [(src.clientX - rect.left) * scaleX, (src.clientY - rect.top) * scaleY];
+  }
+  canvas.addEventListener('pointerdown', e => { drawing = true; [lastX, lastY] = canvasPos(e); e.preventDefault(); });
+  canvas.addEventListener('pointermove', e => {
+    if (!drawing) return;
+    const [x, y] = canvasPos(e);
+    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
+    [lastX, lastY] = [x, y]; e.preventDefault();
+  });
+  canvas.addEventListener('pointerup', () => drawing = false);
+  canvas.addEventListener('pointerleave', () => drawing = false);
+
+  function clearCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function isCanvasEmpty() {
+    const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return false;
+    return true;
+  }
+
+  // ── PDF file ──────────────────────────────────────────────────
+  function onPdfSelected() {
+    const f = document.getElementById('pdf-file').files[0];
+    document.getElementById('pdf-label').textContent = f ? f.name : 'Click to upload PDF';
+  }
+  const dropZone = document.getElementById('drop-zone');
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-indigo-400','bg-indigo-50'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-indigo-400','bg-indigo-50'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('border-indigo-400','bg-indigo-50');
+    const f = e.dataTransfer.files[0];
+    if (f && f.name.endsWith('.pdf')) {
+      const dt = new DataTransfer(); dt.items.add(f);
+      document.getElementById('pdf-file').files = dt.files;
+      onPdfSelected();
+    }
+  });
+
+  // ── Submit ────────────────────────────────────────────────────
+  async function submitSignature() {
+    const key = getKey();
+    if (!key) { alert('Please set your API key first (click "API Key" on the dashboard).'); return; }
+
+    const pdfFile = document.getElementById('pdf-file').files[0];
+    if (!pdfFile) { showStatus('Please upload a PDF first.', 'error'); return; }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true; btn.textContent = 'Processing…';
+
+    const fd = new FormData();
+    fd.append('file', pdfFile);
+    fd.append('page_index', document.getElementById('page-idx').value);
+    fd.append('x_pct', document.getElementById('x-pct').value);
+    fd.append('y_pct', document.getElementById('y-pct').value);
+    fd.append('width_pct', document.getElementById('w-pct').value);
+    fd.append('height_pct', '12');
+
+    if (activeTab === 'type') {
+      const txt = document.getElementById('sig-text').value.trim();
+      if (!txt) { showStatus('Please enter your name to type a signature.', 'error'); btn.disabled = false; btn.textContent = 'Apply Signature & Download PDF'; return; }
+      fd.append('signature_text', txt);
+    } else {
+      if (isCanvasEmpty()) { showStatus('Please draw your signature first.', 'error'); btn.disabled = false; btn.textContent = 'Apply Signature & Download PDF'; return; }
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      fd.append('signature_png', blob, 'signature.png');
+    }
+
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/signatures/apply`, {
+        method: 'POST', headers: { 'X-API-Key': key }, body: fd,
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${r.status}`);
+      }
+      const data = await r.json();
+      // Download the signed PDF
+      const dl = await fetch(data.download_url, { headers: { 'X-API-Key': key } });
+      const blob = await dl.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url;
+      a.download = data.filename || 'signed.pdf'; a.click();
+      URL.revokeObjectURL(url);
+      showStatus('Signed PDF downloaded successfully!', 'success');
+    } catch (e) {
+      showStatus(`Error: ${e.message}`, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Apply Signature & Download PDF';
+    }
+  }
+
+  function showStatus(msg, type) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = `mt-4 text-sm text-center rounded-lg px-4 py-3 ${type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`;
+    el.classList.remove('hidden');
+  }
+</script>
+</body>
+</html>

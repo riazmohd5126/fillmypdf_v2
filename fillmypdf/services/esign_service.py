@@ -46,28 +46,48 @@ def _bbox_pts(
     return x, y, w, h
 
 
-def typed_name_to_png(text: str, *, font_px: int = 32, max_chars: int = 120) -> bytes:
+_CURSIVE_FONT_PATHS = [
+    "/usr/share/fonts/truetype/freefont/FreeSerifItalic.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Italic.ttf",
+    "DejaVuSerif-Italic.ttf",
+]
+
+
+def _load_cursive_font(size: int) -> "ImageFont.FreeTypeFont | ImageFont.ImageFont":
+    for path in _CURSIVE_FONT_PATHS:
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def typed_name_to_png(text: str, *, font_px: int = 52, max_chars: int = 120) -> bytes:
     t = text.strip().replace("\n", " ").replace("\r", " ")
     if not t:
         raise ESignValidationError("signature_text is empty.")
     if len(t) > max_chars:
         t = t[: max_chars - 3] + "..."
 
-    pad = 8
-    wpx = 920
-    hpx = font_px + pad * 2
+    font = _load_cursive_font(font_px)
+
+    # Measure actual text size to fit tightly
+    tmp = Image.new("RGBA", (1, 1), (255, 255, 255, 0))
+    tmp_draw = ImageDraw.Draw(tmp)
+    bbox = tmp_draw.textbbox((0, 0), t, font=font)
+    text_w = bbox[2] - bbox[0] + 2
+    text_h = bbox[3] - bbox[1] + 2
+
+    pad_x, pad_y = 12, 10
+    wpx = max(text_w + pad_x * 2, 200)
+    hpx = text_h + pad_y * 2
+
     img = Image.new("RGBA", (wpx, hpx), (255, 255, 255, 0))
     draw = ImageDraw.Draw(img)
-    font: ImageFont.FreeTypeFont | ImageFont.ImageFont
-    try:
-        font = ImageFont.truetype("DejaVuSans.ttf", font_px)
-    except OSError:
-        try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_px)
-        except OSError:
-            font = ImageFont.load_default()
+    # Dark navy blue — looks like ink
+    draw.text((pad_x - bbox[0], pad_y - bbox[1]), t, fill=(15, 40, 100, 230), font=font)
 
-    draw.text((pad, pad), t, fill=(20, 20, 20, 255), font=font)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
