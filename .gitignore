@@ -42,6 +42,9 @@ fillmypdf/storage/temp/
 fillmypdf/storage/jobs/
 fillmypdf/storage/template_cache/
 fillmypdf/storage/usage_stats.json
+# Generated fillable PDF cache (converted at runtime from stored templates)
+fillmypdf/storage/templates/**/fillable.pdf
+fillmypdf/storage/templates/**/fields.json
 
 # Local compose bind-mount data (see docker-compose.yml)
 /docker-data/
