@@ -37,8 +37,10 @@ test_output_*/
 
 # Runtime data (regenerated at runtime; do not commit keys or user profiles)
 fillmypdf/storage/profiles/
+fillmypdf/storage/api_keys/
 fillmypdf/storage/temp/
 fillmypdf/storage/jobs/
+fillmypdf/storage/template_cache/
 fillmypdf/storage/usage_stats.json
 
 # Local compose bind-mount data (see docker-compose.yml)
