@@ -57,6 +57,16 @@
         <p class="text-sm text-gray-500">Browse, search and fill pre-built form templates.</p>
       </a>
 
+      <a href="/ui/jobs.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
+        <div class="w-11 h-11 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12v4m0 0l-2-2m2 2l2-2"/>
+          </svg>
+        </div>
+        <h2 class="font-semibold text-gray-900 mb-1">Fill History</h2>
+        <p class="text-sm text-gray-500">Track async jobs, download results, and retry webhooks.</p>
+      </a>
+
     </div>
 
     <!-- Stats bar -->
@@ -67,6 +77,15 @@
         <div><p class="text-2xl font-bold text-indigo-600" id="stat-today">—</p><p class="text-xs text-gray-400 mt-1">Today</p></div>
         <div><p class="text-2xl font-bold text-indigo-600" id="stat-profiles">—</p><p class="text-xs text-gray-400 mt-1">Profiles Created</p></div>
       </div>
+    </div>
+
+    <!-- Recent fill history -->
+    <div id="recent-jobs-section" class="mt-8 hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-semibold text-gray-700">Recent Fills</h3>
+        <a href="/ui/jobs.html" class="text-xs text-indigo-600 hover:underline">View all →</a>
+      </div>
+      <div id="recent-jobs" class="space-y-2"></div>
     </div>
   </main>
 
@@ -109,9 +128,45 @@
     } catch {}
   }
 
+  const STATUS_STYLE = {
+    queued:    'bg-yellow-100 text-yellow-700',
+    running:   'bg-blue-100 text-blue-700',
+    done:      'bg-green-100 text-green-700',
+    failed:    'bg-red-100 text-red-700',
+    cancelled: 'bg-gray-100 text-gray-500',
+  };
+  const KIND_LABEL = {
+    batch_fill: 'Batch Fill', batch_fill_xlsx: 'Excel Batch',
+    template_fill: 'Template Fill', extract_pdf: 'Extraction',
+  };
+
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmtDate(s) { try { return new Date(s).toLocaleString(); } catch { return s||'—'; } }
+
+  async function loadRecentJobs() {
+    const key = getKey();
+    if (!key) return;
+    try {
+      const r = await fetch('/api/v1/jobs?limit=5', { headers: {'X-API-Key': key} });
+      if (!r.ok) return;
+      const data = await r.json();
+      const jobs = data.jobs || [];
+      if (!jobs.length) return;
+      const container = document.getElementById('recent-jobs');
+      container.innerHTML = jobs.map(j => `
+        <a href="/ui/jobs.html" class="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-4 py-3 hover:shadow-sm transition">
+          <span class="text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[j.status]||'bg-gray-100 text-gray-500'}">${j.status}</span>
+          <span class="text-sm text-gray-700 flex-1 truncate">${KIND_LABEL[j.kind]||j.kind}${j.template_id ? ' · <span class="font-mono text-xs text-gray-400">'+esc(j.template_id)+'</span>' : ''}</span>
+          <span class="text-xs text-gray-400 flex-shrink-0">${fmtDate(j.created_at)}</span>
+        </a>`).join('');
+      document.getElementById('recent-jobs-section').classList.remove('hidden');
+    } catch {}
+  }
+
   // Auto-prompt for key on first visit
   if (!getKey()) showKeyModal();
   loadStats();
+  loadRecentJobs();
 </script>
 </body>
 </html>

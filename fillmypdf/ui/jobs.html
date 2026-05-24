@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fill History — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body { font-family: system-ui,-apple-system,sans-serif; }</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- Nav -->
+  <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
+    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <span class="font-semibold text-gray-800">Fill History</span>
+    <button onclick="loadJobs()" class="ml-auto text-sm text-gray-500 hover:text-indigo-600 flex items-center gap-1">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Refresh
+    </button>
+  </nav>
+
+  <main class="max-w-4xl mx-auto px-4 py-8">
+
+    <!-- Filter bar -->
+    <div class="flex gap-3 mb-6 flex-wrap">
+      <select id="f-status" onchange="applyFilters()"
+        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+        <option value="">All statuses</option>
+        <option value="queued">Queued</option>
+        <option value="running">Running</option>
+        <option value="done">Done</option>
+        <option value="failed">Failed</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <select id="f-kind" onchange="applyFilters()"
+        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+        <option value="">All types</option>
+        <option value="batch_fill">Batch Fill</option>
+        <option value="batch_fill_xlsx">Excel Batch</option>
+        <option value="template_fill">Template Fill</option>
+        <option value="extract_pdf">Extract</option>
+      </select>
+      <span id="job-count" class="ml-auto self-center text-sm text-gray-400"></span>
+    </div>
+
+    <div id="job-list" class="space-y-3"></div>
+
+    <div id="empty-state" class="hidden text-center py-16 text-gray-400">
+      <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+      </svg>
+      <p class="font-medium">No jobs yet</p>
+      <p class="text-sm mt-1">Fill a template or batch upload to see history here.</p>
+      <a href="/ui/templates.html" class="inline-block mt-4 text-sm text-indigo-600 hover:underline">Browse Templates →</a>
+    </div>
+  </main>
+
+  <!-- Job detail modal -->
+  <div id="detail-modal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <h2 id="d-id" class="font-mono text-sm text-gray-500"></h2>
+          <p id="d-kind" class="text-base font-bold text-gray-900 mt-0.5"></p>
+        </div>
+        <button onclick="closeDetail()" class="text-gray-400 hover:text-gray-600 ml-4">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="d-body" class="space-y-3 text-sm text-gray-700"></div>
+      <div class="mt-5 flex gap-2">
+        <button id="d-download" onclick="downloadJob()" class="hidden flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700">Download Result</button>
+        <button id="d-retry-webhook" onclick="retryWebhook()" class="hidden flex-1 bg-gray-100 text-gray-700 rounded-lg py-2 text-sm font-medium hover:bg-gray-200">Re-send Webhook</button>
+        <button onclick="closeDetail()" class="flex-1 bg-gray-100 text-gray-700 rounded-lg py-2 text-sm font-medium hover:bg-gray-200">Close</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
+  let allJobs = [], currentJobId = null, autoRefreshTimer = null;
+
+  const STATUS_STYLE = {
+    queued:    'bg-yellow-100 text-yellow-700',
+    running:   'bg-blue-100 text-blue-700',
+    done:      'bg-green-100 text-green-700',
+    failed:    'bg-red-100 text-red-700',
+    cancelled: 'bg-gray-100 text-gray-500',
+  };
+
+  const KIND_LABEL = {
+    batch_fill: 'Batch Fill',
+    batch_fill_xlsx: 'Excel Batch',
+    template_fill: 'Template Fill',
+    extract_pdf: 'Extraction',
+  };
+
+  async function loadJobs() {
+    const key = getKey();
+    if (!key) { document.getElementById('job-list').innerHTML = '<p class="text-red-500 text-sm text-center py-8">No API key. <a href="/ui/index.html" class="underline">Set it on the dashboard.</a></p>'; return; }
+    try {
+      const status = document.getElementById('f-status').value;
+      const kind   = document.getElementById('f-kind').value;
+      const params = new URLSearchParams({limit: 100});
+      if (status) params.set('status', status);
+      if (kind)   params.set('kind', kind);
+      const r = await fetch(`/api/v1/jobs?${params}`, { headers: {'X-API-Key': key} });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      allJobs = data.jobs || [];
+      renderJobs(allJobs);
+      scheduleAutoRefresh();
+    } catch(e) {
+      document.getElementById('job-list').innerHTML = `<p class="text-red-500 text-sm text-center py-8">${e.message}</p>`;
+    }
+  }
+
+  function applyFilters() { loadJobs(); }
+
+  function renderJobs(list) {
+    const container = document.getElementById('job-list');
+    const empty = document.getElementById('empty-state');
+    document.getElementById('job-count').textContent = list.length ? `${list.length} job${list.length!==1?'s':''}` : '';
+    if (!list.length) { container.innerHTML=''; empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+
+    container.innerHTML = list.map(j => {
+      const pct = j.progress_pct ?? 0;
+      const isRunning = j.status === 'running';
+      const isDone = j.status === 'done';
+      const records = j.record_count || 0;
+      const successful = j.progress?.successful ?? 0;
+      const failed = j.progress?.failed ?? 0;
+      const duration = j.completed_at && j.started_at
+        ? `${((new Date(j.completed_at) - new Date(j.started_at))/1000).toFixed(1)}s`
+        : (j.started_at ? 'running…' : '—');
+
+      return `
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 cursor-pointer hover:shadow-md transition" onclick="openDetail('${j.id}')">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[j.status]||'bg-gray-100 text-gray-500'}">${j.status}</span>
+                <span class="text-xs text-gray-500 font-medium">${KIND_LABEL[j.kind]||j.kind}</span>
+                ${j.template_id ? `<span class="text-xs text-gray-400 font-mono truncate max-w-40">${esc(j.template_id)}</span>` : ''}
+              </div>
+              <p class="text-xs text-gray-400 mt-1 font-mono">${j.id}</p>
+            </div>
+            <div class="text-right text-xs text-gray-400 flex-shrink-0">
+              <p>${fmtDate(j.created_at)}</p>
+              <p class="mt-0.5">${duration}</p>
+            </div>
+          </div>
+
+          ${records > 0 ? `
+            <div class="mt-3 flex items-center gap-3 text-xs text-gray-500">
+              <span>${records} record${records!==1?'s':''}</span>
+              ${successful > 0 ? `<span class="text-green-600">✓ ${successful} ok</span>` : ''}
+              ${failed > 0 ? `<span class="text-red-500">✗ ${failed} failed</span>` : ''}
+              ${j.avg_confidence ? `<span class="text-indigo-500">~${Math.round(j.avg_confidence*100)}% confidence</span>` : ''}
+            </div>` : ''}
+
+          ${isRunning ? `
+            <div class="mt-3">
+              <div class="flex justify-between text-xs text-gray-400 mb-1">
+                <span>Processing…</span><span>${pct}%</span>
+              </div>
+              <div class="w-full bg-gray-100 rounded-full h-1.5">
+                <div class="bg-indigo-500 h-1.5 rounded-full transition-all" style="width:${pct}%"></div>
+              </div>
+            </div>` : ''}
+
+          ${isDone && j.download_url ? `
+            <div class="mt-3 flex items-center gap-1 text-xs text-indigo-600">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              Click to download result
+            </div>` : ''}
+
+          ${j.status === 'failed' ? `
+            <p class="mt-2 text-xs text-red-500 truncate">${esc(j.error||'Unknown error')}</p>` : ''}
+        </div>`;
+    }).join('');
+  }
+
+  // ── Auto-refresh when running jobs present ────────────────────
+  function scheduleAutoRefresh() {
+    clearTimeout(autoRefreshTimer);
+    const hasRunning = allJobs.some(j => j.status === 'running' || j.status === 'queued');
+    if (hasRunning) autoRefreshTimer = setTimeout(loadJobs, 4000);
+  }
+
+  // ── Detail modal ──────────────────────────────────────────────
+  function openDetail(id) {
+    const j = allJobs.find(x => x.id === id);
+    if (!j) return;
+    currentJobId = id;
+
+    document.getElementById('d-id').textContent = id;
+    document.getElementById('d-kind').textContent = KIND_LABEL[j.kind] || j.kind;
+
+    const rows = [
+      ['Status', `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[j.status]||''}">${j.status}</span>`],
+      ['Records', j.record_count || '—'],
+      ['Successful', j.progress?.successful ?? '—'],
+      ['Failed', j.progress?.failed ?? '—'],
+      ['Avg Confidence', j.avg_confidence ? `${Math.round(j.avg_confidence*100)}%` : '—'],
+      ['Submitted', fmtDateFull(j.created_at)],
+      ['Started', fmtDateFull(j.started_at)],
+      ['Completed', fmtDateFull(j.completed_at)],
+      j.template_id ? ['Template', `<span class="font-mono text-xs">${esc(j.template_id)}</span>`] : null,
+      j.error ? ['Error', `<span class="text-red-600">${esc(j.error)}</span>`] : null,
+      j.webhook_url ? ['Webhook', `<span class="font-mono text-xs break-all">${esc(j.webhook_url)}</span>`] : null,
+      j.webhook_delivered !== undefined ? ['Webhook delivered', j.webhook_delivered ? '✓ Yes' : '✗ No'] : null,
+    ].filter(Boolean);
+
+    document.getElementById('d-body').innerHTML = rows.map(([label, val]) => `
+      <div class="flex justify-between gap-4">
+        <span class="text-gray-400 flex-shrink-0">${label}</span>
+        <span class="text-right">${val}</span>
+      </div>`).join('');
+
+    const dlBtn = document.getElementById('d-download');
+    const whBtn = document.getElementById('d-retry-webhook');
+    dlBtn.classList.toggle('hidden', !(j.status === 'done' && j.download_url));
+    whBtn.classList.toggle('hidden', !(j.webhook_url && ['done','failed','cancelled'].includes(j.status)));
+
+    document.getElementById('detail-modal').classList.remove('hidden');
+  }
+
+  function closeDetail() { document.getElementById('detail-modal').classList.add('hidden'); currentJobId = null; }
+
+  async function downloadJob() {
+    const key = getKey();
+    const j = allJobs.find(x => x.id === currentJobId);
+    if (!j?.download_url) return;
+    const r = await fetch(j.download_url, { headers: {'X-API-Key': key} });
+    if (!r.ok) { alert('Download failed: ' + r.status); return; }
+    const blob = await r.blob();
+    const filename = j.download_url.split('/').pop() || 'result.zip';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function retryWebhook() {
+    const key = getKey();
+    const r = await fetch(`/api/v1/jobs/${currentJobId}/retry-webhook`, {
+      method: 'POST', headers: {'X-API-Key': key}
+    });
+    alert(r.ok ? 'Webhook re-queued.' : 'Failed: ' + r.status);
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmtDate(s) { try { return new Date(s).toLocaleString(); } catch { return s||'—'; } }
+  function fmtDateFull(s) { if (!s) return '—'; try { return new Date(s).toLocaleString(); } catch { return s; } }
+
+  loadJobs();
+</script>
+</body>
+</html>
