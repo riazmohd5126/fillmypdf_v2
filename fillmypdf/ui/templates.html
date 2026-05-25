@@ -16,6 +16,10 @@
     </a>
     <span class="font-semibold text-gray-800">Template Library</span>
     <span id="template-count" class="ml-auto text-sm text-gray-400"></span>
+    <button onclick="showUploadModal()" class="flex items-center gap-1.5 bg-indigo-600 text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-indigo-700">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      Upload
+    </button>
   </nav>
 
   <main class="max-w-5xl mx-auto px-4 py-8">
@@ -114,6 +118,86 @@
         <p class="text-xs text-gray-400 mb-3">Detected AcroForm fields in this template:</p>
         <div id="fields-list" class="space-y-1.5 max-h-80 overflow-y-auto"></div>
         <button onclick="loadFields()" id="fields-load-btn" class="mt-3 text-sm text-indigo-600 hover:underline">Load fields</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Template Modal -->
+  <div id="upload-modal" class="fixed inset-0 bg-black/40 flex items-start justify-center z-50 hidden overflow-y-auto py-8">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6">
+      <div class="flex items-center justify-between mb-5">
+        <h2 class="text-base font-bold text-gray-900">Upload Template</h2>
+        <button onclick="closeUploadModal()" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <!-- PDF file -->
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">PDF File <span class="text-red-500">*</span></label>
+          <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-indigo-400 transition"
+               onclick="document.getElementById('up-pdf').click()">
+            <p id="up-pdf-name" class="text-sm text-gray-400">Click to select PDF</p>
+            <input id="up-pdf" type="file" accept=".pdf" class="hidden" onchange="document.getElementById('up-pdf-name').textContent=this.files[0]?.name||'Click to select PDF'">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Template ID <span class="text-red-500">*</span></label>
+            <input id="up-id" type="text" placeholder="my_form_v1" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Name <span class="text-red-500">*</span></label>
+            <input id="up-name" type="text" placeholder="My Form" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Category</label>
+            <select id="up-category" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+              <option value="prior_authorization">Prior Authorization</option>
+              <option value="tax">Tax</option>
+              <option value="employment">Employment</option>
+              <option value="real_estate">Real Estate</option>
+              <option value="healthcare">Healthcare</option>
+              <option value="general">General</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">State / Region</label>
+            <input id="up-state" type="text" placeholder="CA (optional)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Drug / Product</label>
+            <input id="up-drug" type="text" placeholder="(optional)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Payer</label>
+            <input id="up-payer" type="text" placeholder="(optional)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Tags <span class="text-gray-400">(comma-separated)</span></label>
+          <input id="up-tags" type="text" placeholder="pa, oncology, medicare" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+        </div>
+
+        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <input id="up-public" type="checkbox" checked class="text-indigo-600 rounded"> Public (visible to all API keys)
+        </label>
+
+        <div id="up-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
+      </div>
+
+      <div class="mt-5 flex gap-2">
+        <button onclick="uploadTemplate()" class="flex-1 bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-indigo-700">Upload Template</button>
+        <button onclick="closeUploadModal()" class="flex-1 bg-gray-100 text-gray-700 rounded-lg py-2.5 text-sm font-medium hover:bg-gray-200">Cancel</button>
       </div>
     </div>
   </div>
@@ -324,6 +408,62 @@
         : '<p class="text-gray-400 text-xs">No fields found.</p>';
       document.getElementById('fields-load-btn').classList.add('hidden');
     } catch (e) { document.getElementById('fields-list').innerHTML = `<p class="text-red-500 text-xs">${e.message}</p>`; document.getElementById('fields-load-btn').textContent = 'Retry'; }
+  }
+
+  // ── Upload Template ───────────────────────────────────────────
+  function showUploadModal() {
+    ['up-id','up-name','up-drug','up-payer','up-state','up-tags'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('up-category').value = 'prior_authorization';
+    document.getElementById('up-public').checked = true;
+    document.getElementById('up-pdf-name').textContent = 'Click to select PDF';
+    document.getElementById('up-pdf').value = '';
+    document.getElementById('up-error').classList.add('hidden');
+    document.getElementById('upload-modal').classList.remove('hidden');
+  }
+  function closeUploadModal() { document.getElementById('upload-modal').classList.add('hidden'); }
+
+  async function uploadTemplate() {
+    const key = getKey();
+    if (!key) { showUpErr('No API key.'); return; }
+    const pdf = document.getElementById('up-pdf').files[0];
+    if (!pdf)  { showUpErr('Select a PDF file.'); return; }
+    const id   = document.getElementById('up-id').value.trim();
+    const name = document.getElementById('up-name').value.trim();
+    if (!id || !name) { showUpErr('Template ID and Name are required.'); return; }
+
+    const drug  = document.getElementById('up-drug').value.trim();
+    const payer = document.getElementById('up-payer').value.trim();
+    const state = document.getElementById('up-state').value.trim();
+    const tags  = document.getElementById('up-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+
+    const manifest = {
+      id, name,
+      category: document.getElementById('up-category').value,
+      is_public: document.getElementById('up-public').checked,
+      ...(drug  ? { drug:  { name: drug  } } : {}),
+      ...(payer ? { payer: { name: payer } } : {}),
+      ...(state ? { custom: { state } } : {}),
+      ...(tags.length ? { tags } : {}),
+    };
+
+    const fd = new FormData();
+    fd.append('file', pdf);
+    fd.append('manifest_json', JSON.stringify(manifest));
+
+    const btn = document.querySelector('#upload-modal button[onclick="uploadTemplate()"]');
+    btn.disabled = true; btn.textContent = 'Uploading…';
+    try {
+      const r = await fetch('/api/v1/templates', { method:'POST', headers:{'X-API-Key': key}, body: fd });
+      if (!r.ok) { const d = await r.json().catch(()=>({})); showUpErr(d.detail || `HTTP ${r.status}`); return; }
+      closeUploadModal();
+      await loadTemplates();
+    } catch(e) { showUpErr(e.message); }
+    finally { btn.disabled = false; btn.textContent = 'Upload Template'; }
+  }
+
+  function showUpErr(msg) {
+    const el = document.getElementById('up-error');
+    el.textContent = msg; el.classList.remove('hidden');
   }
 
   function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
