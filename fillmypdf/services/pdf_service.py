@@ -96,12 +96,31 @@ class PDFService:
         """
         try:
             reader = PdfReader(str(input_path))
+
+            # Build a lookup: leaf field name → field type (/Btn = checkbox)
+            raw_fields = reader.get_fields() or {}
+            btn_fields: set = set()
+            for name, fld in raw_fields.items():
+                if str(fld.get("/FT", "")) == "/Btn":
+                    btn_fields.add(name)
+                    # Also index by leaf name for flat-name callers
+                    leaf = name.split(".")[-1].rstrip("]").rstrip("[0")
+                    btn_fields.add(leaf)
+
+            # Normalise checkbox values: AI returns "Yes"/"No", pypdf needs /Yes / /Off
+            normalised: Dict[str, str] = {}
+            for k, v in field_values.items():
+                if k in btn_fields:
+                    normalised[k] = "/Yes" if str(v).strip().lower() in ("yes", "true", "1", "on") else "/Off"
+                else:
+                    normalised[k] = v
+
             writer = PdfWriter()
             writer.append(reader)
 
             for page in writer.pages:
                 try:
-                    writer.update_page_form_field_values(page, field_values)
+                    writer.update_page_form_field_values(page, normalised)
                 except Exception:
                     pass  # page may have no fields — skip quietly
 
