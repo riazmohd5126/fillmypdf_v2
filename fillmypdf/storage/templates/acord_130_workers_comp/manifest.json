@@ -1,0 +1,25 @@
+{
+  "id": "acord_130_workers_comp",
+  "name": "ACORD 130 — Workers Compensation Application",
+  "category": "commercial_insurance",
+  "specialty": null,
+  "drug": null,
+  "payer": null,
+  "indications": [],
+  "questions": [],
+  "tags": [
+    "acord",
+    "workers comp",
+    "workers compensation",
+    "employment"
+  ],
+  "version": null,
+  "pages": null,
+  "is_public": true,
+  "created_at": "2026-05-26T00:27:00.036566+00:00",
+  "updated_at": "2026-05-26T00:27:00.036566+00:00",
+  "custom": {
+    "acord_number": "130",
+    "version": "2010-05"
+  }
+}
