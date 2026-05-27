@@ -19,7 +19,7 @@ Version 4.0.0 - Production Ready
 - ✅ **API keys + rate limits** (`X-API-Key`), async jobs, template library, bulk extract/webhooks ([feature matrix](./docs/FEATURE_MATRIX_ROUTE.md))
 
 ### **Coming Soon** 🔜
-- 🔜 **User dashboard product UI** — history, billing, onboarding (outside this FastAPI package)
+- 🔜 **User dashboard product UI** — **MVP at [`/dashboard`](http://localhost:8000/dashboard)** (profiles, template search, draw/type e-sign); full billing/history still roadmap
 - 🔜 **E-Signatures / multi-sign** — roadmap Phase 3 (see [`docs/feature-matrix.json`](./docs/feature-matrix.json))
 - 🔜 **Optional Zapier marketplace app** — **today:** same **REST + OpenAPI** autofill API for any client; job **webhooks** work with Zapier Catch Hook / similar tools. **Private Zap CLI app:** [`integrations/zapier/README.md`](./integrations/zapier/README.md)
 

@@ -40,7 +40,11 @@ fillmypdf/storage/profiles/
 fillmypdf/storage/api_keys/
 fillmypdf/storage/temp/
 fillmypdf/storage/jobs/
+<<<<<<< Updated upstream
 fillmypdf/storage/template_cache/
+=======
+fillmypdf/storage/sign_audit/
+>>>>>>> Stashed changes
 fillmypdf/storage/usage_stats.json
 # Generated fillable PDF cache (converted at runtime from stored templates)
 fillmypdf/storage/templates/**/fillable.pdf

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FillMyPDF Dashboard</title>
+  <style>
+    :root { --bg:#0f1419; --panel:#1a2332; --text:#e7ecf3; --muted:#8b9cb3; --accent:#3b82f6; --border:#2d3a4d; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.45; }
+    header { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+    header h1 { margin: 0; font-size: 1.15rem; }
+    .bar { display: flex; flex-wrap: wrap; gap: .5rem; flex: 1; }
+    input, select, button, textarea { font: inherit; }
+    input, select, textarea { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: .45rem .6rem; border-radius: 6px; }
+    input[type=password], input[type=text] { min-width: 12rem; }
+    button { background: var(--accent); color: #fff; border: none; padding: .45rem .85rem; border-radius: 6px; cursor: pointer; }
+    button.secondary { background: var(--panel); border: 1px solid var(--border); color: var(--text); }
+    nav { display: flex; gap: .35rem; padding: .75rem 1.5rem; border-bottom: 1px solid var(--border); }
+    nav button { background: transparent; color: var(--muted); border: 1px solid transparent; }
+    nav button.active { color: var(--text); border-color: var(--border); background: var(--panel); }
+    main { padding: 1.25rem 1.5rem; max-width: 1100px; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 1rem; }
+    .grid { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+    .muted { color: var(--muted); font-size: .9rem; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th, td { text-align: left; padding: .5rem; border-bottom: 1px solid var(--border); }
+    #sigCanvas { background: #fff; border: 1px solid var(--border); border-radius: 6px; touch-action: none; cursor: crosshair; max-width: 100%; }
+    .err { color: #f87171; } .ok { color: #4ade80; }
+    pre { background: var(--bg); padding: .75rem; overflow: auto; border-radius: 6px; font-size: .8rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>FillMyPDF</h1>
+    <div class="bar">
+      <input id="apiBase" type="text" placeholder="API base (empty = same origin)" />
+      <input id="apiKey" type="password" placeholder="X-API-Key" />
+      <button type="button" id="saveConn">Save connection</button>
+    </div>
+  </header>
+  <nav>
+    <button type="button" class="tab active" data-tab="profiles">Profiles</button>
+    <button type="button" class="tab" data-tab="templates">Template library</button>
+    <button type="button" class="tab" data-tab="sign">E-sign</button>
+  </nav>
+  <main>
+    <section id="profiles" class="panel active">
+      <div class="card">
+        <h2>Your profiles</h2>
+        <p class="muted">Encrypted on the server. Data values are not shown in list responses.</p>
+        <button type="button" id="loadProfiles">Refresh list</button>
+        <div id="profileList"></div>
+      </div>
+      <div class="card">
+        <h3>Create profile</h3>
+        <div class="grid">
+          <label>Name <input id="profName" type="text" placeholder="My clinic" /></label>
+          <label>Type
+            <select id="profType">
+              <option value="personal">personal</option>
+              <option value="business">business</option>
+              <option value="custom">custom</option>
+            </select>
+          </label>
+        </div>
+        <label>Data (JSON object) <textarea id="profData" rows="4" style="width:100%">{"phone":"555-0100","npi":"1234567890"}</textarea></label>
+        <p><button type="button" id="createProfile">Create profile</button></p>
+        <p id="profMsg" class="muted"></p>
+      </div>
+    </section>
+
+    <section id="templates" class="panel">
+      <div class="card">
+        <h2>Search templates</h2>
+        <div class="grid">
+          <label>Drug <input id="qDrug" type="text" placeholder="linzess" /></label>
+          <label>Payer <input id="qPayer" type="text" placeholder="molina" /></label>
+          <label>State <input id="qState" type="text" placeholder="TX" maxlength="2" /></label>
+          <label>Tag <input id="qTag" type="text" placeholder="medicaid" /></label>
+        </div>
+        <p><button type="button" id="searchTemplates">Search</button></p>
+        <p id="tmplCount" class="muted"></p>
+        <div id="tmplResults"></div>
+      </div>
+    </section>
+
+    <section id="sign" class="panel">
+      <div class="card">
+        <h2>Sign a PDF</h2>
+        <p class="muted">Draw below or type a name. Visual overlay only — not legal PAdES signing.</p>
+        <label>PDF <input id="signPdf" type="file" accept="application/pdf" /></label>
+        <div class="grid" style="margin-top:.75rem">
+          <label>Signer name <input id="signerName" type="text" /></label>
+          <label>Signer email <input id="signerEmail" type="email" /></label>
+          <label>Page <input id="signPage" type="number" value="0" min="0" /></label>
+        </div>
+        <p><strong>Draw signature</strong></p>
+        <canvas id="sigCanvas" width="480" height="120"></canvas>
+        <p>
+          <button type="button" class="secondary" id="clearSig">Clear canvas</button>
+        </p>
+        <p><strong>Or type signature</strong></p>
+        <input id="signText" type="text" placeholder="Jane Doe" />
+        <p style="margin-top:1rem"><button type="button" id="applySign">Apply signature</button></p>
+        <p id="signMsg"></p>
+      </div>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const apiBase = () => ($('apiBase').value || '').replace(/\/+$/, '') || '';
+    const headers = () => ({ 'X-API-Key': $('apiKey').value.trim() });
+
+    $('saveConn').onclick = () => {
+      localStorage.setItem('fmp_base', $('apiBase').value);
+      localStorage.setItem('fmp_key', $('apiKey').value);
+      alert('Saved in this browser only.');
+    };
+    $('apiBase').value = localStorage.getItem('fmp_base') || '';
+    $('apiKey').value = localStorage.getItem('fmp_key') || '';
+
+    document.querySelectorAll('.tab').forEach((btn) => {
+      btn.onclick = () => {
+        document.querySelectorAll('.tab').forEach((b) => b.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
+        btn.classList.add('active');
+        $(btn.dataset.tab).classList.add('active');
+      };
+    });
+
+    async function api(path, opts = {}) {
+      const url = apiBase() + path;
+      const res = await fetch(url, { ...opts, headers: { ...headers(), ...(opts.headers || {}) } });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = text; }
+      if (!res.ok) throw new Error(typeof data === 'object' && data.detail ? JSON.stringify(data.detail) : text);
+      return data;
+    }
+
+    $('loadProfiles').onclick = async () => {
+      $('profMsg').textContent = 'Loading…';
+      try {
+        const rows = await api('/api/v1/profiles/');
+        $('profileList').innerHTML = rows.length
+          ? '<table><tr><th>Name</th><th>Type</th><th>ID</th><th>Preview</th></tr>' +
+            rows.map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(r.profile_type)}</td><td><code>${esc(r.id)}</code></td><td><pre>${esc(JSON.stringify(r.data_preview || {}, null, 0))}</pre></td></tr>`).join('') +
+            '</table>'
+          : '<p class="muted">No profiles yet.</p>';
+        $('profMsg').textContent = '';
+      } catch (e) { $('profMsg').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; }
+    };
+
+    $('createProfile').onclick = async () => {
+      $('profMsg').textContent = 'Creating…';
+      try {
+        const data = JSON.parse($('profData').value);
+        const body = { name: $('profName').value.trim(), profile_type: $('profType').value, data };
+        const r = await api('/api/v1/profiles/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        $('profMsg').innerHTML = '<span class="ok">Created ' + esc(r.id) + '</span>';
+        $('loadProfiles').click();
+      } catch (e) { $('profMsg').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; }
+    };
+
+    $('searchTemplates').onclick = async () => {
+      const q = new URLSearchParams();
+      if ($('qDrug').value.trim()) q.set('drug', $('qDrug').value.trim());
+      if ($('qPayer').value.trim()) q.set('payer', $('qPayer').value.trim());
+      if ($('qState').value.trim()) q.set('state', $('qState').value.trim());
+      if ($('qTag').value.trim()) q.set('tag', $('qTag').value.trim());
+      const qs = q.toString();
+      $('tmplCount').textContent = 'Searching…';
+      try {
+        const r = await api('/api/v1/templates' + (qs ? '?' + qs : ''));
+        $('tmplCount').textContent = r.total + ' template(s)';
+        $('tmplResults').innerHTML = r.templates.length
+          ? '<table><tr><th>Name</th><th>ID</th><th>Drug</th><th>Payer</th><th>State</th></tr>' +
+            r.templates.map((t) => `<tr><td>${esc(t.name)}</td><td><code>${esc(t.id)}</code></td><td>${esc(t.drug_name || '')}</td><td>${esc(t.payer_name || '')}</td><td>${esc(t.state || '')}</td></tr>`).join('') +
+            '</table>'
+          : '<p class="muted">No matches.</p>';
+      } catch (e) { $('tmplCount').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; }
+    };
+
+    const canvas = $('sigCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    let drawing = false;
+    function pos(e) {
+      const r = canvas.getBoundingClientRect();
+      const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+      return { x: x * (canvas.width / r.width), y: y * (canvas.height / r.height) };
+    }
+    function start(e) { drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+    function move(e) { if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }
+    function end() { drawing = false; }
+    canvas.onmousedown = start; canvas.onmousemove = move; canvas.onmouseup = end; canvas.onmouseleave = end;
+    canvas.ontouchstart = start; canvas.ontouchmove = move; canvas.ontouchend = end;
+    $('clearSig').onclick = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); };
+
+    function canvasHasInk() {
+      const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return true;
+      return false;
+    }
+
+    $('applySign').onclick = async () => {
+      const file = $('signPdf').files[0];
+      if (!file) { $('signMsg').innerHTML = '<span class="err">Choose a PDF.</span>'; return; }
+      const typed = $('signText').value.trim();
+      const hasDraw = canvasHasInk();
+      if (!typed && !hasDraw) { $('signMsg').innerHTML = '<span class="err">Draw or type a signature.</span>'; return; }
+      if (typed && hasDraw) { $('signMsg').innerHTML = '<span class="err">Use draw OR type, not both.</span>'; return; }
+
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('page_index', $('signPage').value);
+      if ($('signerName').value.trim()) fd.append('signer_name', $('signerName').value.trim());
+      if ($('signerEmail').value.trim()) fd.append('signer_email', $('signerEmail').value.trim());
+      if (hasDraw) {
+        const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+        fd.append('signature_png', blob, 'drawn.png');
+      } else {
+        fd.append('signature_text', typed);
+      }
+
+      $('signMsg').textContent = 'Signing…';
+      try {
+        const url = apiBase() + '/api/v1/signatures/apply';
+        const res = await fetch(url, { method: 'POST', headers: headers(), body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(JSON.stringify(data.detail || data));
+        const dl = apiBase() + data.download_url;
+        $('signMsg').innerHTML = '<span class="ok">Done. <a href="' + esc(dl) + '" style="color:#93c5fd">Download signed PDF</a></span> (open link with API key if required)';
+      } catch (e) { $('signMsg').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; }
+    };
+
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    }
+  </script>
+</body>
+</html>

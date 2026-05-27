@@ -245,6 +245,7 @@ async def root():
         "service": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "docs": "/docs",
+        "dashboard": "/dashboard",
         "features": {
             "profiles": True,
             "batch_processing": HAS_BATCH,
@@ -258,6 +259,7 @@ async def root():
             "jobs_list_filters": HAS_JOBS,
             "smart_extraction": HAS_EXTRACT,
             "esign_visual": HAS_SIGNING,
+            "dashboard_ui": True,
             "authentication": True,
             "openapi_tagged_sections": True,
             "openapi_schema_examples": True,
@@ -308,6 +310,7 @@ if HAS_JOBS:
 if HAS_EXTRACT:
     app.include_router(extract_routes.router, prefix="/api/v1")
 
+<<<<<<< Updated upstream
 # ---------------------------------------------------------------------------
 # Serve UI static pages at /ui/*
 # ---------------------------------------------------------------------------
@@ -317,6 +320,15 @@ if _UI_DIR.exists():
     app.mount("/ui", StaticFiles(directory=str(_UI_DIR), html=True), name="ui")
 if _STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+=======
+_DASHBOARD_DIR = settings.BASE_DIR / "static" / "dashboard"
+if _DASHBOARD_DIR.is_dir():
+    app.mount(
+        "/dashboard",
+        StaticFiles(directory=str(_DASHBOARD_DIR), html=True),
+        name="dashboard",
+    )
+>>>>>>> Stashed changes
 
 
 if __name__ == "__main__":

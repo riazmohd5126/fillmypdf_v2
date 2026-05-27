@@ -12,13 +12,15 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 
 from ...config import settings
 from ...models import SignatureApplyResponse
 from ...services.esign_service import ESignValidationError, apply_signature_overlay, typed_name_to_png
-from ..dependencies.auth import require_api_key
+from ...services.sign_audit_service import SignAuditService
+from ..dependencies.auth import get_current_key_id, require_admin, require_api_key
 
 
 router = APIRouter(
@@ -30,6 +32,8 @@ router = APIRouter(
 MAX_PDF_BYTES = 26_214_400  # 25 MiB
 MAX_SIGNATURE_PNG_BYTES = 4_194_304  # 4 MiB
 
+_audit = SignAuditService()
+
 
 def _unlink_if_exists(path: Path) -> None:
     try:
@@ -38,16 +42,34 @@ def _unlink_if_exists(path: Path) -> None:
         pass
 
 
+@router.get(
+    "/audit",
+    summary="List recent signature audit events (admin)",
+    dependencies=[Depends(require_admin)],
+)
+async def list_signature_audit(limit: int = 50):
+    """
+    Workflow audit trail for visual overlays (who/when/output file).
+    **Not** a substitute for ESIGN/UETA legal evidence or PAdES.
+    """
+    cap = max(1, min(limit, 500))
+    events = _audit.list_recent(limit=cap)
+    return {"events": events, "total": len(events)}
+
+
 @router.post(
     "/apply",
     response_model=SignatureApplyResponse,
     summary="Apply visual signature overlay to a PDF",
 )
 async def apply_visual_signature(
+    request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="PDF document"),
-    signature_png: UploadFile | None = File(None, description="PNG with transparency (preferred)"),
+    signature_png: UploadFile | None = File(None, description="PNG with transparency (draw or upload)"),
     signature_text: str | None = Form(None, description="If no PNG: typed name rendered as PNG"),
+    signer_name: str | None = Form(None, description="Optional display name for audit log"),
+    signer_email: str | None = Form(None, description="Optional email for audit log"),
     page_index: int = Form(0, ge=0, description="Zero-based page index"),
     x_pct: float = Form(
         55.0,
@@ -69,6 +91,7 @@ async def apply_visual_signature(
     of the page MediaBox (origin lower-left).
 
     Provide **either** ``signature_png`` **or** ``signature_text``, not both.
+    Use the **dashboard** canvas (/dashboard) to draw, or upload a PNG from any tool.
     """
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Document must be a .pdf file")
@@ -86,6 +109,8 @@ async def apply_visual_signature(
     in_path = settings.UPLOAD_DIR / f"{ts}_{uid}_esign_in.pdf"
     out_name = f"signed_{uid}.pdf"
     out_path = settings.OUTPUT_DIR / out_name
+    download_url = f"/api/v1/batch/download/{out_name}"
+    sig_mode = "draw_or_upload_png" if has_png else "typed"
 
     try:
         raw_pdf = await file.read()
@@ -120,11 +145,24 @@ async def apply_visual_signature(
         except ESignValidationError as e:
             raise HTTPException(400, str(e)) from e
 
+        client_ip = request.client.host if request.client else None
+        audit_id = _audit.record(
+            output_filename=out_name,
+            download_url=download_url,
+            page_index=page_index,
+            signature_mode=sig_mode,
+            signer_name=(signer_name or "").strip() or None,
+            signer_email=(signer_email or "").strip() or None,
+            api_key_id=get_current_key_id(request),
+            client_ip=client_ip,
+            placement={"x_pct": x_pct, "y_pct": y_pct, "width_pct": width_pct, "height_pct": height_pct},
+        )
+
         return SignatureApplyResponse(
             filename=out_name,
-            download_url=f"/api/v1/batch/download/{out_name}",
+            download_url=download_url,
             page_index=page_index,
+            audit_id=audit_id,
         )
     finally:
         background_tasks.add_task(_unlink_if_exists, in_path)
-

@@ -301,4 +301,5 @@ class SignatureApplyResponse(BaseModel):
     filename: str
     download_url: str
     page_index: int
+    audit_id: Optional[str] = None
     message: str = "Signature overlay applied."

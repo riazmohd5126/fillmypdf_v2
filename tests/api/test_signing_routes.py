@@ -49,6 +49,7 @@ class TestSigningApply:
         body = resp.json()
         assert body["success"] is True
         assert body["filename"].startswith("signed_")
+        assert body.get("audit_id", "").startswith("sig_")
         assert body["filename"].endswith(".pdf")
         assert body["download_url"].endswith(body["filename"])
 
