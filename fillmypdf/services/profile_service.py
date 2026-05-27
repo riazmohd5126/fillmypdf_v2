@@ -105,21 +105,40 @@ class ProfileService:
         return self.repository.delete(profile_id)
     
     def use_profile(self, profile_id: str) -> Dict[str, str]:
-        """
-        Get decrypted profile data for use in form filling
-        Also increments usage count
-        """
+        """Get decrypted profile data for use in form filling. Increments usage count."""
         profile_dict = self.repository.get(profile_id)
         if not profile_dict:
             raise ValueError(f"Profile not found: {profile_id}")
-        
-        # Decrypt data
         decrypted_data = self.repository._decrypt_data(profile_dict.get('data', {}))
-        
-        # Increment usage
         self.repository.increment_usage(profile_id)
-        
         return decrypted_data
+
+    def use_profiles(self, profile_ids: List[str]) -> Dict[str, str]:
+        """
+        Merge multiple profiles into a single data dict for form filling.
+
+        Merge strategy:
+        - Flat keys are merged in order (later profiles override earlier ones).
+        - Each profile also contributes namespaced keys ({profile_type}_{key})
+          so the AI can distinguish e.g. patient_phone vs provider_phone when
+          both profiles have a 'phone' field.
+        - Usage count incremented for every profile loaded.
+        """
+        merged: Dict[str, str] = {}
+        for pid in profile_ids:
+            profile_dict = self.repository.get(pid)
+            if not profile_dict:
+                continue
+            ptype = profile_dict.get('profile_type', '')
+            data = self.repository._decrypt_data(profile_dict.get('data', {}))
+            self.repository.increment_usage(pid)
+            # Flat merge — later profiles win on collision
+            merged.update(data)
+            # Namespaced keys — always present regardless of collision
+            if ptype:
+                for k, v in data.items():
+                    merged[f"{ptype}_{k}"] = v
+        return merged
     
     def _to_model(self, profile_dict: Dict) -> Profile:
         """Convert dict to Profile model"""

@@ -237,17 +237,24 @@ async def fill_template(
     ),
     profile_id: Optional[str] = Form(
         None,
-        description="Saved profile ID to merge",
+        description="Single saved profile ID to merge (legacy)",
         examples=[EX_PROFILE_ID],
+    ),
+    profile_ids: Optional[str] = Form(
+        None,
+        description="Comma-separated profile IDs to merge (e.g. 'prof_abc,prof_xyz'). Takes precedence over profile_id.",
     ),
     dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
 ):
     """
-    Fill a stored PA template with one patient record.
+    Fill a stored template with one record.
 
     The template PDF is converted to a fillable form **once** (cached on disk);
     subsequent fills of the same template skip conversion entirely.  AI field
     mapping results are also cached per template fingerprint.
+
+    Pass multiple profiles via `profile_ids` (comma-separated) to merge data
+    from e.g. a patient profile and a provider profile before filling.
 
     **Returns** a JSON payload with `download_url` pointing to the filled PDF.
     Use `GET /api/v1/templates/download/{filename}` to retrieve it.
@@ -262,6 +269,8 @@ async def fill_template(
     except KeyError:
         raise HTTPException(404, f"Template '{template_id}' not found")
 
+    parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
+
     try:
         resp = _get_service().fill(
             template_id=template_id,
@@ -271,6 +280,7 @@ async def fill_template(
             ai_model=ai_model,
             dpi=dpi,
             profile_id=profile_id,
+            profile_ids=parsed_ids,
         )
     except Exception as exc:
         raise HTTPException(500, f"Fill failed: {exc}")
@@ -306,13 +316,20 @@ async def batch_fill_template(
         examples=[EX_JSON_RECORDS_TWO],
     ),
     profile_id: Optional[str] = Form(None, examples=[EX_PROFILE_ID]),
+    profile_ids: Optional[str] = Form(
+        None,
+        description="Comma-separated profile IDs to merge. Takes precedence over profile_id.",
+    ),
     dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
 ):
     """
-    Fill a stored PA template for many patients at once and return a ZIP.
+    Fill a stored template for many records at once and return a ZIP.
 
     The fillable PDF conversion and AI field mapping are both cached, so the
     cost of subsequent batch runs against the same template is minimal.
+
+    Pass multiple profiles via `profile_ids` (comma-separated) to merge base
+    data from e.g. an insured profile and an agency profile.
     """
     try:
         data_list = json.loads(records)
@@ -331,6 +348,8 @@ async def batch_fill_template(
     except KeyError:
         raise HTTPException(404, f"Template '{template_id}' not found")
 
+    parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
+
     try:
         resp = _get_service().fill_batch(
             template_id=template_id,
@@ -340,6 +359,7 @@ async def batch_fill_template(
             ai_model=ai_model,
             dpi=dpi,
             profile_id=profile_id,
+            profile_ids=parsed_ids,
         )
     except Exception as exc:
         raise HTTPException(500, f"Batch fill failed: {exc}")

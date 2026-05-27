@@ -74,6 +74,7 @@ class JobRunner:
         ai_model: str,
         dpi: int = 200,
         profile_id: Optional[str] = None,
+        profile_ids: Optional[List[str]] = None,
         webhook_url: Optional[str] = None,
         webhook_secret: Optional[str] = None,
         api_key_id: Optional[str] = None,
@@ -102,6 +103,7 @@ class JobRunner:
             "ai_model": ai_model,
             "dpi": dpi,
             "profile_id": profile_id,
+            "profile_ids": profile_ids,
         }
         _maybe_stash_webhook_secret(payload, webhook_secret)
         self._repo.save_payload(job_id, payload)
@@ -119,6 +121,7 @@ class JobRunner:
         ai_model: str,
         dpi: int = 200,
         profile_id: Optional[str] = None,
+        profile_ids: Optional[List[str]] = None,
         webhook_url: Optional[str] = None,
         webhook_secret: Optional[str] = None,
         api_key_id: Optional[str] = None,
@@ -159,6 +162,7 @@ class JobRunner:
             "ai_model": ai_model,
             "dpi": dpi,
             "profile_id": profile_id,
+            "profile_ids": profile_ids,
         }
         _maybe_stash_webhook_secret(payload, webhook_secret)
         self._repo.save_payload(job_id, payload)
@@ -216,6 +220,7 @@ class JobRunner:
         ai_model: str,
         dpi: int = 200,
         profile_id: Optional[str] = None,
+        profile_ids: Optional[List[str]] = None,
         webhook_url: Optional[str] = None,
         webhook_secret: Optional[str] = None,
         api_key_id: Optional[str] = None,
@@ -241,6 +246,7 @@ class JobRunner:
             "ai_model": ai_model,
             "dpi": dpi,
             "profile_id": profile_id,
+            "profile_ids": profile_ids,
         }
         _maybe_stash_webhook_secret(payload, webhook_secret)
         self._repo.save_payload(job_id, payload)
@@ -289,6 +295,7 @@ class JobRunner:
                 batch_id=job_id,
                 dpi=payload.get("dpi", 200),
                 profile_id=payload.get("profile_id"),
+                profile_ids=payload.get("profile_ids"),
                 on_record_done=_on_tick,
             )
             template_path.unlink(missing_ok=True)
@@ -359,6 +366,7 @@ class JobRunner:
                 batch_id=job_id,
                 dpi=payload.get("dpi", 200),
                 profile_id=payload.get("profile_id"),
+                profile_ids=payload.get("profile_ids"),
                 on_record_done=_on_tick,
             )
 
@@ -496,6 +504,7 @@ class JobRunner:
                 ai_model=payload["ai_model"],
                 dpi=payload.get("dpi", 200),
                 profile_id=payload.get("profile_id"),
+                profile_ids=payload.get("profile_ids"),
                 on_record_done=_on_tick,
             )
             repo.update_status(

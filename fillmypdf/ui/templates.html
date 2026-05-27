@@ -91,13 +91,10 @@
 
       <!-- Fill panel -->
       <div id="dpanel-fill" class="p-6 hidden">
-        <p class="text-sm text-gray-500 mb-4">Paste a JSON object with data to fill, or load a saved profile.</p>
-        <div class="mb-3 flex gap-2 items-center">
-          <select id="fill-profile" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-            <option value="">Select a profile (optional)</option>
-          </select>
-          <button onclick="loadProfileData()" class="text-sm bg-gray-100 text-gray-700 rounded-lg px-3 py-2 hover:bg-gray-200">Load</button>
-        </div>
+        <p class="text-sm text-gray-500 mb-4">Paste a JSON object with data to fill, or load saved profiles.</p>
+
+        <!-- Category-aware profile pickers -->
+        <div id="profile-pickers" class="mb-3 space-y-2"></div>
         <div class="mb-3">
           <label class="text-xs font-medium text-gray-600 mb-1 block">Gemini API Key</label>
           <input id="fill-ai-key" type="password" placeholder="AIza…"
@@ -219,7 +216,7 @@
       document.getElementById('template-count').textContent = `${allTemplates.length} template${allTemplates.length !== 1 ? 's' : ''}`;
       buildFilterOptions();
       renderGrid(allTemplates);
-      await loadProfileOptions();
+      await loadProfileOptions(null);
     } catch (e) { document.getElementById('template-grid').innerHTML = `<p class="col-span-3 text-center text-red-500 py-8">${e.message}</p>`; }
   }
 
@@ -301,6 +298,7 @@
 
     document.getElementById('fields-list').innerHTML = '';
     document.getElementById('fill-error').classList.add('hidden');
+    renderProfilePickers(t.category);
     document.getElementById('detail-modal').classList.remove('hidden');
     switchDetailTab(tab);
   }
@@ -318,30 +316,73 @@
   }
 
   // ── Fill ──────────────────────────────────────────────────────
-  async function loadProfileOptions() {
+  let allProfilesCache = [];
+
+  // Which profile types to show per template category
+  const CATEGORY_PROFILES = {
+    prior_authorization:    [{ id: 'pick-patient',  label: 'Patient Profile',   types: ['patient'] },
+                             { id: 'pick-provider', label: 'Provider Profile',  types: ['provider', 'prescriber'] }],
+    commercial_insurance:   [{ id: 'pick-insured',  label: 'Insured / Policyholder', types: ['insured'] },
+                             { id: 'pick-agency',   label: 'Agency / Broker',   types: ['agency'] }],
+    acord_125_commercial:   [{ id: 'pick-insured',  label: 'Insured / Policyholder', types: ['insured'] },
+                             { id: 'pick-agency',   label: 'Agency / Broker',   types: ['agency'] }],
+  };
+
+  function _pickerDefs(category) {
+    // Check exact match first, then prefix match for acord_* etc.
+    if (CATEGORY_PROFILES[category]) return CATEGORY_PROFILES[category];
+    if (category && category.startsWith('acord')) return CATEGORY_PROFILES['commercial_insurance'];
+    // Default: single generic picker
+    return [{ id: 'pick-general', label: 'Profile (optional)', types: [] }];
+  }
+
+  async function loadProfileOptions(category) {
     const key = getKey();
     if (!key) return;
     try {
       const r = await fetch('/api/v1/profiles', { headers: { 'X-API-Key': key } });
       if (!r.ok) return;
-      const profiles = await r.json();
-      const sel = document.getElementById('fill-profile');
-      profiles.forEach(p => {
-        const o = document.createElement('option'); o.value = p.id; o.textContent = `${p.name} (${p.profile_type})`;
-        sel.appendChild(o);
-      });
-    } catch {}
+      allProfilesCache = await r.json();
+    } catch { allProfilesCache = []; }
+    renderProfilePickers(category);
   }
 
-  async function loadProfileData() {
-    const id = document.getElementById('fill-profile').value;
-    if (!id) { document.getElementById('fill-data').value = '{}'; return; }
+  function renderProfilePickers(category) {
+    const container = document.getElementById('profile-pickers');
+    const defs = _pickerDefs(category || '');
+    container.innerHTML = defs.map(def => {
+      const filtered = def.types.length
+        ? allProfilesCache.filter(p => def.types.includes(p.profile_type))
+        : allProfilesCache;
+      const opts = filtered.map(p =>
+        `<option value="${esc(p.id)}">${esc(p.name)} (${esc(p.profile_type)})</option>`
+      ).join('');
+      return `
+        <div class="flex gap-2 items-center">
+          <label class="text-xs text-gray-500 w-36 shrink-0">${esc(def.label)}</label>
+          <select id="${def.id}"
+            class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <option value="">— none —</option>${opts}
+          </select>
+          <button onclick="loadPickerData('${def.id}')"
+            class="text-sm bg-gray-100 text-gray-700 rounded-lg px-3 py-2 hover:bg-gray-200 shrink-0">Load</button>
+        </div>`;
+    }).join('');
+  }
+
+  async function loadPickerData(pickerId) {
+    const id = document.getElementById(pickerId)?.value;
+    if (!id) return;
     const key = getKey();
     try {
       const r = await fetch(`/api/v1/profiles/${id}`, { headers: { 'X-API-Key': key } });
       if (!r.ok) throw new Error();
       const p = await r.json();
-      document.getElementById('fill-data').value = JSON.stringify(p.data_preview || {}, null, 2);
+      const cur = document.getElementById('fill-data').value.trim();
+      let existing = {};
+      try { existing = JSON.parse(cur); } catch {}
+      Object.assign(existing, p.data_preview || {});
+      document.getElementById('fill-data').value = JSON.stringify(existing, null, 2);
     } catch {}
   }
 
@@ -362,8 +403,14 @@
     fd.append('user_data', JSON.stringify(data));
     fd.append('ai_api_key', aiKey);
 
-    const profileId = document.getElementById('fill-profile').value;
-    if (profileId) fd.append('profile_id', profileId);
+    // Collect selected profile IDs from all pickers
+    const pickerIds = Array.from(document.querySelectorAll('#profile-pickers select'))
+      .map(s => s.value).filter(Boolean);
+    if (pickerIds.length > 1) {
+      fd.append('profile_ids', pickerIds.join(','));
+    } else if (pickerIds.length === 1) {
+      fd.append('profile_id', pickerIds[0]);
+    }
 
     try {
       const r = await fetch(`/api/v1/templates/${currentTemplateId}/fill`, {
