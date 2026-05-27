@@ -21,7 +21,7 @@
 
     <!-- Mode tabs -->
     <div class="flex gap-1 p-1 bg-gray-100 rounded-xl mb-8 w-fit">
-      <button onclick="setMode('csv')" id="tab-csv" class="tab-btn px-5 py-2 text-sm font-medium rounded-lg bg-white shadow text-gray-900">CSV</button>
+      <button onclick="setMode('csv')"  id="tab-csv"  class="tab-btn px-5 py-2 text-sm font-medium rounded-lg bg-white shadow text-gray-900">CSV</button>
       <button onclick="setMode('xlsx')" id="tab-xlsx" class="tab-btn px-5 py-2 text-sm font-medium rounded-lg text-gray-500 hover:text-gray-700">Excel</button>
       <button onclick="setMode('json')" id="tab-json" class="tab-btn px-5 py-2 text-sm font-medium rounded-lg text-gray-500 hover:text-gray-700">JSON</button>
     </div>
@@ -73,7 +73,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M10 3v18M14 3v18M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/>
           </svg>
           <p id="xlsx-name" class="text-sm text-gray-400">Drop .xlsx here or click to browse</p>
-          <input id="xlsx-file" type="file" accept=".xlsx,.xls" class="hidden" onchange="showFilename(this,'xlsx-name')">
+          <input id="xlsx-file" type="file" accept=".xlsx" class="hidden" onchange="showFilename(this,'xlsx-name')">
         </div>
         <p class="text-xs text-gray-400 mt-2">Row 1 = headers. Each subsequent row = one filled PDF.</p>
       </div>
@@ -87,14 +87,26 @@
         <button type="button" onclick="loadJsonExample()" class="text-xs text-indigo-600 hover:underline mt-1">Load example</button>
       </div>
 
+      <!-- Profiles (collapsible) -->
+      <details class="bg-white border border-gray-200 rounded-xl p-4">
+        <summary class="text-sm font-medium text-gray-700 cursor-pointer select-none">Base Profiles (optional)</summary>
+        <p class="text-xs text-gray-400 mt-2 mb-3">Profile data is merged as base values for every row. Row-level data takes precedence over profiles.</p>
+        <div id="profile-rows" class="space-y-2">
+          <p class="text-xs text-gray-400 italic">Loading profiles…</p>
+        </div>
+        <button type="button" onclick="addProfilePicker()"
+          class="mt-3 text-xs text-indigo-600 hover:underline">+ Add another profile</button>
+      </details>
+
       <!-- AI options (collapsible) -->
       <details class="bg-white border border-gray-200 rounded-xl p-4">
-        <summary class="text-sm font-medium text-gray-700 cursor-pointer select-none">AI Options (optional)</summary>
+        <summary class="text-sm font-medium text-gray-700 cursor-pointer select-none">AI Options</summary>
         <div class="mt-4 space-y-4">
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Gemini API Key</label>
-            <input id="ai-key" type="password" placeholder="AIza..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-            <p class="text-xs text-gray-400 mt-1">If omitted, headers must exactly match PDF field names.</p>
+            <input id="ai-key" type="password" placeholder="AIza…"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <p class="text-xs text-gray-400 mt-1">If omitted, column headers must exactly match PDF field names.</p>
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Model</label>
@@ -108,7 +120,7 @@
       </details>
 
       <!-- Run mode -->
-      <div class="flex gap-3">
+      <div class="flex gap-6">
         <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
           <input type="radio" name="run-mode" value="sync" checked class="text-indigo-600"> Sync (wait for result)
         </label>
@@ -132,19 +144,16 @@
 <script>
   function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
   let currentMode = 'csv';
+  let allProfiles = [];
 
+  // ── Mode tabs ─────────────────────────────────────────────────
   function setMode(mode) {
     currentMode = mode;
     ['csv','xlsx','json'].forEach(m => {
       document.getElementById('section-' + m).classList.toggle('hidden', m !== mode);
       const btn = document.getElementById('tab-' + m);
-      if (m === mode) {
-        btn.classList.add('bg-white','shadow','text-gray-900');
-        btn.classList.remove('text-gray-500');
-      } else {
-        btn.classList.remove('bg-white','shadow','text-gray-900');
-        btn.classList.add('text-gray-500');
-      }
+      if (m === mode) { btn.classList.add('bg-white','shadow','text-gray-900'); btn.classList.remove('text-gray-500'); }
+      else            { btn.classList.remove('bg-white','shadow','text-gray-900'); btn.classList.add('text-gray-500'); }
     });
   }
 
@@ -170,6 +179,65 @@
     ], null, 2);
   }
 
+  // ── Profiles ──────────────────────────────────────────────────
+  async function loadProfiles() {
+    const key = getKey();
+    if (!key) { document.getElementById('profile-rows').innerHTML = '<p class="text-xs text-gray-400 italic">Set an API key to load profiles.</p>'; return; }
+    try {
+      const r = await fetch('/api/v1/profiles', { headers: { 'X-API-Key': key } });
+      if (!r.ok) throw new Error();
+      allProfiles = await r.json();
+    } catch { allProfiles = []; }
+    renderProfilePickers();
+  }
+
+  function renderProfilePickers() {
+    const container = document.getElementById('profile-rows');
+    if (!allProfiles.length) {
+      container.innerHTML = '<p class="text-xs text-gray-400 italic">No profiles yet. <a href="/ui/profiles.html" class="text-indigo-500 hover:underline">Create one</a> to use as base data.</p>';
+      return;
+    }
+    container.innerHTML = '';
+    addProfilePicker();
+  }
+
+  function addProfilePicker() {
+    const container = document.getElementById('profile-rows');
+    const div = document.createElement('div');
+    div.className = 'flex gap-2 items-center';
+    const opts = allProfiles.map(p =>
+      `<option value="${esc(p.id)}">${esc(p.name)} (${esc(p.profile_type)})</option>`
+    ).join('');
+    div.innerHTML = `
+      <select class="profile-pick flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+        <option value="">— none —</option>${opts}
+      </select>
+      <button type="button" onclick="this.parentElement.remove()"
+        class="text-gray-400 hover:text-red-500 shrink-0 p-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>`;
+    container.appendChild(div);
+  }
+
+  function getSelectedProfileIds() {
+    return Array.from(document.querySelectorAll('.profile-pick'))
+      .map(s => s.value).filter(Boolean);
+  }
+
+  // ── Simple client-side CSV parser ─────────────────────────────
+  function parseCsvText(text) {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) throw new Error('CSV needs at least a header row and one data row');
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
+    return lines.slice(1).map(line => {
+      const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g,''));
+      const obj = {};
+      headers.forEach((h, i) => { if (h && vals[i] !== undefined) obj[h] = vals[i]; });
+      return obj;
+    }).filter(o => Object.values(o).some(v => v));
+  }
+
+  // ── Submit ────────────────────────────────────────────────────
   async function submitBatch(e) {
     e.preventDefault();
     const apiKey = getKey();
@@ -178,9 +246,10 @@
     const pdfFile = document.getElementById('pdf-file').files[0];
     if (!pdfFile) { showResult('error', 'Please select a PDF template.'); return; }
 
-    const runMode = document.querySelector('input[name="run-mode"]:checked').value;
-    const aiKey   = document.getElementById('ai-key').value.trim();
-    const aiModel = document.getElementById('ai-model').value;
+    const runMode  = document.querySelector('input[name="run-mode"]:checked').value;
+    const aiKey    = document.getElementById('ai-key').value.trim();
+    const aiModel  = document.getElementById('ai-model').value;
+    const profIds  = getSelectedProfileIds();
 
     const btn = document.getElementById('submit-btn');
     btn.disabled = true;
@@ -188,44 +257,64 @@
 
     try {
       const fd = new FormData();
-      fd.append('pdf', pdfFile);
-      if (aiKey)   fd.append('openai_api_key', aiKey);
-      if (aiModel) fd.append('model', aiModel);
+      if (aiKey)  fd.append('ai_api_key', aiKey);
+      fd.append('ai_model', aiModel);
+      if (profIds.length > 1)      fd.append('profile_ids', profIds.join(','));
+      else if (profIds.length === 1) fd.append('profile_id', profIds[0]);
 
-      let url, extraMsg = '';
+      let url;
+
       if (currentMode === 'csv') {
         const csvFile = document.getElementById('csv-file').files[0];
         if (!csvFile) { showResult('error', 'Please select a CSV file.'); return; }
-        fd.append('csv', csvFile);
-        url = runMode === 'async' ? '/api/v1/jobs/batch' : '/api/v1/batch/fill-csv';
-        if (runMode === 'async') extraMsg = 'data_format=csv'; // jobs/batch uses csv field too
+
+        if (runMode === 'async') {
+          // Jobs API only accepts JSON records — parse CSV client-side
+          const csvText = await csvFile.text();
+          let records;
+          try { records = parseCsvText(csvText); } catch(ex) { showResult('error', ex.message); return; }
+          fd.append('file', pdfFile);
+          fd.append('records', JSON.stringify(records));
+          url = '/api/v1/jobs/batch';
+        } else {
+          fd.append('pdf_template', pdfFile);
+          fd.append('csv_file', csvFile);
+          url = '/api/v1/batch/fill-csv';
+        }
+
       } else if (currentMode === 'xlsx') {
         const xlsxFile = document.getElementById('xlsx-file').files[0];
         if (!xlsxFile) { showResult('error', 'Please select an Excel file.'); return; }
-        fd.append('xlsx', xlsxFile);
-        url = runMode === 'async' ? '/api/v1/jobs/xlsx-batch' : '/api/v1/batch/fill-xlsx';
+        if (runMode === 'async') {
+          fd.append('file', pdfFile);
+          fd.append('xlsx_file', xlsxFile);
+          url = '/api/v1/jobs/xlsx-batch';
+        } else {
+          fd.append('pdf_template', pdfFile);
+          fd.append('xlsx_file', xlsxFile);
+          url = '/api/v1/batch/fill-xlsx';
+        }
+
       } else {
-        let jsonStr = document.getElementById('json-data').value.trim();
+        const jsonStr = document.getElementById('json-data').value.trim();
         if (!jsonStr) { showResult('error', 'Please enter JSON data.'); return; }
         try { JSON.parse(jsonStr); } catch { showResult('error', 'Invalid JSON.'); return; }
-        const blob = new Blob([jsonStr], {type:'application/json'});
-        fd.append('json_data', blob, 'data.json');
-        url = runMode === 'async' ? '/api/v1/jobs/batch' : '/api/v1/batch/fill-json';
+        if (runMode === 'async') {
+          fd.append('file', pdfFile);
+          fd.append('records', jsonStr);
+          url = '/api/v1/jobs/batch';
+        } else {
+          fd.append('file', pdfFile);
+          fd.append('user_data_array', jsonStr);
+          url = '/api/v1/batch/fill-json';
+        }
       }
 
-      const r = await fetch(url, { method:'POST', headers:{'X-API-Key': apiKey}, body: fd });
+      const r = await fetch(url, { method: 'POST', headers: { 'X-API-Key': apiKey }, body: fd });
       const data = await r.json();
+      if (!r.ok) { showResult('error', data.detail || `HTTP ${r.status}`); return; }
+      runMode === 'async' ? showResult('queued', data) : showResult('done', data);
 
-      if (!r.ok) {
-        showResult('error', data.detail || `HTTP ${r.status}`);
-        return;
-      }
-
-      if (runMode === 'async') {
-        showResult('queued', data.job_id || data.id || JSON.stringify(data));
-      } else {
-        showResult('done', data);
-      }
     } catch (err) {
       showResult('error', err.message);
     } finally {
@@ -237,30 +326,26 @@
   function showResult(type, data) {
     const el = document.getElementById('result');
     el.classList.remove('hidden');
-
     if (type === 'error') {
-      el.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700"><strong>Error:</strong> ${esc(data)}</div>`;
+      el.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700"><strong>Error:</strong> ${esc(String(data))}</div>`;
       return;
     }
-
     if (type === 'queued') {
+      const jobId = data.job_id || data.id || '';
       el.innerHTML = `
         <div class="bg-blue-50 border border-blue-200 rounded-xl p-5">
           <p class="text-sm font-semibold text-blue-800 mb-1">Job queued successfully</p>
-          <p class="text-xs text-blue-600 font-mono">${esc(data)}</p>
+          <p class="text-xs text-blue-600 font-mono">${esc(jobId)}</p>
           <a href="/ui/jobs.html" class="inline-block mt-3 text-xs text-indigo-600 hover:underline">View in Fill History →</a>
         </div>`;
       return;
     }
-
-    // Sync result
     const d = data;
     const dlLink = d.download_url
       ? `<a href="${esc(d.download_url)}" class="inline-flex items-center gap-1 mt-4 bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700">
            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
            Download ZIP
          </a>` : '';
-
     el.innerHTML = `
       <div class="bg-green-50 border border-green-200 rounded-xl p-5">
         <p class="text-sm font-semibold text-green-800 mb-3">Batch complete</p>
@@ -275,11 +360,12 @@
 
   function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  // Redirect to key modal if no key
+  // Init
   if (!getKey()) {
     document.getElementById('result').classList.remove('hidden');
     document.getElementById('result').innerHTML = '<div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800">No API key set. <a href="/ui/index.html" class="underline font-medium">Set it on the dashboard</a> first.</div>';
   }
+  loadProfiles();
 </script>
 </body>
 </html>

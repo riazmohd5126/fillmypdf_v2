@@ -15,7 +15,8 @@
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
     </a>
     <span class="font-semibold text-gray-800">Profiles</span>
-    <button onclick="openCreateModal()" class="ml-auto bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700">+ New Profile</button>
+    <button onclick="openImportModal()" class="ml-auto text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-2 hover:bg-gray-50">Import CSV/Excel</button>
+    <button onclick="openCreateModal()" class="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700">+ New Profile</button>
   </nav>
 
   <main class="max-w-4xl mx-auto px-4 py-8">
@@ -431,6 +432,48 @@
     </div>
   </div>
 
+  <!-- Import modal -->
+  <div id="import-modal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-bold text-gray-900">Import Profiles</h2>
+        <button onclick="closeImportModal()" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <p class="text-xs text-gray-500 mb-4">
+        Upload a CSV or Excel file. Required column: <code class="bg-gray-100 px-1 rounded">name</code>.
+        Optional: <code class="bg-gray-100 px-1 rounded">profile_type</code>.
+        All other columns become the profile's data fields.
+      </p>
+      <div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center cursor-pointer hover:border-indigo-400 transition mb-4"
+           onclick="document.getElementById('import-file').click()">
+        <svg class="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        <p id="import-filename" class="text-sm text-gray-400">Click to select CSV or Excel file</p>
+        <input id="import-file" type="file" accept=".csv,.xlsx" class="hidden"
+          onchange="document.getElementById('import-filename').textContent=this.files[0]?.name||'Click to select'">
+      </div>
+      <div class="mb-4">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Default Profile Type (if not in file)</label>
+        <select id="import-type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+          <option value="personal">Personal</option>
+          <option value="business">Business</option>
+          <option value="patient">Patient</option>
+          <option value="provider">Provider</option>
+          <option value="insured">Insured</option>
+          <option value="agency">Agency</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div id="import-result" class="hidden mb-4 text-sm rounded-lg px-3 py-2"></div>
+      <div class="flex gap-3">
+        <button onclick="runImport()" id="import-btn"
+          class="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700">Import</button>
+        <button onclick="closeImportModal()" class="flex-1 bg-gray-100 text-gray-700 rounded-lg py-2 text-sm font-medium hover:bg-gray-200">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Confirm delete -->
   <div id="confirm-modal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
@@ -648,6 +691,45 @@
   // ── Delete ────────────────────────────────────────────────────
   function confirmDelete(id) { pendingDeleteId=id; document.getElementById('confirm-modal').classList.remove('hidden'); }
   function closeConfirmModal() { document.getElementById('confirm-modal').classList.add('hidden'); pendingDeleteId=null; }
+
+  // ── Import ────────────────────────────────────────────────────
+  function openImportModal() {
+    document.getElementById('import-file').value = '';
+    document.getElementById('import-filename').textContent = 'Click to select CSV or Excel file';
+    document.getElementById('import-result').classList.add('hidden');
+    document.getElementById('import-modal').classList.remove('hidden');
+  }
+  function closeImportModal() { document.getElementById('import-modal').classList.add('hidden'); }
+
+  async function runImport() {
+    const file = document.getElementById('import-file').files[0];
+    if (!file) { showImportResult('error', 'Please select a file.'); return; }
+    const key = getKey();
+    if (!key) { showImportResult('error', 'No API key set.'); return; }
+    const btn = document.getElementById('import-btn');
+    btn.disabled = true; btn.textContent = 'Importing…';
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('profile_type', document.getElementById('import-type').value);
+      const r = await fetch('/api/v1/profiles/import', {
+        method: 'POST', headers: { 'X-API-Key': key }, body: fd,
+      });
+      const data = await r.json();
+      if (!r.ok) { showImportResult('error', data.detail || `HTTP ${r.status}`); return; }
+      showImportResult('success', data.message);
+      await loadProfiles();
+    } catch(e) { showImportResult('error', e.message); }
+    finally { btn.disabled = false; btn.textContent = 'Import'; }
+  }
+
+  function showImportResult(type, msg) {
+    const el = document.getElementById('import-result');
+    el.classList.remove('hidden','bg-green-50','text-green-700','bg-red-50','text-red-700');
+    if (type === 'success') el.classList.add('bg-green-50','text-green-700');
+    else el.classList.add('bg-red-50','text-red-700');
+    el.textContent = msg;
+  }
   document.getElementById('confirm-delete-btn').onclick = async () => {
     if (!pendingDeleteId) return;
     await fetch(`/api/v1/profiles/${pendingDeleteId}`, {method:'DELETE', headers:{'X-API-Key':getKey()}});
