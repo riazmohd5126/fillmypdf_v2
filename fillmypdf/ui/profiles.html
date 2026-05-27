@@ -25,10 +25,20 @@
       <select id="type-filter" onchange="filterProfiles()"
         class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
         <option value="">All types</option>
-        <option value="personal">Personal</option>
-        <option value="business">Business</option>
-        <option value="spouse">Spouse</option>
-        <option value="dependent">Dependent</option>
+        <optgroup label="General">
+          <option value="personal">Personal</option>
+          <option value="business">Business</option>
+          <option value="spouse">Spouse / Partner</option>
+          <option value="dependent">Dependent</option>
+        </optgroup>
+        <optgroup label="Healthcare">
+          <option value="patient">Patient</option>
+          <option value="provider">Provider / Prescriber</option>
+        </optgroup>
+        <optgroup label="Insurance">
+          <option value="insured">Insured / Policyholder</option>
+          <option value="agency">Agency / Broker</option>
+        </optgroup>
         <option value="custom">Custom</option>
       </select>
     </div>
@@ -64,11 +74,21 @@
             <label class="text-xs font-medium text-gray-600 mb-1 block">Type</label>
             <select id="f-type" onchange="switchFormTab()"
               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-              <option value="personal">Personal</option>
-              <option value="business">Business</option>
-              <option value="spouse">Spouse</option>
-              <option value="dependent">Dependent</option>
-              <option value="custom">Custom</option>
+              <optgroup label="General">
+                <option value="personal">Personal</option>
+                <option value="business">Business</option>
+                <option value="spouse">Spouse / Partner</option>
+                <option value="dependent">Dependent</option>
+              </optgroup>
+              <optgroup label="Healthcare">
+                <option value="patient">Patient</option>
+                <option value="provider">Provider / Prescriber</option>
+              </optgroup>
+              <optgroup label="Insurance">
+                <option value="insured">Insured / Policyholder</option>
+                <option value="agency">Agency / Broker</option>
+              </optgroup>
+              <option value="custom">Custom (JSON only)</option>
             </select>
           </div>
         </div>
@@ -215,6 +235,158 @@
             </div>
           </div>
 
+          <!-- Patient fields (healthcare PA) -->
+          <div id="fields-patient" class="space-y-3 hidden">
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">First Name</label>
+                <input data-key="patient_first_name" type="text" placeholder="Jane" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Last Name</label>
+                <input data-key="patient_last_name" type="text" placeholder="Doe" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Date of Birth <span class="text-amber-500 text-xs">encrypted</span></label>
+                <input data-key="patient_dob" type="date" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Gender</label>
+                <select data-key="patient_gender" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                  <option value="">—</option><option>Male</option><option>Female</option><option>Other</option>
+                </select></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Member / Insurance ID</label>
+                <input data-key="member_id" type="text" placeholder="MBR-123456" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Group Number</label>
+                <input data-key="group_number" type="text" placeholder="GRP-789" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Insurance Plan / Payer</label>
+              <input data-key="insurance_plan" type="text" placeholder="Blue Cross Blue Shield" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Street Address</label>
+              <input data-key="patient_address" type="text" placeholder="123 Main St" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            <div class="grid grid-cols-3 gap-3">
+              <div class="col-span-1"><label class="text-xs font-medium text-gray-600 mb-1 block">City</label>
+                <input data-key="patient_city" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">State</label>
+                <input data-key="patient_state" type="text" maxlength="2" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">ZIP</label>
+                <input data-key="patient_zip" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Phone</label>
+                <input data-key="patient_phone" type="tel" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Diagnosis (ICD-10)</label>
+                <input data-key="diagnosis_code" type="text" placeholder="K58.0" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+          </div>
+
+          <!-- Provider / Prescriber fields (healthcare PA) -->
+          <div id="fields-provider" class="space-y-3 hidden">
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Provider First Name</label>
+                <input data-key="provider_first_name" type="text" placeholder="Dr. John" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Provider Last Name</label>
+                <input data-key="provider_last_name" type="text" placeholder="Smith" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">NPI Number</label>
+                <input data-key="npi" type="text" placeholder="1234567890" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Specialty</label>
+                <input data-key="specialty" type="text" placeholder="Gastroenterology" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Practice / Facility Name</label>
+              <input data-key="practice_name" type="text" placeholder="City Medical Group" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Address</label>
+              <input data-key="provider_address" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            <div class="grid grid-cols-3 gap-3">
+              <div class="col-span-1"><label class="text-xs font-medium text-gray-600 mb-1 block">City</label>
+                <input data-key="provider_city" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">State</label>
+                <input data-key="provider_state" type="text" maxlength="2" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">ZIP</label>
+                <input data-key="provider_zip" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Phone</label>
+                <input data-key="provider_phone" type="tel" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Fax</label>
+                <input data-key="provider_fax" type="tel" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">DEA Number</label>
+                <input data-key="dea_number" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Tax ID</label>
+                <input data-key="provider_tax_id" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+          </div>
+
+          <!-- Insured / Policyholder fields (insurance) -->
+          <div id="fields-insured" class="space-y-3 hidden">
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Named Insured</label>
+                <input data-key="named_insured" type="text" placeholder="Acme Corp LLC" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">FEIN <span class="text-amber-500 text-xs">encrypted</span></label>
+                <input data-key="fein" type="password" placeholder="12-3456789" autocomplete="off" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Business Type</label>
+                <select data-key="business_type" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                  <option value="">—</option><option>LLC</option><option>Corporation</option><option>Partnership</option><option>Sole Proprietor</option><option>S-Corp</option>
+                </select></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Phone</label>
+                <input data-key="business_phone" type="tel" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Mailing Address</label>
+              <input data-key="mailing_address" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            <div class="grid grid-cols-3 gap-3">
+              <div class="col-span-1"><label class="text-xs font-medium text-gray-600 mb-1 block">City</label>
+                <input data-key="city" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">State</label>
+                <input data-key="state" type="text" maxlength="2" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">ZIP</label>
+                <input data-key="zip" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">SIC Code</label>
+                <input data-key="sic_code" type="text" placeholder="7389" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">NAICS</label>
+                <input data-key="naics" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Website</label>
+              <input data-key="website" type="url" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+          </div>
+
+          <!-- Agency / Broker fields (insurance) -->
+          <div id="fields-agency" class="space-y-3 hidden">
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Agency Name</label>
+                <input data-key="agency_name" type="text" placeholder="Sunrise Insurance Group" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Agency Code</label>
+                <input data-key="agency_code" type="text" placeholder="AGT-00123" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Producer / Agent Name</label>
+                <input data-key="producer_name" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Sub-Code</label>
+                <input data-key="agency_subcode" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Agency Address</label>
+              <input data-key="agency_address" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            <div class="grid grid-cols-3 gap-3">
+              <div class="col-span-1"><label class="text-xs font-medium text-gray-600 mb-1 block">City</label>
+                <input data-key="agency_city" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">State</label>
+                <input data-key="agency_state" type="text" maxlength="2" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">ZIP</label>
+                <input data-key="agency_zip" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Phone</label>
+                <input data-key="agency_phone" type="tel" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Fax</label>
+                <input data-key="agency_fax" type="tel" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Email</label>
+              <input data-key="agency_email" type="email" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+          </div>
+
         </div><!-- /form-fields -->
 
         <!-- ── JSON MODE ── -->
@@ -276,8 +448,11 @@
   let allProfiles = [], pendingDeleteId = null, inputMode = 'form';
 
   const BADGE = {
-    personal:'bg-blue-100 text-blue-700', business:'bg-green-100 text-green-700',
-    spouse:'bg-purple-100 text-purple-700', dependent:'bg-yellow-100 text-yellow-700', custom:'bg-gray-100 text-gray-600'
+    personal:'bg-blue-100 text-blue-700',    business:'bg-green-100 text-green-700',
+    spouse:'bg-purple-100 text-purple-700',  dependent:'bg-yellow-100 text-yellow-700',
+    patient:'bg-teal-100 text-teal-700',     provider:'bg-cyan-100 text-cyan-700',
+    insured:'bg-orange-100 text-orange-700', agency:'bg-violet-100 text-violet-700',
+    custom:'bg-gray-100 text-gray-600'
   };
 
   // ── Input mode toggle ─────────────────────────────────────────
@@ -292,8 +467,18 @@
 
   function switchFormTab() {
     const type = document.getElementById('f-type').value;
-    document.getElementById('fields-personal').classList.toggle('hidden', type === 'business');
-    document.getElementById('fields-business').classList.toggle('hidden', type !== 'business');
+    const sections = {
+      personal: ['personal', 'spouse', 'dependent'],
+      business: ['business'],
+      patient:  ['patient'],
+      provider: ['provider'],
+      insured:  ['insured'],
+      agency:   ['agency'],
+    };
+    const show = Object.entries(sections).find(([, types]) => types.includes(type))?.[0] || 'personal';
+    ['personal','business','patient','provider','insured','agency'].forEach(id => {
+      document.getElementById('fields-' + id).classList.toggle('hidden', id !== show);
+    });
   }
 
   function clearFormFields() {
