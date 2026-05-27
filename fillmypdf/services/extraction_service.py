@@ -42,6 +42,14 @@ class ExtractionService:
         type_map: Dict[str, str] = {}
         detected_names: List[str] = []
 
+        # Build a leaf→full-path index so pdfplumber labels (leaf names) can be
+        # matched against raw_values keys that may be fully-qualified dotted paths
+        # e.g. "F[0].P1[0].Producer_FullName_A[0]" → leaf "Producer_FullName_A[0]"
+        def _leaf(name: str) -> str:
+            return name.split(".")[-1] if "." in name else name
+
+        leaf_to_full: Dict[str, str] = {_leaf(k): k for k in raw_values}
+
         if include_labels:
             vision = VisionService(
                 api_key="-", base_url="https://example.invalid/", model="none"
@@ -51,10 +59,12 @@ class ExtractionService:
                 name = row.get("name")
                 if not name:
                     continue
-                detected_names.append(name)
-                label_map[name] = row.get("label") or name
-                page_map[name] = int(row.get("page", 1) or 1)
-                type_map[name] = row.get("field_type") or ""
+                # Resolve to full path if this is a leaf name from a nested form
+                full_name = leaf_to_full.get(name, name)
+                detected_names.append(full_name)
+                label_map[full_name] = row.get("label") or name
+                page_map[full_name] = int(row.get("page", 1) or 1)
+                type_map[full_name] = row.get("field_type") or ""
 
         ordered_names: List[str] = []
         seen = set()

@@ -1,0 +1,26 @@
+{
+  "id": "acord_127_business_auto",
+  "name": "ACORD 127 — Business Auto Section",
+  "category": "commercial_insurance",
+  "specialty": null,
+  "drug": null,
+  "payer": null,
+  "indications": [],
+  "questions": [],
+  "tags": [
+    "acord",
+    "auto",
+    "business auto",
+    "commercial",
+    "vehicle"
+  ],
+  "version": null,
+  "pages": null,
+  "is_public": true,
+  "created_at": "2026-05-26T00:26:59.721994+00:00",
+  "updated_at": "2026-05-26T00:26:59.721994+00:00",
+  "custom": {
+    "acord_number": "127",
+    "version": "2015-12"
+  }
+}

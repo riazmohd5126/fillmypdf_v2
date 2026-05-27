@@ -1,0 +1,25 @@
+{
+  "id": "acord_126_cgl",
+  "name": "ACORD 126 — Commercial General Liability",
+  "category": "commercial_insurance",
+  "specialty": null,
+  "drug": null,
+  "payer": null,
+  "indications": [],
+  "questions": [],
+  "tags": [
+    "acord",
+    "cgl",
+    "general liability",
+    "commercial"
+  ],
+  "version": null,
+  "pages": null,
+  "is_public": true,
+  "created_at": "2026-05-26T00:27:00.349004+00:00",
+  "updated_at": "2026-05-26T00:27:00.349004+00:00",
+  "custom": {
+    "acord_number": "126",
+    "version": "2016-09"
+  }
+}

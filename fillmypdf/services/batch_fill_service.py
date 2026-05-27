@@ -105,32 +105,28 @@ class BatchFillService:
         batch_id: str,
         dpi: int = 200,
         profile_id: Optional[str] = None,
+        profile_ids: Optional[List[str]] = None,
         on_record_done: Optional[Callable[[int, int, int], None]] = None,
     ) -> Dict[str, Any]:
         """
-        Process batch fill from JSON array
-        
-        Args:
-            template_pdf_path: Path to PDF template
-            user_data_array: List of data dictionaries
-            ai_api_key: AI provider API key
-            ai_base_url: AI API base URL
-            ai_model: AI model name
-            batch_id: Unique batch identifier
-            dpi: Image DPI
-            profile_id: Optional saved profile to merge with each record
-            
-        Returns:
-            Batch processing results
+        Process batch fill from JSON array.
+        Pass profile_ids (list) to merge multiple profiles; falls back to profile_id.
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Get base profile data if provided
+
+        # Resolve profiles — multi takes precedence
         base_profile_data = {}
-        if profile_id:
+        ids = profile_ids or ([profile_id] if profile_id else [])
+        if len(ids) > 1:
             try:
-                base_profile_data = self.profile_service.use_profile(profile_id)
-                print(f"✅ Using profile: {profile_id}")
+                base_profile_data = self.profile_service.use_profiles(ids)
+                print(f"✅ Using profiles: {ids}")
+            except Exception as e:
+                print(f"⚠️  Profile merge failed: {e}")
+        elif ids:
+            try:
+                base_profile_data = self.profile_service.use_profile(ids[0])
+                print(f"✅ Using profile: {ids[0]}")
             except ValueError as e:
                 print(f"⚠️  Profile not found: {e}")
         
@@ -277,35 +273,14 @@ class BatchFillService:
         batch_id: str,
         dpi: int = 200,
         profile_id: Optional[str] = None,
+        profile_ids: Optional[List[str]] = None,
         on_record_done: Optional[Callable[[int, int, int], None]] = None,
     ) -> Dict[str, Any]:
-        """
-        Process batch fill from CSV file
-        
-        Args:
-            template_pdf_path: Path to PDF template
-            csv_content: Raw CSV file bytes
-            csv_filename: Original CSV filename
-            ai_api_key: AI provider API key
-            ai_base_url: AI API base URL
-            ai_model: AI model name
-            batch_id: Unique batch identifier
-            dpi: Image DPI
-            profile_id: Optional saved profile to merge
-            
-        Returns:
-            Batch processing results
-        """
-        # Parse CSV
         records = self.parse_csv(csv_content)
-        
         if len(records) > 500:
             raise ValueError("Maximum 500 rows per CSV batch")
-        
         print(f"📊 CSV parsed: {len(records)} records")
         print(f"   Columns: {list(records[0].keys())}")
-        
-        # Use JSON batch processor
         return self.process_batch_json(
             template_pdf_path=template_pdf_path,
             user_data_array=records,
@@ -315,6 +290,7 @@ class BatchFillService:
             batch_id=batch_id,
             dpi=dpi,
             profile_id=profile_id,
+            profile_ids=profile_ids,
             on_record_done=on_record_done,
         )
 
@@ -383,6 +359,7 @@ class BatchFillService:
         batch_id: str,
         dpi: int = 200,
         profile_id: Optional[str] = None,
+        profile_ids: Optional[List[str]] = None,
         on_record_done: Optional[Callable[[int, int, int], None]] = None,
     ) -> Dict[str, Any]:
         records = self.parse_xlsx(xlsx_content)
@@ -399,6 +376,7 @@ class BatchFillService:
             batch_id=batch_id,
             dpi=dpi,
             profile_id=profile_id,
+            profile_ids=profile_ids,
             on_record_done=on_record_done,
         )
 

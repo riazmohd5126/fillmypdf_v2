@@ -99,9 +99,12 @@ class ProfileCreate(BaseModel):
     )
 
     name: str = Field(..., min_length=1, max_length=100)
-    profile_type: Literal["personal", "business", "spouse", "dependent", "custom"] = "personal"
+    # Open string — any domain-specific type is accepted.
+    # Well-known values: personal, business, spouse, dependent,
+    # patient, provider, prescriber, insured, agency, claimant, custom
+    profile_type: str = Field("personal", min_length=1, max_length=50)
     data: Dict[str, str] = Field(default_factory=dict)
-    
+
     @field_validator('name')
     @classmethod
     def validate_name(cls, v):
@@ -109,11 +112,16 @@ class ProfileCreate(BaseModel):
             raise ValueError("Name cannot be empty")
         return v.strip()
 
+    @field_validator('profile_type')
+    @classmethod
+    def validate_profile_type(cls, v):
+        return v.strip().lower().replace(" ", "_")
+
 
 class ProfileUpdate(BaseModel):
     """Update existing profile"""
     name: Optional[str] = Field(None, min_length=1, max_length=100)
-    profile_type: Optional[Literal["personal", "business", "spouse", "dependent", "custom"]] = None
+    profile_type: Optional[str] = Field(None, min_length=1, max_length=50)
     data: Optional[Dict[str, str]] = None
 
 

@@ -104,6 +104,7 @@ async def submit_batch_job(
     ),
     dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
     profile_id: Optional[str] = Form(None, examples=[EX_PROFILE_ID]),
+    profile_ids: Optional[str] = Form(None, description="Comma-separated profile IDs to merge (takes precedence over profile_id)"),
     webhook_url: Optional[str] = Form(
         None,
         description="URL to POST a completion event to (optional)",
@@ -122,8 +123,8 @@ async def submit_batch_job(
     Poll `GET /api/v1/jobs/{job_id}` for progress.  When `status == 'done'`
     use the `download_url` to fetch the ZIP.
 
-    Optional: pass `webhook_url` to receive a POST notification when the job
-    finishes (success or failure).
+    Pass `profile_ids` (comma-separated) to merge multiple profiles as base
+    data for every record. Optional: pass `webhook_url` for a POST notification.
     """
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Template must be a PDF file")
@@ -140,6 +141,7 @@ async def submit_batch_job(
 
     pdf_bytes = await file.read()
     key_id = get_current_key_id(request)
+    parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
 
     job = get_runner().submit_batch(
         records=data_list,
@@ -150,6 +152,7 @@ async def submit_batch_job(
         ai_model=ai_model,
         dpi=dpi,
         profile_id=profile_id,
+        profile_ids=parsed_ids,
         webhook_url=webhook_url,
         webhook_secret=webhook_secret,
         api_key_id=key_id,
@@ -197,6 +200,7 @@ async def submit_template_batch_job(
     ),
     dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
     profile_id: Optional[str] = Form(None, examples=[EX_PROFILE_ID]),
+    profile_ids: Optional[str] = Form(None, description="Comma-separated profile IDs to merge (takes precedence over profile_id)"),
     webhook_url: Optional[str] = Form(None, examples=[EX_WEBHOOK_URL]),
     webhook_secret: Optional[str] = Form(
         None,
@@ -207,7 +211,8 @@ async def submit_template_batch_job(
     """
     Submit a batch fill against a **stored library template** and return immediately.
 
-    No PDF upload required — just the template ID (e.g. `pa_linzess_molina_tx`).
+    No PDF upload required — just the template ID. Pass `profile_ids`
+    (comma-separated) to merge multiple profiles (e.g. patient + provider).
     """
     try:
         data_list = json.loads(records)
@@ -220,6 +225,7 @@ async def submit_template_batch_job(
         raise HTTPException(400, "Maximum 500 records per job")
 
     key_id = get_current_key_id(request)
+    parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
 
     job = get_runner().submit_template_batch(
         template_id=template_id,
@@ -229,6 +235,7 @@ async def submit_template_batch_job(
         ai_model=ai_model,
         dpi=dpi,
         profile_id=profile_id,
+        profile_ids=parsed_ids,
         webhook_url=webhook_url,
         webhook_secret=webhook_secret,
         api_key_id=key_id,
@@ -268,6 +275,7 @@ async def submit_xlsx_job(
     ),
     dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
     profile_id: Optional[str] = Form(None, examples=[EX_PROFILE_ID]),
+    profile_ids: Optional[str] = Form(None, description="Comma-separated profile IDs to merge (takes precedence over profile_id)"),
     webhook_url: Optional[str] = Form(None, examples=[EX_WEBHOOK_URL]),
     webhook_secret: Optional[str] = Form(
         None,
@@ -284,6 +292,7 @@ async def submit_xlsx_job(
 
     pdf_bytes = await file.read()
     xlsx_bytes = await xlsx_file.read()
+    parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
 
     try:
         job = get_runner().submit_xlsx_batch(
@@ -295,6 +304,7 @@ async def submit_xlsx_job(
             ai_model=ai_model,
             dpi=dpi,
             profile_id=profile_id,
+            profile_ids=parsed_ids,
             webhook_url=webhook_url,
             webhook_secret=webhook_secret,
             api_key_id=get_current_key_id(request),

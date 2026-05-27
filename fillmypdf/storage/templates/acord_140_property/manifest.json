@@ -1,0 +1,25 @@
+{
+  "id": "acord_140_property",
+  "name": "ACORD 140 — Property Section",
+  "category": "commercial_insurance",
+  "specialty": null,
+  "drug": null,
+  "payer": null,
+  "indications": [],
+  "questions": [],
+  "tags": [
+    "acord",
+    "property",
+    "commercial property",
+    "building"
+  ],
+  "version": null,
+  "pages": null,
+  "is_public": true,
+  "created_at": "2026-05-26T00:26:59.401868+00:00",
+  "updated_at": "2026-05-26T00:26:59.401868+00:00",
+  "custom": {
+    "acord_number": "140",
+    "version": "2016-03"
+  }
+}

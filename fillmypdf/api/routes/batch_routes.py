@@ -122,28 +122,16 @@ async def batch_fill_json(
         description="Image DPI",
         examples=[200],
     ),
-    profile_id: Optional[str] = Form(
-        None,
-        description="Optional saved profile ID",
-        examples=[EX_PROFILE_ID],
-    ),
+    profile_id: Optional[str] = Form(None, description="Single profile ID (legacy)", examples=[EX_PROFILE_ID]),
+    profile_ids: Optional[str] = Form(None, description="Comma-separated profile IDs to merge (takes precedence over profile_id)"),
     background_tasks: BackgroundTasks = None,
 ):
     """
-    Batch fill: Same PDF template + JSON array of data
-    
-    **Use saved profile as base data:**
-    - Provide `profile_id` to use saved profile
-    - Each record in array will override/extend profile data
-    
-    **Example:**
-    ```json
-    [
-      {"first_name": "John", "last_name": "Doe"},
-      {"first_name": "Jane", "last_name": "Smith"}
-    ]
-    ```
-    
+    Batch fill: Same PDF template + JSON array of data.
+
+    Pass `profile_ids` (comma-separated) to merge multiple profiles — e.g. a
+    patient profile and a provider profile — as base data for every record.
+
     **Returns:** ZIP file with filled PDFs + batch_report.json
     """
     if not file.filename.lower().endswith('.pdf'):
@@ -176,6 +164,7 @@ async def batch_fill_json(
     
     try:
         # Process batch
+        parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
         result = batch_service.process_batch_json(
             template_pdf_path=template_path,
             user_data_array=data_array,
@@ -184,7 +173,8 @@ async def batch_fill_json(
             ai_model=ai_model,
             batch_id=batch_id,
             dpi=dpi,
-            profile_id=profile_id
+            profile_id=profile_id,
+            profile_ids=parsed_ids,
         )
         
         # Schedule cleanup
@@ -234,28 +224,16 @@ async def batch_fill_csv(
         description="Image DPI",
         examples=[200],
     ),
-    profile_id: Optional[str] = Form(
-        None,
-        description="Optional saved profile ID",
-        examples=[EX_PROFILE_ID],
-    ),
+    profile_id: Optional[str] = Form(None, description="Single profile ID (legacy)", examples=[EX_PROFILE_ID]),
+    profile_ids: Optional[str] = Form(None, description="Comma-separated profile IDs to merge (takes precedence over profile_id)"),
     background_tasks: BackgroundTasks = None,
 ):
     """
-    CSV Batch: Upload PDF template + CSV → Get ZIP with filled PDFs
-    
-    **Use saved profile as base data:**
-    - Provide `profile_id` to use saved profile
-    - Each CSV row will override/extend profile data
-    - Perfect for: "Use my company info + employee-specific data"
-    
-    **CSV Format:**
-    ```csv
-    first_name,last_name,email,phone
-    John,Doe,john@example.com,(555) 111-1111
-    Jane,Smith,jane@example.com,(555) 222-2222
-    ```
-    
+    CSV Batch: Upload PDF template + CSV → Get ZIP with filled PDFs.
+
+    Pass `profile_ids` (comma-separated) to merge multiple profiles as base
+    data for every row. Each CSV row overrides/extends the merged profile data.
+
     **Returns:** ZIP file with one PDF per CSV row + batch_report.json
     """
     if not pdf_template.filename.lower().endswith('.pdf'):
@@ -279,6 +257,7 @@ async def batch_fill_csv(
     
     try:
         # Process batch
+        parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
         result = batch_service.process_csv_batch(
             template_pdf_path=template_path,
             csv_content=csv_content,
@@ -288,7 +267,8 @@ async def batch_fill_csv(
             ai_model=ai_model,
             batch_id=batch_id,
             dpi=dpi,
-            profile_id=profile_id
+            profile_id=profile_id,
+            profile_ids=parsed_ids,
         )
         
         # Schedule cleanup
@@ -350,16 +330,13 @@ async def batch_fill_xlsx(
         description="Image DPI",
         examples=[200],
     ),
-    profile_id: Optional[str] = Form(
-        None,
-        description="Optional saved profile ID",
-        examples=[EX_PROFILE_ID],
-    ),
+    profile_id: Optional[str] = Form(None, description="Single profile ID (legacy)", examples=[EX_PROFILE_ID]),
+    profile_ids: Optional[str] = Form(None, description="Comma-separated profile IDs to merge (takes precedence over profile_id)"),
     background_tasks: BackgroundTasks = None,
 ):
     """
     Same as CSV batch — first worksheet: row 1 = column names, subsequent rows =
-    records. Compatible with spreadsheets exported from EMR spreadsheets.
+    records. Pass `profile_ids` (comma-separated) to merge multiple profiles.
     Requires **openpyxl** (declared in `requirements.txt`).
     """
     fn = xlsx_file.filename.lower() if xlsx_file.filename else ""
@@ -378,6 +355,7 @@ async def batch_fill_xlsx(
     xlsx_content = await xlsx_file.read()
 
     try:
+        parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
         result = batch_service.process_xlsx_batch(
             template_pdf_path=template_path,
             xlsx_content=xlsx_content,
@@ -388,6 +366,7 @@ async def batch_fill_xlsx(
             batch_id=batch_id,
             dpi=dpi,
             profile_id=profile_id,
+            profile_ids=parsed_ids,
         )
         if background_tasks:
             background_tasks.add_task(_unlink_if_exists, template_path)

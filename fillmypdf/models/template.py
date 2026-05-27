@@ -57,19 +57,34 @@ class TemplateQuestion(BaseModel):
 
 class TemplateManifest(BaseModel):
     """
-    All metadata for a stored template.  Persisted as manifest.json alongside
-    the template.pdf in the template directory.
+    Domain-agnostic metadata for any stored PDF template.
+    Persisted as manifest.json alongside template.pdf.
+
+    Every form type (insurance, healthcare PA, tax, HR, general) uses the same
+    core fields.  Domain-specific metadata goes in `custom` — no schema change
+    needed when adding a new vertical.
+
+    Healthcare PA example:
+        category="prior_authorization", custom={"drug": "Linzess", "payer": "Molina"}
+    Insurance example:
+        category="commercial_insurance", custom={"acord_number": "125"}
+    Tax example:
+        category="tax", custom={"form_number": "1040", "tax_year": "2024"}
     """
     id: str
     name: str
-    category: str = "prior_authorization"
-    specialty: Optional[str] = None          # "gi_motility", "neurology", …
+    # Free-form — no enforced enum.  Common values: "prior_authorization",
+    # "commercial_insurance", "tax", "employment", "real_estate", "general".
+    category: str = "general"
+    # Healthcare PA convenience fields — kept for backward-compat with existing
+    # manifests.  New code should put domain data in `custom` instead.
+    specialty: Optional[str] = None
     drug: Optional[TemplateDrug] = None
     payer: Optional[TemplatePayer] = None
-    indications: List[str] = Field(default_factory=list)  # clinical indications
+    indications: List[str] = Field(default_factory=list)
     questions: List[TemplateQuestion] = Field(default_factory=list)
     tags: List[str] = Field(default_factory=list)
-    version: Optional[str] = None            # form version / revision string
+    version: Optional[str] = None
     pages: Optional[int] = None
     is_public: bool = True
     created_at: str = Field(
@@ -78,6 +93,10 @@ class TemplateManifest(BaseModel):
     updated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
+    # Catch-all for any domain-specific metadata.
+    # Insurance:  {"acord_number": "125", "line": "commercial_property", "state": "TX"}
+    # Healthcare: {"npi": "1234567890", "specialty": "GI"}
+    # Tax:        {"form_number": "1040", "tax_year": "2024"}
     custom: Dict[str, Any] = Field(default_factory=dict)
 
 

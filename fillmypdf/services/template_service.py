@@ -139,6 +139,7 @@ class TemplateService:
         ai_model: str,
         dpi: int = 200,
         profile_id: Optional[str] = None,
+        profile_ids: Optional[List[str]] = None,
     ) -> TemplateFillResponse:
         """
         Fill one record against the stored template PDF.
@@ -146,11 +147,17 @@ class TemplateService:
         Returns a TemplateFillResponse; the filled PDF is written to
         OUTPUT_DIR and the download_url field points to it.
         """
-        # 1. Merge optional profile data
+        # 1. Merge optional profile data (multi-profile takes precedence)
         base: dict = {}
-        if profile_id:
+        ids = profile_ids or ([profile_id] if profile_id else [])
+        if len(ids) > 1:
             try:
-                base = self.profile_service.use_profile(profile_id)
+                base = self.profile_service.use_profiles(ids)
+            except Exception:
+                pass
+        elif ids:
+            try:
+                base = self.profile_service.use_profile(ids[0])
             except ValueError:
                 pass
 
@@ -204,14 +211,20 @@ class TemplateService:
         ai_model: str,
         dpi: int = 200,
         profile_id: Optional[str] = None,
+        profile_ids: Optional[List[str]] = None,
         on_record_done: Optional[Callable[[int, int, int], None]] = None,
     ) -> TemplateBatchResponse:
         """Fill N records against the stored template and return a ZIP."""
-        # Merge optional profile base
         base: dict = {}
-        if profile_id:
+        ids = profile_ids or ([profile_id] if profile_id else [])
+        if len(ids) > 1:
             try:
-                base = self.profile_service.use_profile(profile_id)
+                base = self.profile_service.use_profiles(ids)
+            except Exception:
+                pass
+        elif ids:
+            try:
+                base = self.profile_service.use_profile(ids[0])
             except ValueError:
                 pass
 
