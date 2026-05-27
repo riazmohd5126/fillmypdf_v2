@@ -310,7 +310,6 @@ if HAS_JOBS:
 if HAS_EXTRACT:
     app.include_router(extract_routes.router, prefix="/api/v1")
 
-<<<<<<< Updated upstream
 # ---------------------------------------------------------------------------
 # Serve UI static pages at /ui/*
 # ---------------------------------------------------------------------------
@@ -320,15 +319,6 @@ if _UI_DIR.exists():
     app.mount("/ui", StaticFiles(directory=str(_UI_DIR), html=True), name="ui")
 if _STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
-=======
-_DASHBOARD_DIR = settings.BASE_DIR / "static" / "dashboard"
-if _DASHBOARD_DIR.is_dir():
-    app.mount(
-        "/dashboard",
-        StaticFiles(directory=str(_DASHBOARD_DIR), html=True),
-        name="dashboard",
-    )
->>>>>>> Stashed changes
 
 
 if __name__ == "__main__":
