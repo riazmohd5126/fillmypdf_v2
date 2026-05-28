@@ -1,6 +1,6 @@
 {
   "id": "acord_130_workers_comp",
-  "name": "ACORD 130 — Workers Compensation Application",
+  "name": "ACORD 130 \u2014 Workers Compensation Application",
   "category": "commercial_insurance",
   "specialty": null,
   "drug": null,
@@ -21,5 +21,17 @@
   "custom": {
     "acord_number": "130",
     "version": "2010-05"
-  }
+  },
+  "signature_fields": [
+    {
+      "key": "employer_signature",
+      "label": "Employer / Applicant Signature",
+      "page_index": 0,
+      "x_pct": 5,
+      "y_pct": 4,
+      "width_pct": 45,
+      "height_pct": 8,
+      "required": true
+    }
+  ]
 }

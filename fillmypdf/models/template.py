@@ -55,6 +55,28 @@ class TemplateQuestion(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class SignatureField(BaseModel):
+    """
+    A pre-defined signature zone stored in a template manifest.
+
+    Coordinates use the same percentage convention as the signing endpoint
+    (origin bottom-left, matching PDF convention):
+      x_pct / y_pct  — left and bottom edges as % of page width/height
+      width_pct / height_pct — box dimensions as % of page width/height
+    """
+    key: str = Field(..., min_length=1, max_length=80,
+                     description="Machine-readable identifier, e.g. 'patient_signature'")
+    label: str = Field(..., min_length=1, max_length=120,
+                       description="Human-readable label shown in UI, e.g. 'Patient Signature'")
+    page_index: int = Field(0, ge=0, description="Zero-based page number")
+    x_pct: float = Field(55.0, ge=0, le=100, description="Left edge (% of page width)")
+    y_pct: float = Field(5.0, ge=0, le=100, description="Bottom edge (% of page height)")
+    width_pct: float = Field(40.0, ge=0.1, le=100, description="Box width (% of page width)")
+    height_pct: float = Field(12.0, ge=0.1, le=100, description="Box height (% of page height)")
+    required: bool = True
+    description: Optional[str] = None
+
+
 class TemplateManifest(BaseModel):
     """
     Domain-agnostic metadata for any stored PDF template.
@@ -93,6 +115,10 @@ class TemplateManifest(BaseModel):
     updated_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
+    # Pre-defined signature zones for this template.
+    # Consumers can call POST /templates/{id}/sign with a field key
+    # instead of supplying raw coordinates.
+    signature_fields: List[SignatureField] = Field(default_factory=list)
     # Catch-all for any domain-specific metadata.
     # Insurance:  {"acord_number": "125", "line": "commercial_property", "state": "TX"}
     # Healthcare: {"npi": "1234567890", "specialty": "GI"}
@@ -151,3 +177,22 @@ class TemplateBatchResponse(BaseModel):
     avg_confidence: Optional[float] = None
     download_url: str
     message: Optional[str] = None
+
+
+class SignatureFieldsResponse(BaseModel):
+    template_id: str
+    signature_fields: List[SignatureField]
+    total: int
+
+
+class TemplateSignResponse(BaseModel):
+    """Returned by POST /templates/{id}/sign."""
+    success: bool = True
+    template_id: str
+    field_key: str
+    filename: str
+    download_url: str
+    certificate_url: str
+    document_hash: str
+    audit_id: str
+    message: str = "Signature overlay applied."

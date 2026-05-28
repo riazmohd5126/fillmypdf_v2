@@ -1,6 +1,6 @@
 {
   "id": "acord_126_cgl",
-  "name": "ACORD 126 — Commercial General Liability",
+  "name": "ACORD 126 \u2014 Commercial General Liability",
   "category": "commercial_insurance",
   "specialty": null,
   "drug": null,
@@ -21,5 +21,18 @@
   "custom": {
     "acord_number": "126",
     "version": "2016-09"
-  }
+  },
+  "signature_fields": [
+    {
+      "key": "authorized_signature",
+      "label": "Authorized Representative Signature",
+      "page_index": 0,
+      "x_pct": 5,
+      "y_pct": 4,
+      "width_pct": 45,
+      "height_pct": 8,
+      "required": true,
+      "description": "Authorized rep signature"
+    }
+  ]
 }

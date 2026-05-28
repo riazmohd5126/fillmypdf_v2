@@ -70,7 +70,8 @@
       <div class="flex border-b border-gray-100 px-6">
         <button onclick="switchDetailTab('info')" id="dtab-info" class="py-3 mr-6 text-sm border-b-2 border-indigo-500 text-indigo-600 font-semibold">Info</button>
         <button onclick="switchDetailTab('fill')" id="dtab-fill" class="py-3 mr-6 text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700">Fill</button>
-        <button onclick="switchDetailTab('fields')" id="dtab-fields" class="py-3 text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700">Fields</button>
+        <button onclick="switchDetailTab('fields')" id="dtab-fields" class="py-3 mr-6 text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700">Fields</button>
+        <button onclick="switchDetailTab('sign')" id="dtab-sign" class="py-3 text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700">✍️ Sign</button>
       </div>
 
       <!-- Info panel -->
@@ -130,6 +131,76 @@
         <p class="text-xs text-gray-400 mb-3">Detected AcroForm fields in this template:</p>
         <div id="fields-list" class="space-y-1.5 max-h-80 overflow-y-auto"></div>
         <button onclick="loadFields()" id="fields-load-btn" class="mt-3 text-sm text-indigo-600 hover:underline">Load fields</button>
+      </div>
+
+      <!-- Sign panel -->
+      <div id="dpanel-sign" class="p-6 hidden space-y-4">
+        <p class="text-xs text-gray-400">Select a signature zone, draw or type your signature, then apply.</p>
+
+        <!-- Signature field selector -->
+        <div>
+          <label class="text-xs font-medium text-gray-600 mb-1 block">Signature Field</label>
+          <div id="sig-field-list" class="space-y-2"></div>
+          <p id="sig-field-empty" class="hidden text-xs text-gray-400 italic">No signature fields defined for this template.</p>
+        </div>
+
+        <!-- Signature input -->
+        <div>
+          <div class="flex gap-4 mb-2">
+            <button onclick="sigSwitchTab('draw')" id="stab-draw" class="text-xs font-semibold text-indigo-600 border-b-2 border-indigo-500 pb-1">Draw</button>
+            <button onclick="sigSwitchTab('type')" id="stab-type" class="text-xs text-gray-400 border-b-2 border-transparent pb-1">Type</button>
+          </div>
+          <div id="spanel-draw">
+            <div class="border-2 border-dashed border-gray-300 rounded-lg overflow-hidden bg-white" style="height:100px">
+              <canvas id="sig-mini-canvas" class="w-full h-full" width="480" height="100" style="cursor:crosshair;touch-action:none"></canvas>
+            </div>
+            <button onclick="clearMiniCanvas()" class="text-xs text-gray-400 hover:text-red-500 mt-1">Clear</button>
+          </div>
+          <div id="spanel-type" class="hidden">
+            <input id="sig-type-input" type="text" placeholder="Type your full name…"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+          </div>
+        </div>
+
+        <!-- Signer info -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">Full Name</label>
+            <input id="sig-signer-name" type="text" placeholder="Jane Smith"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">Email</label>
+            <input id="sig-signer-email" type="email" placeholder="jane@example.com"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+          </div>
+        </div>
+
+        <!-- Consent -->
+        <label class="flex items-start gap-2 cursor-pointer bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <input id="sig-consent" type="checkbox" class="mt-0.5 w-4 h-4 accent-indigo-600 shrink-0" />
+          <span class="text-xs text-amber-800 leading-relaxed">
+            I agree my electronic signature is the legal equivalent of my handwritten signature (ESIGN Act / UETA).
+            A Certificate of Electronic Signature will be generated.
+          </span>
+        </label>
+
+        <div id="sig-error" class="hidden text-xs text-red-600 bg-red-50 rounded px-3 py-2"></div>
+
+        <!-- Result -->
+        <div id="sig-result" class="hidden bg-green-50 border border-green-200 rounded-lg p-4 space-y-2">
+          <p class="text-xs font-semibold text-green-800">✔ Signature applied</p>
+          <p class="text-xs text-green-700 font-mono break-all" id="sig-result-hash"></p>
+          <div class="flex gap-2 flex-wrap">
+            <a id="sig-result-pdf" href="#" download class="flex-1 text-center text-xs bg-indigo-600 text-white rounded-lg py-1.5 font-medium hover:bg-indigo-700">Download Signed PDF</a>
+            <a id="sig-result-cert" href="#" class="flex-1 text-center text-xs bg-white border border-green-300 text-green-700 rounded-lg py-1.5 font-medium hover:bg-green-50">Download Certificate</a>
+          </div>
+        </div>
+
+        <button onclick="applyTemplateSign()" id="sig-submit-btn"
+          class="w-full bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-indigo-700">
+          Apply Signature
+        </button>
       </div>
     </div>
   </div>
@@ -322,13 +393,18 @@
   function closeDetail() { document.getElementById('detail-modal').classList.add('hidden'); currentTemplateId = null; }
 
   function switchDetailTab(tab) {
-    ['info','fill','fields'].forEach(t => {
+    ['info','fill','fields','sign'].forEach(t => {
       document.getElementById(`dpanel-${t}`).classList.toggle('hidden', t !== tab);
       const btn = document.getElementById(`dtab-${t}`);
+      if (!btn) return;
+      const isLast = t === 'sign';
       btn.className = t === tab
-        ? 'py-3 mr-6 text-sm border-b-2 border-indigo-500 text-indigo-600 font-semibold'
-        : 'py-3 mr-6 text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700';
+        ? `py-3 ${isLast ? '' : 'mr-6'} text-sm border-b-2 border-indigo-500 text-indigo-600 font-semibold`
+        : `py-3 ${isLast ? '' : 'mr-6'} text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700`;
     });
+    if (tab === 'sign' && currentTemplateId) {
+      loadSignatureFields(currentTemplateId);
+    }
   }
 
   // ── Fill ──────────────────────────────────────────────────────
@@ -543,6 +619,152 @@
   }
 
   function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // ── Sign tab ──────────────────────────────────────────────────
+  let sigFields = [];
+  let selectedSigFieldKey = null;
+  let sigTabMode = 'draw';
+
+  // Mini canvas setup
+  const miniCanvas = document.getElementById('sig-mini-canvas');
+  const miniCtx = miniCanvas.getContext('2d');
+  miniCtx.strokeStyle = '#0a2864'; miniCtx.lineWidth = 2; miniCtx.lineCap = 'round'; miniCtx.lineJoin = 'round';
+  let miniDrawing = false, miniLX = 0, miniLY = 0;
+
+  function miniPos(e) {
+    const rect = miniCanvas.getBoundingClientRect();
+    const sx = miniCanvas.width / rect.width, sy = miniCanvas.height / rect.height;
+    const src = e.touches ? e.touches[0] : e;
+    return [(src.clientX - rect.left) * sx, (src.clientY - rect.top) * sy];
+  }
+  miniCanvas.addEventListener('pointerdown', e => { miniDrawing = true; [miniLX, miniLY] = miniPos(e); e.preventDefault(); });
+  miniCanvas.addEventListener('pointermove', e => {
+    if (!miniDrawing) return;
+    const [x, y] = miniPos(e);
+    miniCtx.beginPath(); miniCtx.moveTo(miniLX, miniLY); miniCtx.lineTo(x, y); miniCtx.stroke();
+    [miniLX, miniLY] = [x, y]; e.preventDefault();
+  });
+  miniCanvas.addEventListener('pointerup', () => miniDrawing = false);
+  miniCanvas.addEventListener('pointerleave', () => miniDrawing = false);
+
+  function clearMiniCanvas() { miniCtx.clearRect(0, 0, miniCanvas.width, miniCanvas.height); }
+
+  function isMiniCanvasEmpty() {
+    const d = miniCtx.getImageData(0, 0, miniCanvas.width, miniCanvas.height).data;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return false;
+    return true;
+  }
+
+  function sigSwitchTab(tab) {
+    sigTabMode = tab;
+    document.getElementById('spanel-draw').classList.toggle('hidden', tab !== 'draw');
+    document.getElementById('spanel-type').classList.toggle('hidden', tab !== 'type');
+    document.getElementById('stab-draw').className = tab === 'draw'
+      ? 'text-xs font-semibold text-indigo-600 border-b-2 border-indigo-500 pb-1'
+      : 'text-xs text-gray-400 border-b-2 border-transparent pb-1';
+    document.getElementById('stab-type').className = tab === 'type'
+      ? 'text-xs font-semibold text-indigo-600 border-b-2 border-indigo-500 pb-1'
+      : 'text-xs text-gray-400 border-b-2 border-transparent pb-1';
+  }
+
+  async function loadSignatureFields(templateId) {
+    const key = getKey();
+    sigFields = [];
+    selectedSigFieldKey = null;
+    document.getElementById('sig-result').classList.add('hidden');
+    document.getElementById('sig-error').classList.add('hidden');
+    try {
+      const r = await fetch(`/api/v1/templates/${templateId}/signature-fields`, { headers: { 'X-API-Key': key } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      sigFields = data.signature_fields || [];
+    } catch { sigFields = []; }
+
+    const list = document.getElementById('sig-field-list');
+    const empty = document.getElementById('sig-field-empty');
+    if (!sigFields.length) {
+      list.innerHTML = ''; empty.classList.remove('hidden'); return;
+    }
+    empty.classList.add('hidden');
+    list.innerHTML = sigFields.map(f => `
+      <label class="flex items-start gap-2 cursor-pointer border rounded-lg px-3 py-2 text-xs hover:border-indigo-400 transition sig-field-opt" data-key="${esc(f.key)}">
+        <input type="radio" name="sig-field" value="${esc(f.key)}" class="mt-0.5 accent-indigo-600" onchange="selectedSigFieldKey='${esc(f.key)}'"/>
+        <div>
+          <span class="font-medium text-gray-800">${esc(f.label)}</span>
+          <span class="text-gray-400 ml-2">Page ${f.page_index + 1}</span>
+          ${f.description ? `<p class="text-gray-400 mt-0.5">${esc(f.description)}</p>` : ''}
+        </div>
+      </label>`).join('');
+  }
+
+  async function applyTemplateSign() {
+    const key = getKey();
+    if (!key) { showSigErr('No API key set.'); return; }
+    if (!selectedSigFieldKey) { showSigErr('Select a signature field.'); return; }
+    if (!document.getElementById('sig-consent').checked) { showSigErr('Accept the consent to proceed.'); return; }
+
+    const btn = document.getElementById('sig-submit-btn');
+    btn.disabled = true; btn.textContent = 'Applying…';
+    document.getElementById('sig-error').classList.add('hidden');
+    document.getElementById('sig-result').classList.add('hidden');
+
+    const fd = new FormData();
+    fd.append('field_key', selectedSigFieldKey);
+    fd.append('consent_given', 'true');
+    const sName = document.getElementById('sig-signer-name').value.trim();
+    const sEmail = document.getElementById('sig-signer-email').value.trim();
+    if (sName) fd.append('signer_name', sName);
+    if (sEmail) fd.append('signer_email', sEmail);
+
+    if (sigTabMode === 'type') {
+      const txt = document.getElementById('sig-type-input').value.trim();
+      if (!txt) { showSigErr('Type your name first.'); btn.disabled = false; btn.textContent = 'Apply Signature'; return; }
+      fd.append('signature_text', txt);
+    } else {
+      if (isMiniCanvasEmpty()) { showSigErr('Draw your signature first.'); btn.disabled = false; btn.textContent = 'Apply Signature'; return; }
+      const blob = await new Promise(res => miniCanvas.toBlob(res, 'image/png'));
+      fd.append('signature_png', blob, 'signature.png');
+    }
+
+    try {
+      const r = await fetch(`/api/v1/templates/${currentTemplateId}/sign`, {
+        method: 'POST', headers: { 'X-API-Key': key }, body: fd,
+      });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e?.detail || `HTTP ${r.status}`); }
+      const data = await r.json();
+
+      // Signed PDF download
+      const pdfLink = document.getElementById('sig-result-pdf');
+      pdfLink.onclick = async (ev) => {
+        ev.preventDefault();
+        const dlR = await fetch(data.download_url, { headers: { 'X-API-Key': key } });
+        const blob = await dlR.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = data.filename; a.click();
+        URL.revokeObjectURL(url);
+      };
+
+      // Certificate download
+      const certLink = document.getElementById('sig-result-cert');
+      certLink.onclick = async (ev) => {
+        ev.preventDefault();
+        const cr = await fetch(data.certificate_url, { headers: { 'X-API-Key': key } });
+        const cb = await cr.blob();
+        const cu = URL.createObjectURL(cb);
+        const a = document.createElement('a'); a.href = cu; a.download = `certificate_${data.audit_id}.pdf`; a.click();
+        URL.revokeObjectURL(cu);
+      };
+
+      document.getElementById('sig-result-hash').textContent = `SHA-256: ${data.document_hash}`;
+      document.getElementById('sig-result').classList.remove('hidden');
+    } catch (e) { showSigErr(e.message); }
+    finally { btn.disabled = false; btn.textContent = 'Apply Signature'; }
+  }
+
+  function showSigErr(msg) {
+    const el = document.getElementById('sig-error');
+    el.textContent = msg; el.classList.remove('hidden');
+  }
 
   loadTemplates();
 </script>

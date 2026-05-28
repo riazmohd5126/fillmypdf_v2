@@ -36,6 +36,7 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Request,
     UploadFile,
 )
 from fastapi.responses import FileResponse, StreamingResponse
@@ -46,6 +47,9 @@ from ...models.template import (
     TemplateManifest,
     TemplateBatchResponse,
     TemplateFillResponse,
+    SignatureField,
+    SignatureFieldsResponse,
+    TemplateSignResponse,
 )
 from ...services.template_service import TemplateService
 from ..dependencies.auth import require_api_key, require_admin
@@ -498,3 +502,265 @@ async def delete_template(template_id: str):
     if not _get_service().delete(template_id):
         raise HTTPException(404, f"Template '{template_id}' not found")
     return None
+
+
+# ---------------------------------------------------------------------------
+# Signature field templates — read
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/{template_id}/signature-fields",
+    response_model=SignatureFieldsResponse,
+    summary="List pre-defined signature zones for a template",
+)
+async def get_signature_fields(template_id: str):
+    """
+    Returns the array of named signature zones stored in the template manifest.
+    Use the ``key`` value when calling ``POST /templates/{id}/sign`` to avoid
+    specifying raw coordinates.
+    """
+    manifest = _get_service().get(template_id)
+    if not manifest:
+        raise HTTPException(404, f"Template '{template_id}' not found")
+    return SignatureFieldsResponse(
+        template_id=template_id,
+        signature_fields=manifest.signature_fields,
+        total=len(manifest.signature_fields),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Admin: update signature fields
+# ---------------------------------------------------------------------------
+
+
+@router.put(
+    "/{template_id}/signature-fields",
+    response_model=SignatureFieldsResponse,
+    summary="Set signature field zones for a template (admin)",
+    dependencies=[Depends(require_admin)],
+)
+async def set_signature_fields(
+    template_id: str,
+    fields_json: str = Form(
+        ...,
+        description=(
+            'JSON array of signature field objects. '
+            'Example: [{"key":"patient_sig","label":"Patient Signature",'
+            '"page_index":0,"x_pct":55,"y_pct":5,"width_pct":40,"height_pct":12}]'
+        ),
+    ),
+):
+    """
+    Replace the entire ``signature_fields`` array on a template manifest.
+    Each object must have ``key``, ``label``, ``page_index``, ``x_pct``,
+    ``y_pct``, ``width_pct``, ``height_pct``.
+    """
+    svc = _get_service()
+    manifest = svc.get(template_id)
+    if not manifest:
+        raise HTTPException(404, f"Template '{template_id}' not found")
+
+    try:
+        raw_list = json.loads(fields_json)
+        if not isinstance(raw_list, list):
+            raise ValueError("Must be a JSON array")
+        sig_fields = [SignatureField(**item) for item in raw_list]
+    except Exception as exc:
+        raise HTTPException(422, f"Invalid signature fields: {exc}")
+
+    # Check for duplicate keys
+    keys = [f.key for f in sig_fields]
+    if len(keys) != len(set(keys)):
+        raise HTTPException(422, "Duplicate signature field keys are not allowed")
+
+    manifest.signature_fields = sig_fields
+    manifest.updated_at = datetime.now(timezone.utc).isoformat()
+    try:
+        svc.update_manifest(template_id, manifest)
+    except Exception as exc:
+        raise HTTPException(500, f"Could not save signature fields: {exc}")
+
+    return SignatureFieldsResponse(
+        template_id=template_id,
+        signature_fields=sig_fields,
+        total=len(sig_fields),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sign a template PDF using a named signature field
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{template_id}/sign",
+    response_model=TemplateSignResponse,
+    summary="Apply a visual signature to a template PDF using a named signature field",
+)
+async def sign_template(
+    template_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    field_key: str = Form(..., description="Key of the signature field defined in the template manifest"),
+    signature_png: Optional[UploadFile] = File(None, description="PNG signature image"),
+    signature_text: Optional[str] = Form(None, description="Typed name rendered as cursive PNG"),
+    signer_name: Optional[str] = Form(None),
+    signer_email: Optional[str] = Form(None),
+    consent_given: bool = Form(..., description="Signer must explicitly consent (ESIGN Act)"),
+    pdf_file: Optional[UploadFile] = File(
+        None,
+        description="Optional filled PDF to sign. If omitted, the raw template PDF is used.",
+    ),
+):
+    """
+    Signs a template's PDF at a pre-defined signature zone (looked up by ``field_key``).
+    No need to supply raw x/y/width/height coordinates — they come from the template manifest.
+
+    Optionally upload a ``pdf_file`` (e.g. a previously filled output) to sign that instead
+    of the raw template.  Returns the signed PDF URL **and** a Certificate of Electronic
+    Signature URL.
+    """
+    from ...services.esign_service import ESignValidationError, apply_signature_overlay, typed_name_to_png
+    from ...services.sign_audit_service import SignAuditService
+    from ...services.sign_certificate_service import generate_certificate
+    from ..dependencies.auth import get_current_key_id
+    import uuid as _uuid
+
+    if not consent_given:
+        raise HTTPException(400, "consent_given must be true — display the ESIGN disclosure first.")
+
+    manifest = _get_service().get(template_id)
+    if not manifest:
+        raise HTTPException(404, f"Template '{template_id}' not found")
+
+    # Locate the requested field
+    field = next((f for f in manifest.signature_fields if f.key == field_key), None)
+    if field is None:
+        available = [f.key for f in manifest.signature_fields]
+        raise HTTPException(
+            404,
+            f"Signature field '{field_key}' not found on template '{template_id}'. "
+            f"Available: {available or '(none defined)'}",
+        )
+
+    has_png = pdf_file is not None and bool(pdf_file.filename)
+    has_sig_png = signature_png is not None and bool(signature_png.filename)
+    has_sig_text = bool((signature_text or "").strip())
+
+    if has_sig_png and has_sig_text:
+        raise HTTPException(400, "Provide either signature_png or signature_text, not both.")
+    if not has_sig_png and not has_sig_text:
+        raise HTTPException(400, "Provide signature_png or signature_text.")
+
+    # Determine PDF source
+    if has_png:
+        raw_pdf = await pdf_file.read()
+        if len(raw_pdf) > 26_214_400:
+            raise HTTPException(400, "PDF exceeds 25 MiB limit")
+    else:
+        # Use the stored template PDF
+        template_pdf_path = settings.STORAGE_DIR / "templates" / template_id / "template.pdf"
+        if not template_pdf_path.exists():
+            raise HTTPException(404, f"Template PDF not found for '{template_id}'")
+        raw_pdf = template_pdf_path.read_bytes()
+
+    # Build signature bytes
+    if has_sig_png:
+        sig_bytes = await signature_png.read()
+        if not sig_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise HTTPException(400, "signature_png must be a valid PNG file")
+    else:
+        try:
+            sig_bytes = typed_name_to_png(signature_text or "")
+        except ESignValidationError as e:
+            raise HTTPException(400, str(e))
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    uid = _uuid.uuid4().hex[:12]
+    in_path = settings.UPLOAD_DIR / f"{ts}_{uid}_tmplsign_in.pdf"
+    out_name = f"signed_{template_id}_{uid}.pdf"
+    out_path = settings.OUTPUT_DIR / out_name
+
+    settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    settings.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    in_path.write_bytes(raw_pdf)
+
+    s_name = (signer_name or "").strip() or None
+    s_email = (signer_email or "").strip() or None
+    client_ip = request.client.host if request.client else None
+    audit_id = f"sig_{_uuid.uuid4().hex[:16]}"
+
+    def _cleanup():
+        try:
+            in_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    try:
+        document_hash = apply_signature_overlay(
+            in_path,
+            out_path,
+            png_bytes=sig_bytes,
+            page_index=field.page_index,
+            x_pct=field.x_pct,
+            y_pct=field.y_pct,
+            width_pct=field.width_pct,
+            height_pct=field.height_pct,
+            audit_id=audit_id,
+            signer_name=s_name or "",
+            signer_email=s_email or "",
+        )
+    except ESignValidationError as e:
+        background_tasks.add_task(_cleanup)
+        raise HTTPException(400, str(e))
+
+    # Generate certificate
+    signed_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    cert_bytes = generate_certificate(
+        audit_id=audit_id,
+        document_filename=out_name,
+        document_hash=document_hash,
+        signer_name=s_name,
+        signer_email=s_email,
+        signed_at=signed_at,
+        client_ip=client_ip,
+        page_index=field.page_index,
+        signature_mode="draw_or_upload_png" if has_sig_png else "typed",
+        placement={"x_pct": field.x_pct, "y_pct": field.y_pct,
+                   "width_pct": field.width_pct, "height_pct": field.height_pct},
+        api_key_id=get_current_key_id(request),
+    )
+    cert_path = settings.OUTPUT_DIR / f"certificate_{audit_id}.pdf"
+    cert_path.write_bytes(cert_bytes)
+
+    # Record audit
+    SignAuditService().record_with_id(
+        audit_id=audit_id,
+        output_filename=out_name,
+        download_url=f"/api/v1/templates/download/{out_name}",
+        page_index=field.page_index,
+        signature_mode="draw_or_upload_png" if has_sig_png else "typed",
+        signer_name=s_name,
+        signer_email=s_email,
+        api_key_id=get_current_key_id(request),
+        client_ip=client_ip,
+        placement={"x_pct": field.x_pct, "y_pct": field.y_pct,
+                   "width_pct": field.width_pct, "height_pct": field.height_pct},
+        document_hash=document_hash,
+        consent_given=consent_given,
+        certificate_filename=f"certificate_{audit_id}.pdf",
+    )
+
+    background_tasks.add_task(_cleanup)
+
+    return TemplateSignResponse(
+        template_id=template_id,
+        field_key=field_key,
+        filename=out_name,
+        download_url=f"/api/v1/templates/download/{out_name}",
+        certificate_url=f"/api/v1/signatures/certificate/{audit_id}",
+        document_hash=document_hash,
+        audit_id=audit_id,
+    )

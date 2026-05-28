@@ -1,6 +1,6 @@
 {
   "id": "acord_125_commercial",
-  "name": "ACORD 125 — Commercial Insurance Application",
+  "name": "ACORD 125 \u2014 Commercial Insurance Application",
   "category": "commercial_insurance",
   "specialty": null,
   "drug": null,
@@ -22,5 +22,29 @@
   "custom": {
     "acord_number": "125",
     "version": "2016-03"
-  }
+  },
+  "signature_fields": [
+    {
+      "key": "applicant_signature",
+      "label": "Applicant Signature",
+      "page_index": 0,
+      "x_pct": 5,
+      "y_pct": 4,
+      "width_pct": 45,
+      "height_pct": 8,
+      "required": true,
+      "description": "Named insured / applicant signature"
+    },
+    {
+      "key": "producer_signature",
+      "label": "Producer / Agent Signature",
+      "page_index": 0,
+      "x_pct": 55,
+      "y_pct": 4,
+      "width_pct": 40,
+      "height_pct": 8,
+      "required": true,
+      "description": "Producing agent signature"
+    }
+  ]
 }
