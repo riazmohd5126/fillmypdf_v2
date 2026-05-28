@@ -38,6 +38,7 @@ from ...services.esign_service import ESignValidationError, apply_signature_over
 from ...services.sign_audit_service import SignAuditService
 from ...services.sign_certificate_service import generate_certificate
 from ...services.signing_session_service import SigningSessionService
+from ...services import email_service
 from ..dependencies.auth import get_current_key_id, require_api_key
 
 
@@ -129,6 +130,18 @@ async def create_session(body: CreateSessionRequest, request: Request):
         )
     except ValueError as e:
         raise HTTPException(422, str(e))
+
+    # Email first signer
+    first = sess.current_signer()
+    if first and first.get("email"):
+        email_service.notify_signer_turn(
+            to_email=first["email"],
+            signer_name=first.get("name", ""),
+            session_title=sess.title,
+            session_id=sess.session_id,
+            signer_index=0,
+            total_signers=len(sess.signers),
+        )
 
     return _session_summary(sess)
 
@@ -311,6 +324,43 @@ async def sign_session_step(
     )
 
     background_tasks.add_task(_cleanup)
+
+    # Send confirmation to the signer who just signed
+    if s_email:
+        remaining = len(updated.signers) - updated.current_signer_index
+        email_service.notify_signer_complete_step(
+            to_email=s_email,
+            signer_name=s_name or "",
+            session_title=updated.title,
+            session_id=session_id,
+            step_number=signer_idx + 1,
+            total_signers=len(updated.signers),
+            remaining=max(0, remaining),
+        )
+
+    if updated.status == "complete":
+        # Email creator (if stored) and all signers on completion
+        for sg in updated.signers:
+            if sg.get("email") and sg["email"] != s_email:
+                email_service.notify_session_complete(
+                    to_email=sg["email"],
+                    recipient_name=sg.get("name", ""),
+                    session_title=updated.title,
+                    session_id=session_id,
+                    total_signers=len(updated.signers),
+                )
+    else:
+        # Notify the next signer
+        next_signer = updated.current_signer()
+        if next_signer and next_signer.get("email"):
+            email_service.notify_signer_turn(
+                to_email=next_signer["email"],
+                signer_name=next_signer.get("name", ""),
+                session_title=updated.title,
+                session_id=session_id,
+                signer_index=next_signer["index"],
+                total_signers=len(updated.signers),
+            )
 
     summary = _session_summary(updated)
     summary["step_result"] = {

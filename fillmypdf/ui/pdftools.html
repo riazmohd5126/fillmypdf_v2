@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PDF Tools — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body{font-family:system-ui,-apple-system,sans-serif;}</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
+    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <span class="font-semibold text-gray-800">PDF Tools</span>
+  </nav>
+
+  <main class="max-w-3xl mx-auto px-4 py-10 space-y-8">
+
+    <!-- Merge -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+      <div class="flex items-center gap-3 mb-1">
+        <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center text-xl">🔗</div>
+        <div>
+          <h2 class="font-bold text-gray-900">Merge PDFs</h2>
+          <p class="text-xs text-gray-400">Combine 2–20 PDFs into one file, in upload order.</p>
+        </div>
+      </div>
+      <div id="merge-drop" class="mt-4 border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition">
+        <svg class="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+        <p class="text-sm text-gray-500">Click or drag PDFs here</p>
+        <input id="merge-input" type="file" accept=".pdf" multiple class="hidden" onchange="onMergeFiles()"/>
+      </div>
+      <div id="merge-file-list" class="mt-3 space-y-1.5"></div>
+      <div class="mt-3">
+        <label class="text-xs text-gray-500 mb-1 block">Output filename (optional)</label>
+        <input id="merge-name" type="text" placeholder="merged_document"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+      </div>
+      <div id="merge-error" class="hidden mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
+      <div id="merge-result" class="hidden mt-3 bg-green-50 border border-green-200 rounded-xl p-4">
+        <p class="text-sm font-semibold text-green-800 mb-2">✔ Merge complete</p>
+        <p id="merge-result-info" class="text-xs text-green-700 mb-3"></p>
+        <a id="merge-download" href="#" class="inline-flex items-center gap-1.5 bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700">
+          Download Merged PDF
+        </a>
+      </div>
+      <button onclick="doMerge()" id="merge-btn"
+        class="mt-4 w-full bg-indigo-600 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-indigo-700">
+        Merge PDFs
+      </button>
+    </div>
+
+    <!-- Split -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+      <div class="flex items-center gap-3 mb-1">
+        <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center text-xl">✂️</div>
+        <div>
+          <h2 class="font-bold text-gray-900">Split PDF</h2>
+          <p class="text-xs text-gray-400">Split a PDF into individual pages, halves, or custom ranges.</p>
+        </div>
+      </div>
+      <div id="split-drop" class="mt-4 border-2 border-dashed border-gray-300 rounded-xl p-5 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition" onclick="document.getElementById('split-input').click()">
+        <svg class="w-7 h-7 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+        <p id="split-label" class="text-sm text-gray-500">Click to upload PDF</p>
+        <input id="split-input" type="file" accept=".pdf" class="hidden" onchange="onSplitFile()"/>
+      </div>
+      <div class="mt-4">
+        <label class="text-xs font-medium text-gray-600 mb-1 block">Split mode</label>
+        <div class="flex gap-3 flex-wrap">
+          <label class="flex items-center gap-1.5 cursor-pointer text-sm">
+            <input type="radio" name="split-mode" value="pages" checked onchange="onModeChange()" class="accent-orange-500"/> One page per file
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer text-sm">
+            <input type="radio" name="split-mode" value="half" onchange="onModeChange()" class="accent-orange-500"/> Split in half
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer text-sm">
+            <input type="radio" name="split-mode" value="range" onchange="onModeChange()" class="accent-orange-500"/> Custom ranges
+          </label>
+        </div>
+      </div>
+      <div id="range-input-row" class="hidden mt-3">
+        <label class="text-xs text-gray-500 mb-1 block">Page ranges (e.g. <code>1-3, 4-7, 8</code>)</label>
+        <input id="split-ranges" type="text" placeholder="1-3, 4-7, 8"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-orange-400"/>
+      </div>
+      <div id="split-error" class="hidden mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
+      <div id="split-result" class="hidden mt-3 bg-orange-50 border border-orange-200 rounded-xl p-4">
+        <p class="text-sm font-semibold text-orange-800 mb-2">✔ Split complete</p>
+        <div id="split-file-links" class="space-y-1.5"></div>
+      </div>
+      <button onclick="doSplit()" id="split-btn"
+        class="mt-4 w-full bg-orange-500 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-orange-600">
+        Split PDF
+      </button>
+    </div>
+
+  </main>
+
+<script>
+  function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
+  let mergeFiles = [];
+
+  // ── Merge ─────────────────────────────────────────────────────────────────
+  document.getElementById('merge-drop').addEventListener('click', () => document.getElementById('merge-input').click());
+  document.getElementById('merge-drop').addEventListener('dragover', e => { e.preventDefault(); document.getElementById('merge-drop').classList.add('border-indigo-400','bg-indigo-50'); });
+  document.getElementById('merge-drop').addEventListener('dragleave', () => document.getElementById('merge-drop').classList.remove('border-indigo-400','bg-indigo-50'));
+  document.getElementById('merge-drop').addEventListener('drop', e => {
+    e.preventDefault();
+    document.getElementById('merge-drop').classList.remove('border-indigo-400','bg-indigo-50');
+    [...e.dataTransfer.files].filter(f => f.name.endsWith('.pdf')).forEach(f => mergeFiles.push(f));
+    renderMergeList();
+  });
+
+  function onMergeFiles() {
+    const inp = document.getElementById('merge-input');
+    [...inp.files].forEach(f => mergeFiles.push(f));
+    inp.value = '';
+    renderMergeList();
+  }
+
+  function renderMergeList() {
+    const el = document.getElementById('merge-file-list');
+    el.innerHTML = mergeFiles.map((f, i) => `
+      <div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-xs">
+        <span class="w-5 h-5 bg-indigo-100 rounded text-indigo-600 font-bold flex items-center justify-center shrink-0">${i+1}</span>
+        <span class="flex-1 truncate text-gray-700">${esc(f.name)}</span>
+        <span class="text-gray-400">${(f.size/1024).toFixed(0)} KB</span>
+        <button onclick="mergeFiles.splice(${i},1);renderMergeList()" class="text-gray-300 hover:text-red-400 text-base leading-none ml-1">×</button>
+      </div>`).join('');
+  }
+
+  async function doMerge() {
+    const key = getKey();
+    if (!key) { showErr('merge','No API key set.'); return; }
+    if (mergeFiles.length < 2) { showErr('merge','Upload at least 2 PDF files.'); return; }
+    const btn = document.getElementById('merge-btn');
+    btn.disabled = true; btn.textContent = 'Merging…';
+    document.getElementById('merge-error').classList.add('hidden');
+    document.getElementById('merge-result').classList.add('hidden');
+    const fd = new FormData();
+    mergeFiles.forEach(f => fd.append('files', f));
+    const name = document.getElementById('merge-name').value.trim();
+    if (name) fd.append('output_name', name);
+    try {
+      const r = await fetch('/api/v1/pdf/merge', { method:'POST', headers:{'X-API-Key':key}, body:fd });
+      if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.detail||`HTTP ${r.status}`); }
+      const data = await r.json();
+      document.getElementById('merge-result-info').textContent = `${data.files_merged} files · ${data.total_pages} pages`;
+      const dlLink = document.getElementById('merge-download');
+      dlLink.onclick = async(ev) => {
+        ev.preventDefault();
+        const dr = await fetch(data.download_url,{headers:{'X-API-Key':key}});
+        const blob=await dr.blob(); const url=URL.createObjectURL(blob);
+        const a=document.createElement('a'); a.href=url; a.download=data.filename; a.click(); URL.revokeObjectURL(url);
+      };
+      document.getElementById('merge-result').classList.remove('hidden');
+    } catch(e) { showErr('merge', e.message); }
+    finally { btn.disabled=false; btn.textContent='Merge PDFs'; }
+  }
+
+  // ── Split ─────────────────────────────────────────────────────────────────
+  function onSplitFile() {
+    const f = document.getElementById('split-input').files[0];
+    document.getElementById('split-label').textContent = f ? f.name : 'Click to upload PDF';
+  }
+  function onModeChange() {
+    const mode = document.querySelector('input[name="split-mode"]:checked').value;
+    document.getElementById('range-input-row').classList.toggle('hidden', mode !== 'range');
+  }
+
+  async function doSplit() {
+    const key = getKey();
+    if (!key) { showErr('split','No API key set.'); return; }
+    const file = document.getElementById('split-input').files[0];
+    if (!file) { showErr('split','Upload a PDF first.'); return; }
+    const mode = document.querySelector('input[name="split-mode"]:checked').value;
+    const btn = document.getElementById('split-btn');
+    btn.disabled=true; btn.textContent='Splitting…';
+    document.getElementById('split-error').classList.add('hidden');
+    document.getElementById('split-result').classList.add('hidden');
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('mode', mode);
+    if (mode === 'range') {
+      const ranges = document.getElementById('split-ranges').value.trim();
+      if (!ranges) { showErr('split','Enter page ranges.'); btn.disabled=false; btn.textContent='Split PDF'; return; }
+      fd.append('page_ranges', ranges);
+    }
+    try {
+      const r = await fetch('/api/v1/pdf/split', { method:'POST', headers:{'X-API-Key':key}, body:fd });
+      if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.detail||`HTTP ${r.status}`); }
+      const data = await r.json();
+      const linksEl = document.getElementById('split-file-links');
+      linksEl.innerHTML = data.files.map(f => `
+        <div class="flex items-center gap-2 text-xs">
+          <span class="text-gray-500 w-24 shrink-0">${esc(f.label)}</span>
+          <span class="text-gray-400">${f.page_count} page${f.page_count!==1?'s':''}</span>
+          <a href="#" data-url="${esc(f.download_url)}" data-name="${esc(f.filename)}"
+            onclick="dlSplit(event,this.dataset.url,this.dataset.name)"
+            class="ml-auto text-indigo-600 hover:underline">Download</a>
+        </div>`).join('');
+      document.getElementById('split-result').classList.remove('hidden');
+    } catch(e) { showErr('split', e.message); }
+    finally { btn.disabled=false; btn.textContent='Split PDF'; }
+  }
+
+  async function dlSplit(e, url, name) {
+    e.preventDefault();
+    const key = getKey();
+    const r = await fetch(url, {headers:{'X-API-Key':key}});
+    const blob = await r.blob();
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u);
+  }
+
+  function showErr(prefix, msg) {
+    const el = document.getElementById(`${prefix}-error`);
+    el.textContent = msg; el.classList.remove('hidden');
+  }
+  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+</script>
+</body>
+</html>

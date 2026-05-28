@@ -131,16 +131,16 @@
       "id": "dashboard",
       "name": "User Dashboard",
       "category": "core",
-      "status": "build",
+      "status": "done",
       "priority": "high",
       "effort": 2,
       "impact": 3,
       "revenue": 2,
       "phase": 1,
       "description": "Web interface to manage documents, profiles, and account",
-      "recommendation": "NEXT — unify React/HTML prototype + Cowork roadmap",
+      "recommendation": "DONE ✅ — /ui/* pages: index, sign, profiles, templates, jobs, batch, keys, multisign, pdftools, extract",
       "details": {
-        "sections": "History, favorites, billing, API keys UX not in FastAPI repo"
+        "sections": "Dashboard with tier banner, stats tiles, quick actions, recent feeds; full CRUD UI for all features"
       }
     },
     {
@@ -213,56 +213,62 @@
       "id": "esignature",
       "name": "E-Signature",
       "category": "signing",
-      "status": "build",
+      "status": "done",
       "priority": "critical",
       "effort": 3,
       "impact": 5,
       "revenue": 5,
       "phase": 3,
-      "description": "Add legally-binding digital signatures to filled PDFs",
-      "recommendation": "BUILD PHASE 3 ✍️ (not implemented in backend yet)",
-      "details": {}
+      "description": "Visual signature overlay with ESIGN/UETA legal compliance",
+      "recommendation": "DONE ✅ — draw/type, SHA-256 hash, PDF certificate, consent enforcement",
+      "details": {
+        "endpoints": "POST /signatures/apply, GET /signatures/certificate/{id}, GET /signatures/audit",
+        "ui": "/ui/sign.html"
+      }
     },
     {
       "id": "multi-party-signing",
       "name": "Multi-Party Signing",
       "category": "signing",
-      "status": "build",
+      "status": "done",
       "priority": "high",
       "effort": 2,
       "impact": 4,
       "revenue": 4,
       "phase": 3,
-      "description": "Send documents for signature by multiple parties in order",
-      "recommendation": "BUILD PHASE 3 ✍️",
-      "details": {}
+      "description": "Sequential multi-signer workflow with email notifications",
+      "recommendation": "DONE ✅ — ordered sessions, per-step certs, email notify, final PDF download",
+      "details": {
+        "endpoints": "POST/GET /signing-sessions, POST /{id}/sign, GET /{id}/download",
+        "ui": "/ui/multisign.html"
+      }
     },
     {
       "id": "audit-trail",
       "name": "Audit Trail & Certificates",
       "category": "signing",
-      "status": "build",
+      "status": "done",
       "priority": "high",
       "effort": 1,
       "impact": 3,
       "revenue": 3,
       "phase": 3,
-      "description": "Track who signed what, when, tamper-proof history",
-      "recommendation": "BUILD PHASE 3 ✍️",
+      "description": "SHA-256 tamper hash, append-only JSONL log, PDF Certificate of Electronic Signature",
+      "recommendation": "DONE ✅ — every sign event gets audit_id, hash, certificate PDF",
       "details": {}
     },
     {
       "id": "signature-templates",
       "name": "Signature Field Templates",
       "category": "signing",
-      "status": "build",
+      "status": "done",
       "priority": "medium",
       "effort": 1,
       "impact": 3,
       "revenue": 2,
       "phase": 3,
-      "description": "Pre-place signature spots on reusable templates",
-      "recommendation": "BUILD PHASE 3 ✍️",
+      "description": "Named signature zones stored in template manifests",
+      "recommendation": "DONE ✅ — 11 templates seeded; GET/PUT /templates/{id}/signature-fields; POST /{id}/sign",
       "details": {}
     },
     {
@@ -597,28 +603,28 @@
       "id": "pdf-merge",
       "name": "Merge PDFs",
       "category": "utility",
-      "status": "later",
+      "status": "done",
       "priority": "low",
       "effort": 1,
       "impact": 2,
       "revenue": 1,
       "phase": 3,
-      "description": "Combine multiple PDFs",
-      "recommendation": "DEFER TO PHASE 3",
+      "description": "Combine 2-20 PDFs into one file",
+      "recommendation": "DONE ✅ — POST /pdf/merge; /ui/pdftools.html",
       "details": {}
     },
     {
       "id": "pdf-split",
       "name": "Split PDFs",
       "category": "utility",
-      "status": "later",
+      "status": "done",
       "priority": "low",
       "effort": 1,
       "impact": 2,
       "revenue": 1,
       "phase": 3,
-      "description": "Extract/page-range split utilities",
-      "recommendation": "DEFER TO PHASE 3",
+      "description": "Split by pages, halves, or custom ranges",
+      "recommendation": "DONE ✅ — POST /pdf/split (modes: pages/half/range); /ui/pdftools.html",
       "details": {}
     },
     {

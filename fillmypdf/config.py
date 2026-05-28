@@ -76,6 +76,18 @@ class Settings(BaseSettings):
     # Override via .env: FILL_CONFIDENCE_THRESHOLD=0.5
     FILL_CONFIDENCE_THRESHOLD: float = 0.0
 
+    # Email / SMTP — for signing notifications (optional)
+    # Set SMTP_HOST to enable; leave blank to disable email entirely.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_ADDRESS: str = "noreply@fillmypdf.app"
+    SMTP_FROM_NAME: str = "FillMyPDF"
+    SMTP_USE_TLS: bool = True
+    # Public base URL used to build signing links in emails
+    APP_BASE_URL: str = "http://localhost:8000"
+
     # Rate limits per tier (slowapi syntax: "<count>/<period>")
     # Multiple limits can be combined with semicolons.
     RATE_LIMITS: Dict[str, str] = {

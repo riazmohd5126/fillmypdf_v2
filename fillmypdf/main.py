@@ -312,6 +312,13 @@ if HAS_JOBS:
 if HAS_EXTRACT:
     app.include_router(extract_routes.router, prefix="/api/v1")
 
+# PDF utilities (merge / split) — always available if pypdf is installed
+try:
+    from .api.routes import pdf_utils_routes
+    app.include_router(pdf_utils_routes.router, prefix="/api/v1")
+except ImportError:
+    pass
+
 # ---------------------------------------------------------------------------
 # Serve UI static pages at /ui/*
 # ---------------------------------------------------------------------------
