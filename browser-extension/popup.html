@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      width: 320px;
+      background: #f9fafb;
+      color: #111827;
+    }
+    .header {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: white;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo { font-size: 20px; }
+    .header-text h1 { font-size: 15px; font-weight: 700; }
+    .header-text p { font-size: 11px; opacity: .75; margin-top: 2px; }
+
+    .section { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; }
+    .section:last-child { border-bottom: none; }
+    .label { font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+
+    input[type="text"], input[type="password"], select {
+      width: 100%;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 13px;
+      background: white;
+      outline: none;
+    }
+    input:focus, select:focus { border-color: #4f46e5; box-shadow: 0 0 0 2px rgba(79,70,229,.15); }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 9px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn:active { opacity: .8; }
+    .btn-primary { background: #4f46e5; color: white; }
+    .btn-secondary { background: #e5e7eb; color: #374151; }
+    .btn-green { background: #16a34a; color: white; }
+    .btn-orange { background: #ea580c; color: white; }
+
+    .profile-card {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 8px 10px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .profile-card:hover { border-color: #4f46e5; background: #f5f3ff; }
+    .profile-card.selected { border-color: #4f46e5; background: #ede9fe; }
+    .profile-initial {
+      width: 28px; height: 28px;
+      background: #4f46e5;
+      color: white;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .profile-name { font-size: 13px; font-weight: 500; }
+    .profile-meta { font-size: 11px; color: #9ca3af; }
+
+    .status {
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      margin-top: 6px;
+    }
+    .status-success { background: #dcfce7; color: #166534; }
+    .status-error { background: #fee2e2; color: #991b1b; }
+    .status-info { background: #dbeafe; color: #1e40af; }
+    .hidden { display: none !important; }
+
+    .profiles-list { display: flex; flex-direction: column; gap: 6px; }
+    .empty-state { text-align: center; padding: 12px; color: #9ca3af; font-size: 12px; }
+
+    .actions-row { display: flex; gap: 8px; }
+    .actions-row .btn { flex: 1; }
+
+    .badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 20px;
+      background: #ede9fe;
+      color: #4f46e5;
+      margin-left: 4px;
+    }
+    .fields-count { font-size: 11px; color: #6b7280; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="logo">📄</span>
+    <div class="header-text">
+      <h1>FillMyPDF</h1>
+      <p>Auto-fill forms with your saved profile</p>
+    </div>
+  </div>
+
+  <!-- Setup section (shown when no key) -->
+  <div id="setup-section" class="section hidden">
+    <div class="label">Setup</div>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:8px">Enter your FillMyPDF API key to get started.</p>
+    <input id="api-key-input" type="password" placeholder="sk_live_…  or  sk_test_…"/>
+    <div style="margin-top:6px;display:flex;gap:6px;align-items:center;font-size:11px;color:#6b7280">
+      <label><input id="remember-key" type="checkbox" checked style="width:auto;margin-right:3px"/> Remember key</label>
+    </div>
+    <button class="btn btn-primary" style="margin-top:8px" onclick="saveKey()">Connect</button>
+    <div id="setup-status"></div>
+  </div>
+
+  <!-- Main section -->
+  <div id="main-section" class="hidden">
+    <!-- Profile picker -->
+    <div class="section">
+      <div class="label" style="display:flex;justify-content:space-between">
+        <span>Your Profiles</span>
+        <span id="tier-badge" class="badge hidden"></span>
+      </div>
+      <div id="profiles-list" class="profiles-list" style="margin-top:6px">
+        <div class="empty-state">Loading profiles…</div>
+      </div>
+    </div>
+
+    <!-- Page action -->
+    <div class="section">
+      <div class="label">Fill Current Page</div>
+      <p class="fields-count" id="field-count-label">Detecting form fields…</p>
+      <div class="actions-row" style="margin-top:8px">
+        <button class="btn btn-green" onclick="doFill()">⚡ Fill Form</button>
+        <button class="btn btn-secondary" onclick="clearFields()">✕ Clear</button>
+      </div>
+      <div id="fill-status"></div>
+    </div>
+
+    <!-- PDF upload section -->
+    <div class="section">
+      <div class="label">Upload & Fill PDF</div>
+      <p style="font-size:11px;color:#6b7280;margin-bottom:6px">Send a PDF to FillMyPDF API and download it filled.</p>
+      <input id="pdf-file-input" type="file" accept=".pdf" style="font-size:11px;margin-bottom:6px"/>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+        <label style="font-size:11px;color:#374151;font-weight:500">Template</label>
+        <select id="template-select" style="flex:1;font-size:11px">
+          <option value="">— None (free fill) —</option>
+        </select>
+      </div>
+      <button class="btn btn-orange" onclick="doUploadFill()">Upload & Fill PDF</button>
+      <div id="pdf-status"></div>
+    </div>
+
+    <!-- Settings row -->
+    <div class="section" style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:12px;color:#6b7280" id="key-display">API Key: ···</span>
+      <button class="btn btn-secondary" style="width:auto;padding:5px 10px;font-size:11px" onclick="resetKey()">Change Key</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
