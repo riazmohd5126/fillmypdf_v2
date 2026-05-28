@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-Party Signing — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: system-ui,-apple-system,sans-serif; }
+    .typed-sig { font-family: 'Georgia','Times New Roman',serif; font-style:italic; color:#0a2864; font-size:1.8rem; }
+    #sig-canvas { cursor:crosshair; touch-action:none; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- Nav -->
+  <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
+    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <span class="font-semibold text-gray-800">Multi-Party Signing</span>
+    <button onclick="showCreateModal()" class="ml-auto flex items-center gap-1.5 bg-indigo-600 text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-indigo-700">
+      + New Session
+    </button>
+  </nav>
+
+  <main class="max-w-4xl mx-auto px-4 py-8 space-y-6">
+
+    <!-- Sessions list -->
+    <div>
+      <h2 class="text-base font-semibold text-gray-800 mb-3">Signing Sessions</h2>
+      <div id="sessions-list" class="space-y-3"></div>
+      <p id="sessions-empty" class="hidden text-sm text-gray-400 text-center py-8">No sessions yet. Create one above.</p>
+    </div>
+
+    <!-- Sign panel (shown when a session is selected) -->
+    <div id="sign-panel" class="hidden bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+      <div class="flex items-start justify-between">
+        <div>
+          <h2 id="sp-title" class="font-bold text-gray-900 text-lg"></h2>
+          <p id="sp-subtitle" class="text-sm text-gray-400 mt-0.5"></p>
+        </div>
+        <button onclick="closeSignPanel()" class="text-gray-400 hover:text-gray-600">✕</button>
+      </div>
+
+      <!-- Progress stepper -->
+      <div id="sp-stepper" class="flex items-center gap-0 overflow-x-auto pb-1"></div>
+
+      <!-- Sign form (hidden when complete) -->
+      <div id="sp-form" class="space-y-4">
+        <p class="text-sm text-gray-600">You are signing as: <strong id="sp-signer-name-label"></strong></p>
+
+        <!-- Signature tabs -->
+        <div class="flex gap-4 border-b border-gray-100 pb-0">
+          <button onclick="spTab('draw')" id="sptab-draw" class="pb-2 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-500">Draw</button>
+          <button onclick="spTab('type')" id="sptab-type" class="pb-2 text-sm text-gray-400 border-b-2 border-transparent">Type</button>
+        </div>
+        <div id="sppanel-draw">
+          <div class="border-2 border-dashed border-gray-300 rounded-xl overflow-hidden bg-white" style="height:120px">
+            <canvas id="sig-canvas" class="w-full h-full" width="560" height="120"></canvas>
+          </div>
+          <button onclick="clearCanvas()" class="text-xs text-gray-400 hover:text-red-500 mt-1">Clear</button>
+        </div>
+        <div id="sppanel-type" class="hidden">
+          <input id="sp-type-input" type="text" placeholder="Type your full name…"
+            oninput="document.getElementById('sp-preview').textContent=this.value||''"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+          <div class="border-2 border-dashed border-gray-300 rounded-xl bg-white min-h-[60px] flex items-center justify-center mt-2 px-4">
+            <span id="sp-preview" class="typed-sig text-gray-300"></span>
+          </div>
+        </div>
+
+        <!-- Consent -->
+        <label class="flex items-start gap-2 cursor-pointer bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <input id="sp-consent" type="checkbox" class="mt-0.5 w-4 h-4 accent-indigo-600 shrink-0"/>
+          <span class="text-xs text-amber-800 leading-relaxed">
+            I agree my electronic signature is the legal equivalent of my handwritten signature (ESIGN Act / UETA). A Certificate of Electronic Signature will be generated.
+          </span>
+        </label>
+
+        <div id="sp-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
+
+        <button onclick="submitSign()" id="sp-btn"
+          class="w-full bg-indigo-600 text-white rounded-xl py-3 font-semibold text-sm hover:bg-indigo-700">
+          Sign Document
+        </button>
+      </div>
+
+      <!-- Complete state -->
+      <div id="sp-complete" class="hidden text-center py-6 space-y-3">
+        <div class="text-4xl">✅</div>
+        <p class="font-bold text-green-800 text-lg">All parties have signed!</p>
+        <p class="text-sm text-gray-500">The fully-signed PDF is ready for download.</p>
+        <div class="flex gap-3 justify-center flex-wrap mt-2">
+          <a id="sp-final-download" href="#"
+            class="bg-indigo-600 text-white rounded-xl px-6 py-2.5 text-sm font-semibold hover:bg-indigo-700">
+            Download Final PDF
+          </a>
+          <button onclick="closeSignPanel()" class="bg-gray-100 text-gray-700 rounded-xl px-6 py-2.5 text-sm font-medium hover:bg-gray-200">
+            Close
+          </button>
+        </div>
+      </div>
+
+      <!-- Step result card -->
+      <div id="sp-step-result" class="hidden bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
+        <p class="text-xs font-semibold text-green-800">✔ Your signature was applied</p>
+        <p id="sp-hash" class="text-xs text-green-700 font-mono break-all"></p>
+        <div class="flex gap-2">
+          <a id="sp-cert-link" href="#" class="text-xs text-indigo-600 hover:underline">Download Certificate</a>
+        </div>
+        <p class="text-xs text-gray-400 mt-1" id="sp-next-msg"></p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Create Session Modal -->
+  <div id="create-modal" class="fixed inset-0 bg-black/40 flex items-start justify-center z-50 hidden overflow-y-auto py-8">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="font-bold text-gray-900">New Signing Session</h2>
+        <button onclick="closeCreateModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+      </div>
+
+      <div>
+        <label class="text-xs font-medium text-gray-600 mb-1 block">Session Title</label>
+        <input id="cs-title" type="text" placeholder="e.g. ACORD 125 — ABC Corp"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+      </div>
+
+      <div>
+        <label class="text-xs font-medium text-gray-600 mb-1 block">Base PDF Filename <span class="text-gray-400">(from a previous fill output)</span></label>
+        <input id="cs-pdf" type="text" placeholder="filled_abc123.pdf"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs font-medium text-gray-600">Signers <span class="text-gray-400">(in signing order)</span></label>
+          <button onclick="addSignerRow()" class="text-xs text-indigo-600 hover:underline">+ Add signer</button>
+        </div>
+        <div id="signer-rows" class="space-y-2"></div>
+      </div>
+
+      <div id="cs-error" class="hidden text-sm text-red-600 bg-red-50 rounded px-3 py-2"></div>
+
+      <div class="flex gap-2 pt-1">
+        <button onclick="createSession()" class="flex-1 bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-indigo-700">Create Session</button>
+        <button onclick="closeCreateModal()" class="flex-1 bg-gray-100 text-gray-700 rounded-lg py-2.5 text-sm font-medium hover:bg-gray-200">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const API = '';
+  function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
+  let activeSession = null;
+  let spTabMode = 'draw';
+
+  // ── Canvas ────────────────────────────────────────────────────────────────
+  const canvas = document.getElementById('sig-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#0a2864'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  let drawing = false, lx = 0, ly = 0;
+  function cpos(e) {
+    const r = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return [(src.clientX - r.left) * canvas.width / r.width, (src.clientY - r.top) * canvas.height / r.height];
+  }
+  canvas.addEventListener('pointerdown', e => { drawing = true; [lx, ly] = cpos(e); e.preventDefault(); });
+  canvas.addEventListener('pointermove', e => { if (!drawing) return; const [x,y]=cpos(e); ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(x,y); ctx.stroke(); [lx,ly]=[x,y]; e.preventDefault(); });
+  canvas.addEventListener('pointerup', () => drawing = false);
+  canvas.addEventListener('pointerleave', () => drawing = false);
+  function clearCanvas() { ctx.clearRect(0,0,canvas.width,canvas.height); }
+  function isCanvasEmpty() { const d=ctx.getImageData(0,0,canvas.width,canvas.height).data; for(let i=3;i<d.length;i+=4) if(d[i]>0) return false; return true; }
+
+  function spTab(tab) {
+    spTabMode = tab;
+    document.getElementById('sppanel-draw').classList.toggle('hidden', tab !== 'draw');
+    document.getElementById('sppanel-type').classList.toggle('hidden', tab !== 'type');
+    document.getElementById('sptab-draw').className = tab === 'draw' ? 'pb-2 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-500' : 'pb-2 text-sm text-gray-400 border-b-2 border-transparent';
+    document.getElementById('sptab-type').className = tab === 'type' ? 'pb-2 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-500' : 'pb-2 text-sm text-gray-400 border-b-2 border-transparent';
+  }
+
+  // ── Load sessions ─────────────────────────────────────────────────────────
+  async function loadSessions() {
+    const key = getKey();
+    if (!key) { document.getElementById('sessions-list').innerHTML = '<p class="text-sm text-red-500 text-center py-4">No API key. <a href="/ui/index.html" class="underline">Set it.</a></p>'; return; }
+    try {
+      const r = await fetch(`${API}/api/v1/signing-sessions`, { headers: { 'X-API-Key': key } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      renderSessions(data.sessions || []);
+    } catch (e) { document.getElementById('sessions-list').innerHTML = `<p class="text-sm text-red-500 py-4">${e.message}</p>`; }
+  }
+
+  function statusBadge(status) {
+    const map = { pending:'bg-yellow-100 text-yellow-700', in_progress:'bg-blue-100 text-blue-700', complete:'bg-green-100 text-green-700', cancelled:'bg-gray-100 text-gray-500' };
+    return `<span class="text-xs px-2 py-0.5 rounded-full font-medium ${map[status]||'bg-gray-100 text-gray-500'}">${status.replace('_',' ')}</span>`;
+  }
+
+  function renderSessions(list) {
+    const el = document.getElementById('sessions-list');
+    const emp = document.getElementById('sessions-empty');
+    if (!list.length) { el.innerHTML=''; emp.classList.remove('hidden'); return; }
+    emp.classList.add('hidden');
+    el.innerHTML = list.map(s => `
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-4 cursor-pointer hover:shadow-md transition" onclick="openSession('${s.session_id}')">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="font-semibold text-gray-900 text-sm truncate">${esc(s.title)}</span>
+            ${statusBadge(s.status)}
+          </div>
+          <p class="text-xs text-gray-400">${s.total_signers} signer${s.total_signers !== 1 ? 's' : ''} · Step ${s.current_signer_index + (s.status==='complete'?0:1)} of ${s.total_signers}</p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          ${s.status === 'complete' ? `<a href="#" onclick="downloadFinal(event,'${s.session_id}')" class="text-xs text-indigo-600 hover:underline">Download</a>` : ''}
+          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </div>
+      </div>`).join('');
+  }
+
+  // ── Open session (signing panel) ──────────────────────────────────────────
+  async function openSession(sessionId) {
+    const key = getKey();
+    const r = await fetch(`${API}/api/v1/signing-sessions/${sessionId}`, { headers: { 'X-API-Key': key } });
+    if (!r.ok) return;
+    activeSession = await r.json();
+    renderSignPanel();
+    document.getElementById('sign-panel').classList.remove('hidden');
+    document.getElementById('sign-panel').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function renderSignPanel() {
+    const s = activeSession;
+    document.getElementById('sp-title').textContent = s.title;
+    document.getElementById('sp-subtitle').textContent = `${s.total_signers} signer${s.total_signers!==1?'s':''} · ${s.status.replace('_',' ')}`;
+
+    // Stepper
+    const stepper = document.getElementById('sp-stepper');
+    stepper.innerHTML = s.signers.map((sg, i) => {
+      const done = sg.status === 'signed';
+      const active = i === s.current_signer_index && s.status !== 'complete';
+      return `${i>0?'<div class="w-6 h-0.5 bg-gray-200 shrink-0"></div>':''}
+      <div class="flex flex-col items-center shrink-0">
+        <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2
+          ${done?'bg-green-500 border-green-500 text-white':active?'bg-indigo-600 border-indigo-600 text-white':'bg-white border-gray-300 text-gray-400'}">
+          ${done?'✓':i+1}
+        </div>
+        <span class="text-xs text-gray-500 mt-1 max-w-16 text-center truncate">${esc(sg.name||sg.email||`Signer ${i+1}`)}</span>
+      </div>`;
+    }).join('');
+
+    const form = document.getElementById('sp-form');
+    const complete = document.getElementById('sp-complete');
+    const stepResult = document.getElementById('sp-step-result');
+
+    if (s.status === 'complete') {
+      form.classList.add('hidden');
+      stepResult.classList.add('hidden');
+      complete.classList.remove('hidden');
+      const dlLink = document.getElementById('sp-final-download');
+      dlLink.onclick = (e) => { e.preventDefault(); downloadFinal(e, s.session_id); };
+    } else {
+      complete.classList.add('hidden');
+      form.classList.remove('hidden');
+      const current = s.current_signer;
+      document.getElementById('sp-signer-name-label').textContent =
+        current ? (current.name || current.email || `Signer ${current.index + 1}`) : '';
+    }
+  }
+
+  function closeSignPanel() {
+    document.getElementById('sign-panel').classList.add('hidden');
+    activeSession = null;
+    clearCanvas();
+    document.getElementById('sp-step-result').classList.add('hidden');
+    document.getElementById('sp-consent').checked = false;
+    document.getElementById('sp-error').classList.add('hidden');
+  }
+
+  // ── Submit signature step ─────────────────────────────────────────────────
+  async function submitSign() {
+    const key = getKey();
+    if (!document.getElementById('sp-consent').checked) { showSpErr('Accept the consent to proceed.'); return; }
+    if (!activeSession) return;
+
+    const btn = document.getElementById('sp-btn');
+    btn.disabled = true; btn.textContent = 'Signing…';
+    document.getElementById('sp-error').classList.add('hidden');
+    document.getElementById('sp-step-result').classList.add('hidden');
+
+    const fd = new FormData();
+    fd.append('consent_given', 'true');
+
+    if (spTabMode === 'type') {
+      const txt = document.getElementById('sp-type-input').value.trim();
+      if (!txt) { showSpErr('Type your name.'); btn.disabled=false; btn.textContent='Sign Document'; return; }
+      fd.append('signature_text', txt);
+    } else {
+      if (isCanvasEmpty()) { showSpErr('Draw your signature first.'); btn.disabled=false; btn.textContent='Sign Document'; return; }
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      fd.append('signature_png', blob, 'signature.png');
+    }
+
+    try {
+      const r = await fetch(`${API}/api/v1/signing-sessions/${activeSession.session_id}/sign`, {
+        method: 'POST', headers: { 'X-API-Key': key }, body: fd,
+      });
+      if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.detail || `HTTP ${r.status}`); }
+      const data = await r.json();
+      activeSession = data;
+
+      // Show step result
+      const sr = data.step_result || {};
+      document.getElementById('sp-hash').textContent = `SHA-256: ${sr.document_hash || ''}`;
+      const certLink = document.getElementById('sp-cert-link');
+      certLink.onclick = async (ev) => {
+        ev.preventDefault();
+        const cr = await fetch(sr.certificate_url, { headers: { 'X-API-Key': key } });
+        const cb = await cr.blob();
+        const cu = URL.createObjectURL(cb);
+        const a = document.createElement('a'); a.href=cu; a.download=`cert_${sr.audit_id}.pdf`; a.click();
+        URL.revokeObjectURL(cu);
+      };
+      const remaining = data.total_signers - data.current_signer_index;
+      document.getElementById('sp-next-msg').textContent = data.status === 'complete'
+        ? 'All signers complete — download the final PDF below.'
+        : `${remaining} signer${remaining!==1?'s':''} remaining.`;
+      document.getElementById('sp-step-result').classList.remove('hidden');
+
+      clearCanvas();
+      document.getElementById('sp-consent').checked = false;
+      renderSignPanel();
+      await loadSessions();
+    } catch(e) { showSpErr(e.message); }
+    finally { btn.disabled=false; btn.textContent='Sign Document'; }
+  }
+
+  function showSpErr(msg) { const el=document.getElementById('sp-error'); el.textContent=msg; el.classList.remove('hidden'); }
+
+  // ── Download final ─────────────────────────────────────────────────────────
+  async function downloadFinal(e, sessionId) {
+    e.preventDefault();
+    const key = getKey();
+    const r = await fetch(`${API}/api/v1/signing-sessions/${sessionId}/download`, { headers: { 'X-API-Key': key } });
+    if (!r.ok) { alert('Could not download file.'); return; }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=`signed_${sessionId}.pdf`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Create session modal ───────────────────────────────────────────────────
+  let signerCount = 0;
+
+  function showCreateModal() {
+    document.getElementById('cs-title').value = '';
+    document.getElementById('cs-pdf').value = '';
+    document.getElementById('signer-rows').innerHTML = '';
+    document.getElementById('cs-error').classList.add('hidden');
+    signerCount = 0;
+    addSignerRow(); addSignerRow();
+    document.getElementById('create-modal').classList.remove('hidden');
+  }
+  function closeCreateModal() { document.getElementById('create-modal').classList.add('hidden'); }
+
+  function addSignerRow() {
+    const i = signerCount++;
+    const row = document.createElement('div');
+    row.className = 'flex gap-2 items-center';
+    row.innerHTML = `
+      <span class="text-xs text-gray-400 w-4 text-right shrink-0">${i+1}</span>
+      <input type="text" placeholder="Name" data-field="name" data-idx="${i}"
+        class="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+      <input type="email" placeholder="Email" data-field="email" data-idx="${i}"
+        class="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+      <button onclick="this.parentElement.remove()" class="text-gray-300 hover:text-red-400 text-lg leading-none shrink-0">×</button>`;
+    document.getElementById('signer-rows').appendChild(row);
+  }
+
+  async function createSession() {
+    const key = getKey();
+    if (!key) { showCsErr('No API key.'); return; }
+    const title = document.getElementById('cs-title').value.trim() || 'Untitled';
+    const pdf = document.getElementById('cs-pdf').value.trim();
+    if (!pdf) { showCsErr('Enter the base PDF filename.'); return; }
+
+    const rows = document.querySelectorAll('#signer-rows > div');
+    const signers = [];
+    rows.forEach(row => {
+      const name = row.querySelector('[data-field="name"]')?.value.trim() || '';
+      const email = row.querySelector('[data-field="email"]')?.value.trim() || '';
+      if (name || email) signers.push({ name, email });
+    });
+    if (!signers.length) { showCsErr('Add at least one signer.'); return; }
+
+    const btn = document.querySelector('#create-modal button[onclick="createSession()"]');
+    btn.disabled = true; btn.textContent = 'Creating…';
+
+    try {
+      const r = await fetch(`${API}/api/v1/signing-sessions`, {
+        method: 'POST',
+        headers: { 'X-API-Key': key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, base_pdf_filename: pdf, signers }),
+      });
+      if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.detail || `HTTP ${r.status}`); }
+      closeCreateModal();
+      await loadSessions();
+    } catch(e) { showCsErr(e.message); }
+    finally { btn.disabled=false; btn.textContent='Create Session'; }
+  }
+
+  function showCsErr(msg) { const el=document.getElementById('cs-error'); el.textContent=msg; el.classList.remove('hidden'); }
+
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // Auto-open session from ?session_id= query param
+  (async () => {
+    const p = new URLSearchParams(location.search);
+    const sid = p.get('session_id');
+    if (sid) await openSession(sid);
+    loadSessions();
+  })();
+</script>
+</body>
+</html>

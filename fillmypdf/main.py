@@ -295,8 +295,10 @@ if HAS_BATCH:
     app.include_router(batch_routes.router, prefix="/api/v1")
     try:
         from .api.routes import signing_routes
+        from .api.routes import signing_session_routes
 
         app.include_router(signing_routes.router, prefix="/api/v1")
+        app.include_router(signing_session_routes.router, prefix="/api/v1")
         HAS_SIGNING = True
     except ImportError as e:
         print(f"⚠️  Signing routes not available: {e}")
