@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Billing & Plans — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
+    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <span class="font-semibold text-gray-800">Billing & Plans</span>
+    <div class="ml-auto flex items-center gap-3">
+      <span id="current-tier-badge" class="hidden text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700"></span>
+    </div>
+  </nav>
+
+  <!-- Checkout result banner -->
+  <div id="checkout-banner" class="hidden mx-auto max-w-5xl mt-6 px-4">
+    <div id="checkout-success" class="hidden bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
+      <span class="text-2xl">🎉</span>
+      <div>
+        <p class="font-semibold text-green-800">Payment successful! Your plan has been upgraded.</p>
+        <p class="text-sm text-green-600 mt-0.5">It may take a minute for your tier to update. Refresh the page to see your new limits.</p>
+      </div>
+    </div>
+    <div id="checkout-cancel" class="hidden bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+      <p class="font-medium text-yellow-800">Checkout cancelled. You have not been charged.</p>
+    </div>
+  </div>
+
+  <!-- Usage card -->
+  <div class="max-w-5xl mx-auto px-4 mt-8">
+    <div id="usage-card" class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8 hidden">
+      <h2 class="font-bold text-gray-900 mb-4">Your Usage</h2>
+      <div id="usage-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+    </div>
+
+    <!-- Billing toggle -->
+    <div class="text-center mb-6">
+      <h1 class="text-2xl font-bold text-gray-900 mb-2">Choose Your Plan</h1>
+      <p class="text-gray-500 text-sm mb-4">Simple, transparent pricing. Upgrade or downgrade anytime.</p>
+      <div class="inline-flex items-center bg-gray-100 rounded-xl p-1 gap-1">
+        <button id="btn-monthly" onclick="setBilling('monthly')"
+          class="px-4 py-1.5 rounded-lg text-sm font-medium transition billing-toggle active">Monthly</button>
+        <button id="btn-yearly" onclick="setBilling('yearly')"
+          class="px-4 py-1.5 rounded-lg text-sm font-medium transition billing-toggle">
+          Yearly <span class="text-green-600 font-semibold ml-1">–17%</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="plans-grid" class="grid md:grid-cols-3 gap-6 mb-12">
+      <div class="bg-white rounded-2xl border border-gray-200 p-6 animate-pulse h-80"></div>
+      <div class="bg-indigo-600 rounded-2xl p-6 animate-pulse h-80"></div>
+      <div class="bg-white rounded-2xl border border-gray-200 p-6 animate-pulse h-80"></div>
+    </div>
+
+    <!-- FAQ -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-12">
+      <h2 class="font-bold text-gray-900 mb-4">Common Questions</h2>
+      <div class="space-y-4">
+        <details class="group">
+          <summary class="cursor-pointer font-medium text-gray-800 flex justify-between items-center">
+            What happens if I exceed my plan limits?
+            <svg class="w-4 h-4 text-gray-400 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <p class="mt-2 text-sm text-gray-600">API calls beyond your daily limit are rate-limited (429 response). Upgrade anytime to restore access immediately.</p>
+        </details>
+        <details class="group">
+          <summary class="cursor-pointer font-medium text-gray-800 flex justify-between items-center">
+            Can I cancel anytime?
+            <svg class="w-4 h-4 text-gray-400 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <p class="mt-2 text-sm text-gray-600">Yes. Cancel from the billing portal at any time. You retain access until the end of your billing period, then downgrade to Free.</p>
+        </details>
+        <details class="group">
+          <summary class="cursor-pointer font-medium text-gray-800 flex justify-between items-center">
+            Is there a free trial?
+            <svg class="w-4 h-4 text-gray-400 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <p class="mt-2 text-sm text-gray-600">Pro includes a 14-day free trial. No credit card required to get started on Free.</p>
+        </details>
+        <details class="group">
+          <summary class="cursor-pointer font-medium text-gray-800 flex justify-between items-center">
+            How does payment work?
+            <svg class="w-4 h-4 text-gray-400 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <p class="mt-2 text-sm text-gray-600">We use Stripe for secure payment processing. All major cards, Apple Pay, and Google Pay accepted. Invoices available for Business customers.</p>
+        </details>
+      </div>
+    </div>
+  </div>
+
+<style>
+  .billing-toggle { color: #6b7280; }
+  .billing-toggle.active { background: white; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+</style>
+
+<script>
+  let billing = 'monthly';
+  let plans = [];
+  let currentTier = null;
+
+  const key = () => localStorage.getItem('fmp_api_key') || '';
+
+  async function loadData() {
+    try {
+      const [plansRes, usageRes] = await Promise.all([
+        fetch('/api/v1/billing/plans'),
+        key() ? fetch('/api/v1/billing/usage', { headers: { 'X-API-Key': key() } }) : Promise.resolve(null),
+      ]);
+      if (plansRes.ok) {
+        const data = await plansRes.json();
+        plans = data.plans || [];
+      }
+      if (usageRes && usageRes.ok) {
+        const u = await usageRes.json();
+        currentTier = u.tier;
+        renderUsage(u);
+      }
+    } catch (e) { console.warn('Billing load error:', e); }
+    renderPlans();
+    checkCheckoutResult();
+  }
+
+  function renderUsage(u) {
+    const card = document.getElementById('usage-card');
+    const badge = document.getElementById('current-tier-badge');
+    badge.textContent = u.plan_name;
+    badge.classList.remove('hidden');
+    card.classList.remove('hidden');
+    const limits = u.limits || {};
+    const items = [
+      { label: 'API Calls (total)', value: u.usage?.total_api_calls?.toLocaleString() || '0' },
+      { label: 'Daily Limit', value: limits.calls_per_day === -1 ? 'Unlimited' : (limits.calls_per_day||0).toLocaleString() },
+      { label: 'Profiles', value: limits.profiles === -1 ? 'Unlimited' : (limits.profiles||0) },
+      { label: 'Sign Sessions', value: limits.signing_sessions === -1 ? 'Unlimited' : (limits.signing_sessions||0) },
+    ];
+    document.getElementById('usage-grid').innerHTML = items.map(i => `
+      <div class="bg-gray-50 rounded-xl p-4">
+        <p class="text-xs text-gray-400 mb-1">${esc(i.label)}</p>
+        <p class="text-xl font-bold text-gray-900">${esc(i.value)}</p>
+      </div>`).join('');
+  }
+
+  function setBilling(period) {
+    billing = period;
+    document.getElementById('btn-monthly').classList.toggle('active', period === 'monthly');
+    document.getElementById('btn-yearly').classList.toggle('active', period === 'yearly');
+    renderPlans();
+  }
+
+  function renderPlans() {
+    const grid = document.getElementById('plans-grid');
+    grid.innerHTML = plans.map(p => {
+      const isHighlighted = p.highlighted;
+      const isCurrent = p.id === currentTier;
+      const price = billing === 'yearly' ? p.price_yearly : p.price_monthly;
+      const perMonth = billing === 'yearly' && p.price_monthly > 0
+        ? Math.round(p.price_yearly / 12) : price;
+      const cardClass = isHighlighted
+        ? 'bg-indigo-600 text-white border-transparent'
+        : 'bg-white border-gray-200 text-gray-900';
+      const featureColor = isHighlighted ? 'text-indigo-100' : 'text-gray-500';
+      const btnClass = isCurrent
+        ? 'bg-gray-100 text-gray-500 cursor-default'
+        : isHighlighted
+          ? 'bg-white text-indigo-700 hover:bg-indigo-50'
+          : 'bg-indigo-600 text-white hover:bg-indigo-700';
+
+      return `
+      <div class="relative rounded-2xl border p-6 ${cardClass} flex flex-col">
+        ${isHighlighted ? '<div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 text-xs font-bold px-3 py-1 rounded-full">Most Popular</div>' : ''}
+        ${isCurrent ? '<div class="absolute -top-3 right-4 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">Current Plan</div>' : ''}
+        <h3 class="font-bold text-lg mb-1">${esc(p.name)}</h3>
+        <div class="mb-4">
+          <span class="text-3xl font-extrabold">$${perMonth}</span>
+          <span class="text-sm ${featureColor} ml-1">${p.price_monthly === 0 ? 'free forever' : billing === 'yearly' ? '/mo (billed yearly)' : '/month'}</span>
+        </div>
+        <ul class="space-y-2 flex-1 mb-6">
+          ${p.features.map(f => `
+            <li class="flex items-start gap-2 text-sm ${featureColor}">
+              <svg class="w-4 h-4 mt-0.5 shrink-0 ${isHighlighted ? 'text-indigo-200' : 'text-indigo-500'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              ${esc(f)}
+            </li>`).join('')}
+        </ul>
+        <button onclick="doCTA('${p.id}')"
+          class="w-full py-2.5 rounded-xl font-semibold text-sm transition ${btnClass}">
+          ${isCurrent ? 'Current Plan' : esc(p.cta)}
+        </button>
+      </div>`;
+    }).join('');
+  }
+
+  async function doCTA(planId) {
+    const plan = plans.find(p => p.id === planId);
+    if (!plan || plan.id === currentTier) return;
+    if (plan.price_monthly === 0) {
+      alert('You are already on the Free plan or higher. To downgrade, cancel your subscription from the billing portal.');
+      return;
+    }
+    if (plan.id === 'business') {
+      window.open('mailto:sales@fillmypdf.app?subject=Business%20Plan%20Inquiry', '_blank');
+      return;
+    }
+    if (!key()) { alert('Set your API key in the dashboard first.'); return; }
+    try {
+      const res = await fetch('/api/v1/billing/checkout', {
+        method: 'POST',
+        headers: { 'X-API-Key': key(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_id: planId, billing_period: billing }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        alert(e.detail || `Error ${res.status}`);
+        return;
+      }
+      const data = await res.json();
+      if (data.checkout_url) window.location.href = data.checkout_url;
+    } catch (e) { alert(e.message); }
+  }
+
+  function checkCheckoutResult() {
+    const params = new URLSearchParams(window.location.search);
+    const banner = document.getElementById('checkout-banner');
+    if (params.get('checkout') === 'success') {
+      banner.classList.remove('hidden');
+      document.getElementById('checkout-success').classList.remove('hidden');
+    } else if (params.get('checkout') === 'cancel') {
+      banner.classList.remove('hidden');
+      document.getElementById('checkout-cancel').classList.remove('hidden');
+    }
+  }
+
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  loadData();
+</script>
+</body>
+</html>

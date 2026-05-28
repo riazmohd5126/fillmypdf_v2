@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     # Override via .env: FILL_CONFIDENCE_THRESHOLD=0.5
     FILL_CONFIDENCE_THRESHOLD: float = 0.0
 
+    # Stripe billing (optional — leave blank to disable checkout/portal)
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PUBLISHABLE_KEY: str = ""
+
     # Email / SMTP — for signing notifications (optional)
     # Set SMTP_HOST to enable; leave blank to disable email entirely.
     SMTP_HOST: str = ""

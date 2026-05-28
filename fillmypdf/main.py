@@ -319,6 +319,10 @@ try:
 except ImportError:
     pass
 
+# Billing routes — always included; Stripe features gracefully degrade if not configured
+from .api.routes import billing_routes
+app.include_router(billing_routes.router, prefix="/api/v1")
+
 # ---------------------------------------------------------------------------
 # Serve UI static pages at /ui/*
 # ---------------------------------------------------------------------------
