@@ -75,9 +75,27 @@
       </label>
     </div>
 
-    <!-- Step 3: Position -->
+    <!-- Step 3: Signer Info -->
     <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
-      <h2 class="font-semibold text-gray-900 mb-4">Step 3 — Position</h2>
+      <h2 class="font-semibold text-gray-900 mb-1">Step 3 — Signer information</h2>
+      <p class="text-xs text-gray-400 mb-4">Recorded in the audit log and Certificate of Electronic Signature.</p>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Full Name</label>
+          <input id="signer-name" type="text" placeholder="Jane Smith"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Email Address</label>
+          <input id="signer-email" type="email" placeholder="jane@example.com"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4: Position -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
+      <h2 class="font-semibold text-gray-900 mb-4">Step 4 — Position</h2>
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="text-xs text-gray-500 mb-1 block">Page (0-based)</label>
@@ -98,13 +116,46 @@
       </div>
     </div>
 
+    <!-- Consent -->
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+      <label class="flex items-start gap-3 cursor-pointer">
+        <input id="consent-check" type="checkbox" class="mt-0.5 w-4 h-4 accent-indigo-600 shrink-0" />
+        <span class="text-xs text-amber-800 leading-relaxed">
+          <strong>Electronic Signature Consent</strong> — By checking this box I agree that my electronic
+          signature is the legal equivalent of my handwritten signature. I understand I am signing this
+          document electronically under the E-SIGN Act (15 U.S.C. § 7001) and UETA. A Certificate of
+          Electronic Signature including a SHA-256 document hash will be generated and available for download.
+        </span>
+      </label>
+    </div>
+
     <!-- Submit -->
     <button id="submit-btn" onclick="submitSignature()"
       class="w-full bg-indigo-600 text-white rounded-xl py-3 font-semibold text-sm hover:bg-indigo-700 transition disabled:opacity-50">
       Apply Signature & Download PDF
     </button>
 
-    <!-- Status -->
+    <!-- Result card -->
+    <div id="result-card" class="hidden mt-5 bg-green-50 border border-green-200 rounded-xl p-5">
+      <div class="flex items-center gap-2 mb-3">
+        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span class="font-semibold text-green-800">Signature applied successfully</span>
+      </div>
+      <div class="text-xs text-green-700 mb-3">
+        <div class="mb-1">Audit ID: <span id="result-audit-id" class="font-mono"></span></div>
+        <div>SHA-256: <span id="result-hash" class="font-mono break-all"></span></div>
+      </div>
+      <div class="flex gap-3 flex-wrap">
+        <a id="result-pdf-link" href="#" download class="flex-1 text-center bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700">
+          Download Signed PDF
+        </a>
+        <a id="result-cert-link" href="#" target="_blank" class="flex-1 text-center bg-white border border-green-300 text-green-700 rounded-lg py-2 text-sm font-medium hover:bg-green-50">
+          Download Certificate
+        </a>
+      </div>
+    </div>
+
+    <!-- Status (errors) -->
     <div id="status" class="mt-4 hidden text-sm text-center rounded-lg px-4 py-3"></div>
   </main>
 
@@ -189,11 +240,15 @@
     const key = getKey();
     if (!key) { alert('Please set your API key first (click "API Key" on the dashboard).'); return; }
 
+    const consent = document.getElementById('consent-check').checked;
+    if (!consent) { showStatus('Please read and accept the Electronic Signature Consent to proceed.', 'error'); return; }
+
     const pdfFile = document.getElementById('pdf-file').files[0];
     if (!pdfFile) { showStatus('Please upload a PDF first.', 'error'); return; }
 
     const btn = document.getElementById('submit-btn');
     btn.disabled = true; btn.textContent = 'Processing…';
+    document.getElementById('result-card').classList.add('hidden');
 
     const fd = new FormData();
     fd.append('file', pdfFile);
@@ -202,6 +257,12 @@
     fd.append('y_pct', document.getElementById('y-pct').value);
     fd.append('width_pct', document.getElementById('w-pct').value);
     fd.append('height_pct', '12');
+    fd.append('consent_given', 'true');
+
+    const signerName = document.getElementById('signer-name').value.trim();
+    const signerEmail = document.getElementById('signer-email').value.trim();
+    if (signerName) fd.append('signer_name', signerName);
+    if (signerEmail) fd.append('signer_email', signerEmail);
 
     if (activeTab === 'type') {
       const txt = document.getElementById('sig-text').value.trim();
@@ -222,14 +283,32 @@
         throw new Error(err.detail || `HTTP ${r.status}`);
       }
       const data = await r.json();
-      // Download the signed PDF
+
+      // Fetch signed PDF blob and wire up download link
       const dl = await fetch(data.download_url, { headers: { 'X-API-Key': key } });
-      const blob = await dl.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url;
-      a.download = data.filename || 'signed.pdf'; a.click();
-      URL.revokeObjectURL(url);
-      showStatus('Signed PDF downloaded successfully!', 'success');
+      const pdfBlob = await dl.blob();
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const pdfLink = document.getElementById('result-pdf-link');
+      pdfLink.href = pdfUrl;
+      pdfLink.download = data.filename || 'signed.pdf';
+
+      // Wire up certificate link (requires API key header — open in new tab via fetch)
+      const certLink = document.getElementById('result-cert-link');
+      certLink.onclick = async (e) => {
+        e.preventDefault();
+        const cr = await fetch(data.certificate_url, { headers: { 'X-API-Key': key } });
+        const cb = await cr.blob();
+        const cu = URL.createObjectURL(cb);
+        const a = document.createElement('a'); a.href = cu;
+        a.download = `certificate_${data.audit_id}.pdf`; a.click();
+        URL.revokeObjectURL(cu);
+      };
+
+      // Show result card
+      document.getElementById('result-audit-id').textContent = data.audit_id || '';
+      document.getElementById('result-hash').textContent = data.document_hash || '';
+      document.getElementById('result-card').classList.remove('hidden');
+      document.getElementById('status').classList.add('hidden');
     } catch (e) {
       showStatus(`Error: ${e.message}`, 'error');
     } finally {

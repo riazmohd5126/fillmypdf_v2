@@ -291,7 +291,10 @@ class SignatureApplyResponse(BaseModel):
                 "success": True,
                 "filename": "signed_a1b2c3d4.pdf",
                 "download_url": "/api/v1/batch/download/signed_a1b2c3d4.pdf",
+                "certificate_url": "/api/v1/signatures/certificate/sig_a1b2c3d4e5f6g7h8",
+                "document_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
                 "page_index": 0,
+                "audit_id": "sig_a1b2c3d4e5f6g7h8",
                 "message": "Signature overlay applied.",
             }
         }
@@ -300,6 +303,8 @@ class SignatureApplyResponse(BaseModel):
     success: bool = True
     filename: str
     download_url: str
+    certificate_url: Optional[str] = None
+    document_hash: Optional[str] = None
     page_index: int
     audit_id: Optional[str] = None
     message: str = "Signature overlay applied."

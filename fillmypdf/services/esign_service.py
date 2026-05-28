@@ -11,7 +11,9 @@ signing — only a graphical stamp for workflow/UI needs.
 
 from __future__ import annotations
 
+import hashlib
 import io
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple
 
@@ -134,7 +136,11 @@ def apply_signature_overlay(
     y_pct: float,
     width_pct: float,
     height_pct: float,
-) -> None:
+    audit_id: str = "",
+    signer_name: str = "",
+    signer_email: str = "",
+) -> str:
+    """Apply overlay, embed metadata, write output, return SHA-256 hex digest."""
     reader = PdfReader(str(input_pdf_path))
     npages = len(reader.pages)
     if npages == 0:
@@ -158,6 +164,25 @@ def apply_signature_overlay(
     writer.append(reader)
     writer.pages[page_index].merge_page(overlay_pg)
 
+    # Embed signing metadata into PDF Info dictionary for tamper-evidence
+    signed_at = datetime.now(timezone.utc).isoformat()
+    writer.add_metadata(
+        {
+            "/Producer": "FillMyPDF e-Sign Service",
+            "/Creator": "FillMyPDF",
+            "/FillMyPDF_AuditID": audit_id,
+            "/FillMyPDF_SignedAt": signed_at,
+            "/FillMyPDF_SignerName": signer_name or "",
+            "/FillMyPDF_SignerEmail": signer_email or "",
+        }
+    )
+
     output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    pdf_buf = io.BytesIO()
+    writer.write(pdf_buf)
+    pdf_bytes = pdf_buf.getvalue()
+
     with open(output_pdf_path, "wb") as fh:
-        writer.write(fh)
+        fh.write(pdf_bytes)
+
+    return hashlib.sha256(pdf_bytes).hexdigest()
