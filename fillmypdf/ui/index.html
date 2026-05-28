@@ -109,24 +109,84 @@
 
     </div>
 
-    <!-- Stats bar -->
-    <div id="stats" class="mt-12 bg-white rounded-xl border border-gray-200 p-6 shadow-sm hidden">
-      <h3 class="text-sm font-semibold text-gray-700 mb-4">Usage Stats</h3>
-      <div class="grid grid-cols-3 gap-6 text-center">
-        <div><p class="text-2xl font-bold text-indigo-600" id="stat-total">—</p><p class="text-xs text-gray-400 mt-1">Total Requests</p></div>
-        <div><p class="text-2xl font-bold text-indigo-600" id="stat-today">—</p><p class="text-xs text-gray-400 mt-1">Today</p></div>
-        <div><p class="text-2xl font-bold text-indigo-600" id="stat-profiles">—</p><p class="text-xs text-gray-400 mt-1">Profiles Created</p></div>
+    <!-- Account / Tier Banner -->
+    <div id="account-banner" class="mt-10 hidden bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-5 text-white shadow-lg">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <p class="text-xs text-indigo-200 mb-0.5">Signed in with API key</p>
+          <p class="font-mono font-bold text-lg" id="banner-prefix">—</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <span id="banner-tier" class="px-3 py-1 rounded-full text-xs font-bold bg-white/20 text-white capitalize"></span>
+          <button onclick="showKeyModal()" class="text-xs text-indigo-200 hover:text-white underline">Change key</button>
+        </div>
       </div>
     </div>
 
-    <!-- Recent fill history -->
-    <div id="recent-jobs-section" class="mt-8 hidden">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-sm font-semibold text-gray-700">Recent Fills</h3>
-        <a href="/ui/jobs.html" class="text-xs text-indigo-600 hover:underline">View all →</a>
+    <!-- Stats tiles -->
+    <div id="stats" class="mt-6 hidden">
+      <h3 class="text-sm font-semibold text-gray-700 mb-3">Usage Overview</h3>
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
+          <p class="text-2xl font-bold text-indigo-600" id="stat-total">—</p>
+          <p class="text-xs text-gray-400 mt-1">Total Requests</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
+          <p class="text-2xl font-bold text-green-600" id="stat-today">—</p>
+          <p class="text-xs text-gray-400 mt-1">Today</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
+          <p class="text-2xl font-bold text-blue-600" id="stat-profiles">—</p>
+          <p class="text-xs text-gray-400 mt-1">Profiles</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
+          <p class="text-2xl font-bold text-purple-600" id="stat-templates">—</p>
+          <p class="text-xs text-gray-400 mt-1">Templates</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
+          <p class="text-2xl font-bold text-orange-500" id="stat-sessions">—</p>
+          <p class="text-xs text-gray-400 mt-1">Sign Sessions</p>
+        </div>
       </div>
-      <div id="recent-jobs" class="space-y-2"></div>
     </div>
+
+    <!-- Activity row: recent fills + recent signing sessions -->
+    <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Recent Fills -->
+      <div id="recent-jobs-section" class="hidden">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-700">Recent Fills</h3>
+          <a href="/ui/jobs.html" class="text-xs text-indigo-600 hover:underline">View all →</a>
+        </div>
+        <div id="recent-jobs" class="space-y-2"></div>
+      </div>
+
+      <!-- Recent Signing Sessions -->
+      <div id="recent-sessions-section" class="hidden">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-700">Recent Signing Sessions</h3>
+          <a href="/ui/multisign.html" class="text-xs text-indigo-600 hover:underline">View all →</a>
+        </div>
+        <div id="recent-sessions" class="space-y-2"></div>
+      </div>
+
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="mt-8 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <h3 class="text-sm font-semibold text-gray-700 mb-3">Quick Actions</h3>
+      <div class="flex flex-wrap gap-2">
+        <a href="/ui/templates.html" class="text-xs bg-indigo-50 text-indigo-700 rounded-lg px-3 py-1.5 font-medium hover:bg-indigo-100">Fill a Template →</a>
+        <a href="/ui/sign.html" class="text-xs bg-purple-50 text-purple-700 rounded-lg px-3 py-1.5 font-medium hover:bg-purple-100">Sign a PDF →</a>
+        <a href="/ui/multisign.html" class="text-xs bg-blue-50 text-blue-700 rounded-lg px-3 py-1.5 font-medium hover:bg-blue-100">New Signing Session →</a>
+        <a href="/ui/batch.html" class="text-xs bg-green-50 text-green-700 rounded-lg px-3 py-1.5 font-medium hover:bg-green-100">Batch Fill →</a>
+        <a href="/ui/profiles.html" class="text-xs bg-orange-50 text-orange-700 rounded-lg px-3 py-1.5 font-medium hover:bg-orange-100">Manage Profiles →</a>
+        <a href="/ui/keys.html" class="text-xs bg-gray-100 text-gray-700 rounded-lg px-3 py-1.5 font-medium hover:bg-gray-200">API Keys →</a>
+        <a href="/docs" target="_blank" class="text-xs bg-gray-100 text-gray-700 rounded-lg px-3 py-1.5 font-medium hover:bg-gray-200">API Docs →</a>
+      </div>
+    </div>
+
   </main>
 
   <!-- API Key Modal -->
@@ -154,17 +214,67 @@
     if (k) localStorage.setItem('fmp_api_key', k);
     closeKeyModal();
     loadStats();
+    loadRecentJobs();
+    loadRecentSessions();
   }
 
+  const TIER_COLORS = {
+    free: 'bg-gray-500/30',
+    pro: 'bg-blue-500/30',
+    business: 'bg-purple-500/30',
+    admin: 'bg-red-500/30',
+  };
+
   async function loadStats() {
+    const key = getKey();
+    // Load usage stats (no auth needed)
     try {
       const r = await fetch('/usage');
-      if (!r.ok) return;
-      const d = await r.json();
-      document.getElementById('stat-total').textContent = d.total_requests.toLocaleString();
-      document.getElementById('stat-today').textContent = d.requests_today.toLocaleString();
-      document.getElementById('stat-profiles').textContent = d.profiles_created.toLocaleString();
-      document.getElementById('stats').classList.remove('hidden');
+      if (r.ok) {
+        const d = await r.json();
+        document.getElementById('stat-total').textContent = d.total_requests.toLocaleString();
+        document.getElementById('stat-today').textContent = d.requests_today.toLocaleString();
+        document.getElementById('stat-profiles').textContent = d.profiles_created.toLocaleString();
+        document.getElementById('stats').classList.remove('hidden');
+      }
+    } catch {}
+
+    if (!key) return;
+
+    // Load API key info for tier banner
+    try {
+      const r = await fetch('/api/v1/keys', { headers: { 'X-API-Key': key } });
+      if (r.ok) {
+        const d = await r.json();
+        const keys = d.keys || [];
+        const prefix = key.substring(0, 16) + '…';
+        // Try to find the current key in the list
+        const currentKey = keys.find(k => key.startsWith(k.prefix)) || null;
+        const tier = currentKey?.tier || 'unknown';
+        document.getElementById('banner-prefix').textContent = currentKey?.prefix ? currentKey.prefix + '…' : prefix;
+        const tierEl = document.getElementById('banner-tier');
+        tierEl.textContent = tier;
+        tierEl.className = `px-3 py-1 rounded-full text-xs font-bold capitalize ${TIER_COLORS[tier] || 'bg-white/20'} text-white`;
+        document.getElementById('account-banner').classList.remove('hidden');
+      }
+    } catch {}
+
+    // Load template count
+    try {
+      const r = await fetch('/api/v1/templates', { headers: { 'X-API-Key': key } });
+      if (r.ok) {
+        const d = await r.json();
+        document.getElementById('stat-templates').textContent = (d.total || (d.templates||[]).length).toLocaleString();
+      }
+    } catch {}
+
+    // Load signing session count
+    try {
+      const r = await fetch('/api/v1/signing-sessions?limit=100', { headers: { 'X-API-Key': key } });
+      if (r.ok) {
+        const d = await r.json();
+        document.getElementById('stat-sessions').textContent = (d.total || (d.sessions||[]).length).toLocaleString();
+      }
     } catch {}
   }
 
@@ -203,10 +313,38 @@
     } catch {}
   }
 
+  const SESSION_STATUS_STYLE = {
+    pending: 'bg-yellow-100 text-yellow-700',
+    in_progress: 'bg-blue-100 text-blue-700',
+    complete: 'bg-green-100 text-green-700',
+    cancelled: 'bg-gray-100 text-gray-500',
+  };
+
+  async function loadRecentSessions() {
+    const key = getKey();
+    if (!key) return;
+    try {
+      const r = await fetch('/api/v1/signing-sessions?limit=5', { headers: { 'X-API-Key': key } });
+      if (!r.ok) return;
+      const data = await r.json();
+      const sessions = data.sessions || [];
+      if (!sessions.length) return;
+      const container = document.getElementById('recent-sessions');
+      container.innerHTML = sessions.map(s => `
+        <a href="/ui/multisign.html?session_id=${s.session_id}" class="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-4 py-3 hover:shadow-sm transition">
+          <span class="text-xs px-2 py-0.5 rounded-full font-medium ${SESSION_STATUS_STYLE[s.status]||'bg-gray-100 text-gray-500'}">${s.status.replace('_',' ')}</span>
+          <span class="text-sm text-gray-700 flex-1 truncate">${esc(s.title)}</span>
+          <span class="text-xs text-gray-400 shrink-0">${s.current_signer_index}/${s.total_signers} signed</span>
+        </a>`).join('');
+      document.getElementById('recent-sessions-section').classList.remove('hidden');
+    } catch {}
+  }
+
   // Auto-prompt for key on first visit
   if (!getKey()) showKeyModal();
   loadStats();
   loadRecentJobs();
+  loadRecentSessions();
 </script>
 </body>
 </html>
