@@ -16,14 +16,18 @@ Usage examples:
     # No API keys — DDG only (moderate yield)
     python download_prior_auth_forms.py
 
-    # With Bing (best free-tier option — 1,000 calls/month free)
+    # With Brave Search (RECOMMENDED — free, no credit card, 2,000/month)
+    python download_prior_auth_forms.py --brave-key YOUR_KEY
+
+    # With Bing (1,000 calls/month free, needs Azure account)
     python download_prior_auth_forms.py --bing-key YOUR_KEY
 
     # With Google CSE (100 free queries/day)
     python download_prior_auth_forms.py --google-key YOUR_KEY --google-cx YOUR_CX
 
-    # All three backends + custom output folder
+    # All backends + custom output folder
     python download_prior_auth_forms.py \\
+        --brave-key YOUR_KEY \\
         --bing-key YOUR_KEY \\
         --google-key YOUR_KEY --google-cx YOUR_CX \\
         --output ~/Desktop/prior_auth_pdfs \\
@@ -287,6 +291,50 @@ def search_ddg(query: str, max_results: int) -> list[str]:
         return []
 
 
+def search_brave(query: str, api_key: str, max_results: int = 20) -> list[str]:
+    """
+    Brave Web Search API.
+    Supports filetype:pdf in query string natively.
+    Free tier: 2,000 queries/month, NO credit card required.
+    Sign up: https://api.search.brave.com/register
+    """
+    endpoint = "https://api.search.brave.com/res/v1/web/search"
+    headers = {
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip",
+        "X-Subscription-Token": api_key,
+    }
+    urls: list[str] = []
+    offset = 0
+    per_page = min(20, max_results)  # Brave max is 20 per request
+
+    while offset < max_results:
+        params = {
+            "q": query,
+            "count": per_page,
+            "offset": offset,
+            "search_lang": "en",
+            "country": "us",
+        }
+        try:
+            resp = SESSION.get(endpoint, headers=headers, params=params, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            results = data.get("web", {}).get("results", [])
+            if not results:
+                break
+            urls.extend(r["url"] for r in results if r.get("url"))
+            offset += len(results)
+            if len(results) < per_page:
+                break
+        except Exception as exc:
+            log.warning("  Brave error: %s", exc)
+            break
+
+    log.info("  Brave '%s'  → %d results", query[:70], len(urls))
+    return urls
+
+
 def search_bing(query: str, api_key: str, max_results: int = 50) -> list[str]:
     """
     Bing Web Search API v7.
@@ -414,6 +462,7 @@ def run(
     max_results: int,
     search_delay: float,
     download_delay: float,
+    brave_key: str | None,
     bing_key: str | None,
     google_key: str | None,
     google_cx: str | None,
@@ -423,6 +472,8 @@ def run(
     summary: list[str] = []
 
     backends = ["DDG"]
+    if brave_key:
+        backends.append("Brave")
     if bing_key:
         backends.append("Bing")
     if google_key and google_cx:
@@ -441,6 +492,10 @@ def run(
 
         all_urls += search_ddg(ddg_q, max_results)
         time.sleep(search_delay)
+
+        if brave_key:
+            all_urls += search_brave(boog_q, brave_key, max_results)
+            time.sleep(search_delay)
 
         if bing_key:
             all_urls += search_bing(boog_q, bing_key, max_results)
@@ -472,7 +527,7 @@ def run(
     with open(log_file, "w") as f:
         f.write("Prior Authorization Form Download Log\n")
         f.write(f"Date    : {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(f"Backends: {', '.join(backends)}\n")
+        f.write(f"Backends : {', '.join(backends)}\n")
         f.write(f"Folder  : {base_dir.resolve()}\n\n")
         for line in summary:
             f.write(f"  {line}\n")
@@ -508,6 +563,9 @@ def main() -> None:
         help="Seconds between PDF downloads (default: 1.0)")
 
     # API keys (optional but strongly recommended)
+    parser.add_argument("--brave-key",
+        default=os.environ.get("BRAVE_SEARCH_API_KEY"),
+        help="Brave Search API key — free, no CC (or set BRAVE_SEARCH_API_KEY env var)")
     parser.add_argument("--bing-key",
         default=os.environ.get("BING_SEARCH_API_KEY"),
         help="Bing Web Search API key (or set BING_SEARCH_API_KEY env var)")
@@ -537,6 +595,7 @@ def main() -> None:
         max_results=args.max_results,
         search_delay=args.search_delay,
         download_delay=args.download_delay,
+        brave_key=args.brave_key,
         bing_key=args.bing_key,
         google_key=args.google_key,
         google_cx=args.google_cx,
