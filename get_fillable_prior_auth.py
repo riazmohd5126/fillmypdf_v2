@@ -74,40 +74,89 @@ BING_QUERIES: list[tuple[str, str]] = [
 # ─────────────────────────────────────────────────────────────────────────────
 
 DIRECT_URLS: list[tuple[str, str]] = [
-    # CMS / Medicare
-    ("https://www.cms.gov/Medicare/CMS-Forms/CMS-Forms/downloads/cms10148.pdf",           "cms"),
+
+    # ── CMS / Federal Medicare ────────────────────────────────────────────────
+    ("https://www.cms.gov/Medicare/CMS-Forms/CMS-Forms/downloads/cms10148.pdf",            "cms"),
     ("https://www.cms.gov/Medicare/Prescription-Drug-coverage/PrescriptionDrugCovGenIn/downloads/model-coverage-determination-request.pdf", "cms"),
+    ("https://www.cms.gov/files/document/prior-authorization-and-referrals.pdf",           "cms"),
 
-    # UnitedHealthcare
-    ("https://www.uhcprovider.com/content/dam/provider/docs/public/prior-auth/pa-request-form.pdf", "insurers/uhc"),
-    ("https://www.uhcprovider.com/content/dam/provider/docs/public/prior-auth/comm-prior-auth-request-form.pdf", "insurers/uhc"),
+    # ── UnitedHealthcare / UHC ────────────────────────────────────────────────
+    ("https://www.uhcprovider.com/content/dam/provider/docs/public/prior-auth/pa-request-form.pdf",               "insurers/uhc"),
+    ("https://www.uhcprovider.com/content/dam/provider/docs/public/prior-auth/comm-prior-auth-request-form.pdf",  "insurers/uhc"),
+    ("https://www.uhcprovider.com/content/dam/provider/docs/public/prior-auth/ohp-prior-auth-request-form.pdf",   "insurers/uhc"),
+    ("https://www.uhcprovider.com/content/dam/provider/docs/public/prior-auth/medicare-advantage-pa-form.pdf",    "insurers/uhc"),
 
-    # Aetna
-    ("https://www.aetna.com/content/www/aetna/en/individuals-families/member-rights-resources/find-a-form/forms.html", "insurers/aetna"),
+    # ── Cigna ─────────────────────────────────────────────────────────────────
+    ("https://www.cigna.com/static/www-cigna-com/docs/health-care-providers/pharmacy-prior-authorization-request-form.pdf",  "insurers/cigna"),
+    ("https://www.cigna.com/static/www-cigna-com/docs/health-care-providers/medical-prior-authorization-request-form.pdf",   "insurers/cigna"),
+    ("https://www.cigna.com/static/www-cigna-com/docs/individuals-families/prior-auth-request-form.pdf",                     "insurers/cigna"),
 
-    # Cigna
-    ("https://www.cigna.com/static/www-cigna-com/docs/health-care-providers/pharmacy-prior-authorization-request-form.pdf", "insurers/cigna"),
+    # ── Aetna ─────────────────────────────────────────────────────────────────
+    ("https://www.aetna.com/content/dam/aetna/pdfs/prior-authorization-request-form.pdf",            "insurers/aetna"),
+    ("https://www.aetna.com/content/dam/aetna/pdfs/pharmacy-prior-auth-request.pdf",                 "insurers/aetna"),
+    ("https://www.aetna.com/content/dam/aetna/pdfs/medicare-prior-authorization-request-form.pdf",   "insurers/aetna"),
 
-    # Humana
-    ("https://www.humana.com/content/dam/humana/pdf/providers/prior-authorization-request-form.pdf", "insurers/humana"),
+    # ── Anthem / BCBS ─────────────────────────────────────────────────────────
+    ("https://www.anthem.com/dam/medpolicies/abc/active/pa_form.pdf",                                    "insurers/anthem"),
+    ("https://www.anthem.com/dam/medpolicies/abc/active/pharmacy-prior-auth-form.pdf",                   "insurers/anthem"),
+    ("https://www.bcbsil.com/pdf/provider/resources/forms/prior_authorization_request.pdf",              "insurers/bcbs"),
+    ("https://www.bcbstx.com/pdf/provider/resources/forms/prior_auth_request.pdf",                       "insurers/bcbs"),
+    ("https://www.bcbsma.com/pdf/providers/forms/prior-auth-request.pdf",                                "insurers/bcbs"),
+    ("https://www.bcbsnc.com/assets/providers/public/pdfs/prior-auth-request-form.pdf",                  "insurers/bcbs"),
+    ("https://www.highmarkbcbs.com/content/dam/highmark/pdf/provider/prior-auth-request-form.pdf",       "insurers/bcbs"),
 
-    # Anthem
-    ("https://www.anthem.com/dam/medpolicies/abc/active/pa_form.pdf", "insurers/anthem"),
+    # ── Humana ────────────────────────────────────────────────────────────────
+    ("https://www.humana.com/content/dam/humana/pdf/providers/prior-authorization-request-form.pdf",     "insurers/humana"),
+    ("https://www.humana.com/content/dam/humana/pdf/providers/pharmacy-pa-request-form.pdf",             "insurers/humana"),
+    ("https://www.humana.com/content/dam/humana/pdf/providers/medicare-prior-auth-request.pdf",          "insurers/humana"),
 
-    # CVS Caremark
-    ("https://www.caremark.com/portal/asset/PA_Request_Form.pdf", "insurers/caremark"),
+    # ── CVS Caremark ──────────────────────────────────────────────────────────
+    ("https://www.caremark.com/portal/asset/PA_Request_Form.pdf",                                        "insurers/caremark"),
+    ("https://www.caremark.com/portal/asset/StandardPARequestForm.pdf",                                  "insurers/caremark"),
+    ("https://www.caremark.com/portal/asset/specialty-pa-request-form.pdf",                              "insurers/caremark"),
 
-    # Express Scripts / Evernorth
-    ("https://www.express-scripts.com/art/static/pdf/PA_request_form.pdf", "insurers/evernorth"),
+    # ── Express Scripts / Evernorth ───────────────────────────────────────────
+    ("https://www.express-scripts.com/art/static/pdf/PA_request_form.pdf",                               "insurers/evernorth"),
+    ("https://www.evernorth.com/content/dam/evernorth/pdfs/prior-auth-request-form.pdf",                 "insurers/evernorth"),
 
-    # OptumRx
-    ("https://www.optumrx.com/content/dam/optum3/optumrx/pdf/prior-auth-request-form.pdf", "insurers/optum"),
+    # ── OptumRx ───────────────────────────────────────────────────────────────
+    ("https://www.optumrx.com/content/dam/optum3/optumrx/pdf/prior-auth-request-form.pdf",               "insurers/optum"),
+    ("https://www.optumrx.com/content/dam/optum3/optumrx/pdf/specialty-pa-request.pdf",                  "insurers/optum"),
+    ("https://www.optum.com/content/dam/optum/resources/prior-auth-request-form.pdf",                    "insurers/optum"),
 
-    # Molina
-    ("https://www.molinahealthcare.com/providers/common/PDF/pa-request-form.pdf", "insurers/molina"),
+    # ── Molina Healthcare ─────────────────────────────────────────────────────
+    ("https://www.molinahealthcare.com/providers/common/PDF/pa-request-form.pdf",                        "insurers/molina"),
+    ("https://www.molinahealthcare.com/providers/common/PDF/pharmacy-pa-form.pdf",                       "insurers/molina"),
 
-    # WellCare
-    ("https://www.wellcare.com/~/media/Documents/National/Providers/PA-Request-Form.pdf", "insurers/wellcare"),
+    # ── WellCare / Centene ────────────────────────────────────────────────────
+    ("https://www.wellcare.com/~/media/Documents/National/Providers/PA-Request-Form.pdf",                "insurers/wellcare"),
+    ("https://www.centene.com/content/dam/centene/pdfs/prior-auth-request-form.pdf",                    "insurers/centene"),
+
+    # ── Kaiser Permanente ─────────────────────────────────────────────────────
+    ("https://healthy.kaiserpermanente.org/content/dam/kp-provider/documents/prior-auth-request.pdf",    "insurers/kaiser"),
+
+    # ── Magellan Health ───────────────────────────────────────────────────────
+    ("https://www.magellanhealth.com/media/prior-auth-request-form.pdf",                                 "insurers/magellan"),
+
+    # ── Medicare Advantage generic ────────────────────────────────────────────
+    ("https://www.medicareadvantage.com/content/prior-authorization-form.pdf",                           "medicare_advantage"),
+
+    # ── State Medicaid — publicly posted PA forms ──────────────────────────────
+    ("https://www.hfs.illinois.gov/content/dam/soi/en/web/hfs/SiteCollectionDocuments/2249.pdf",         "medicaid/illinois"),
+    ("https://www.medicaid.nv.gov/Downloads/provider/NV_Medicaid_PA_Request.pdf",                       "medicaid/nevada"),
+    ("https://www.colorado.gov/pacific/sites/default/files/prior_auth_request_form.pdf",                 "medicaid/colorado"),
+    ("https://www.dss.mo.gov/mhd/providers/pdf/priorauthorizationrequest.pdf",                           "medicaid/missouri"),
+    ("https://www.mass.gov/doc/prior-authorization-request-form/download",                               "medicaid/massachusetts"),
+    ("https://www.health.ny.gov/health_care/medicaid/forms/pdf/prior_auth_request.pdf",                  "medicaid/newyork"),
+    ("https://www.medi-cal.ca.gov/content/dam/medi-cal/pdfs/provider/PA-request-form.pdf",              "medicaid/california"),
+    ("https://www.medicaid.texas.gov/assets/uploads/documents/providers/pa-request-form.pdf",            "medicaid/texas"),
+    ("https://www.medicaid.ohio.gov/Portals/0/Providers/Forms/PA_Request.pdf",                           "medicaid/ohio"),
+    ("https://www.flmedicaid.com/content/uploads/prior-auth-request-form.pdf",                           "medicaid/florida"),
+
+    # ── Specialty pharmacy networks ────────────────────────────────────────────
+    ("https://www.accredo.com/content/dam/accredo/pdfs/prior-auth-request.pdf",                         "specialty_pharmacy/accredo"),
+    ("https://www.biorxspecialty.com/content/dam/biorx/prior-auth-request-form.pdf",                    "specialty_pharmacy/biorx"),
+    ("https://www.cvsspecialty.com/content/dam/cvsspecialty/pdf/prior-auth-request-form.pdf",            "specialty_pharmacy/cvs_specialty"),
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -139,6 +188,23 @@ def get_headers(for_pdf: bool = False) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 # Bing HTML scraper
 # ─────────────────────────────────────────────────────────────────────────────
+
+def bing_available() -> bool:
+    """Quick check — returns True if Bing search is reachable from this IP."""
+    try:
+        resp = SESSION.get(
+            "https://www.bing.com/search",
+            params={"q": 'filetype:pdf "prior authorization"', "count": 3},
+            headers=get_headers(for_pdf=False),
+            timeout=10,
+        )
+        if resp.status_code == 403:
+            return False
+        soup = BeautifulSoup(resp.text, "lxml")
+        return bool(soup.select("li.b_algo"))
+    except Exception:
+        return False
+
 
 def bing_search(query: str, max_results: int = 30) -> list[str]:
     """
@@ -332,7 +398,15 @@ def run(
     print("PHASE 1 — Bing search (filetype:pdf prior auth queries)")
     print(f"{'='*60}\n")
 
-    for query, folder in tqdm(BING_QUERIES, desc="Bing queries", unit="q"):
+    print("Checking if Bing is reachable from your IP...")
+    bing_ok = bing_available()
+    if bing_ok:
+        print("Bing: OK — search results will be scraped\n")
+    else:
+        print("Bing: BLOCKED (403) — skipping search phase, going straight to direct URLs\n")
+        print("NOTE: Bing scraping only works from a home/office IP, not cloud servers.\n")
+
+    for query, folder in tqdm(BING_QUERIES, desc="Bing queries", unit="q") if bing_ok else []:
         dest_dir = base_dir / folder
         urls = bing_search(query, max_results=max_per_query)
 
