@@ -171,6 +171,9 @@ def url_to_filename(url: str, label: str) -> str:
     return sanitize(f"{label}_{base}")
 
 
+MIN_SIZE_BYTES = 20_000  # set by run() before downloads begin
+
+
 def download_pdf(url: str, dest_dir: Path, label: str, timeout: int = 30) -> bool:
     if url in _seen_urls:
         return False
@@ -199,6 +202,12 @@ def download_pdf(url: str, dest_dir: Path, label: str, timeout: int = 30) -> boo
     except requests.exceptions.RequestException:
         return False
 
+    # Reject tiny files — real prior auth forms are never this small.
+    # Small responses are login redirects or "document moved" stub PDFs.
+    if len(data) < MIN_SIZE_BYTES:
+        log.debug("Too small (%d bytes), skipping: %s", len(data), url)
+        return False
+
     file_hash = hashlib.md5(data).hexdigest()
     if file_hash in _seen_hashes:
         log.debug("Duplicate content: %s", url)
@@ -222,6 +231,7 @@ def run(
     cdx_limit: int,
     download_delay: float,
     filter_keywords: bool,
+    min_size_kb: int = 20,
 ) -> None:
     base_dir.mkdir(parents=True, exist_ok=True)
 
@@ -235,6 +245,10 @@ def run(
     total_found  = 0
     total_saved  = 0
     summary: list[str] = []
+
+    global MIN_SIZE_BYTES
+    MIN_SIZE_BYTES = min_size_kb * 1024
+    log.info("Minimum PDF size set to %d KB", min_size_kb)
 
     print(f"\nStep 2 — querying CDX index for {len(DOMAIN_PATTERNS)} domain patterns...\n")
 
@@ -302,6 +316,8 @@ def main() -> None:
         help="Seconds between downloads (default: 1.5)")
     parser.add_argument("--no-filter", action="store_true",
         help="Download ALL PDFs found, not just prior-auth-looking ones")
+    parser.add_argument("--min-size", type=int, default=20,
+        help="Minimum PDF size in KB to keep (default: 20 — filters out redirect stubs)")
     parser.add_argument("--verbose", "-v", action="store_true",
         help="Show debug logs")
 
@@ -318,6 +334,7 @@ def main() -> None:
         cdx_limit=args.limit,
         download_delay=args.download_delay,
         filter_keywords=not args.no_filter,
+        min_size_kb=args.min_size,
     )
 
 
