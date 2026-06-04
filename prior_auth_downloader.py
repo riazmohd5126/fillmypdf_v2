@@ -153,6 +153,94 @@ QUERIES = [
     ('filetype:pdf Florida Medicaid "prior authorization"',              "states/florida"),
     ('filetype:pdf "New York" Medicaid "prior authorization"',           "states/new_york"),
     ('filetype:pdf "Rhode Island" Medicaid "prior authorization"',       "states/rhode_island"),
+
+    # ── NEW: Additional Universal PA Forms ────────────────────────────────────
+    ('filetype:pdf "PA Request Form"',                                   "universal"),
+    ('filetype:pdf "Medication Prior Authorization"',                    "universal"),
+    ('filetype:pdf "Pharmacy Prior Authorization"',                      "universal"),
+    ('filetype:pdf "Medical Prior Authorization"',                       "universal"),
+    ('filetype:pdf "Coverage Determination Request Form"',               "universal"),
+    ('filetype:pdf "Exception Request Form"',                            "universal"),
+    ('filetype:pdf "Medical Necessity Request Form"',                    "universal"),
+
+    # ── NEW: Additional Field-Based Dorks ─────────────────────────────────────
+    ('filetype:pdf "Patient Name" "Date of Birth"',                      "fields"),
+    ('filetype:pdf "Patient Name" "Diagnosis"',                          "fields"),
+    ('filetype:pdf "Patient Name" "Drug Requested"',                     "fields"),
+    ('filetype:pdf "Prescriber Signature"',                              "fields"),
+    ('filetype:pdf "Provider NPI"',                                      "fields"),
+    ('filetype:pdf "Physician Signature"',                               "fields"),
+
+    # ── NEW: Diagnosis/Procedure Codes ────────────────────────────────────────
+    ('filetype:pdf "ICD-10 Code"',                                       "fields"),
+    ('filetype:pdf "CPT Code"',                                          "fields"),
+    ('filetype:pdf "Procedure Code"',                                    "fields"),
+    ('filetype:pdf "HCPCS Code"',                                        "fields"),
+    ('filetype:pdf "Primary Diagnosis"',                                 "fields"),
+    ('filetype:pdf "Secondary Diagnosis"',                               "fields"),
+
+    # ── NEW: Additional Clinical Criteria ─────────────────────────────────────
+    ('filetype:pdf "Clinical Criteria"',                                 "clinical"),
+    ('filetype:pdf "Previous Therapies"',                                "clinical"),
+    ('filetype:pdf "Step Therapy"',                                      "clinical"),
+    ('filetype:pdf "Therapeutic Failure"',                               "clinical"),
+
+    # ── NEW: Additional Fax Dorks ─────────────────────────────────────────────
+    ('filetype:pdf "Fax Completed Form To"',                             "fax"),
+    ('filetype:pdf "Fax This Request To"',                               "fax"),
+    ('filetype:pdf "Standard Review"',                                   "fax"),
+    ('filetype:pdf "Urgent Authorization Request"',                      "fax"),
+    ('filetype:pdf "For Urgent Requests"',                               "fax"),
+
+    # ── NEW: Additional Drugs ─────────────────────────────────────────────────
+    ('filetype:pdf Trulicity "prior authorization"',                     "drugs/trulicity"),
+    ('filetype:pdf Saxenda "prior authorization"',                       "drugs/saxenda"),
+    ('filetype:pdf Ajovy "prior authorization"',                         "drugs/ajovy"),
+    ('filetype:pdf Aimovig "prior authorization"',                       "drugs/aimovig"),
+    ('filetype:pdf Nurtec "prior authorization"',                        "drugs/nurtec"),
+    ('filetype:pdf Ubrelvy "prior authorization"',                       "drugs/ubrelvy"),
+
+    # ── NEW: Additional Diagnoses ─────────────────────────────────────────────
+    ('filetype:pdf "Multiple Sclerosis" "prior authorization"',          "diagnosis/multiple_sclerosis"),
+    ('filetype:pdf Asthma "prior authorization"',                        "diagnosis/asthma"),
+    ('filetype:pdf Diabetes "prior authorization"',                      "diagnosis/diabetes"),
+
+    # ── NEW: Additional Insurer Site Searches (broader, no "form" required) ───
+    ('site:aetna.com filetype:pdf "prior authorization"',                "insurers/aetna"),
+    ('site:cigna.com filetype:pdf "prior authorization"',                "insurers/cigna"),
+    ('site:humana.com filetype:pdf "prior authorization"',               "insurers/humana"),
+    ('site:anthem.com filetype:pdf "prior authorization"',               "insurers/anthem"),
+    ('site:bcbs.com filetype:pdf "prior authorization"',                 "insurers/bcbs"),
+    ('site:molinahealthcare.com filetype:pdf "prior authorization"',     "insurers/molina"),
+    ('site:centene.com filetype:pdf "prior authorization"',              "insurers/centene"),
+    ('site:uhcprovider.com filetype:pdf "prior authorization"',          "insurers/uhc"),
+
+    # ── NEW: Additional PBM Searches ─────────────────────────────────────────
+    ('site:caremark.com filetype:pdf "prior authorization request form"',"pbm/caremark"),
+    ('site:optumrx.com filetype:pdf "coverage review"',                  "pbm/optumrx"),
+    ('site:express-scripts.com filetype:pdf "coverage review"',          "pbm/express_scripts"),
+
+    # ── NEW: Additional Medicare Part D ───────────────────────────────────────
+    ('filetype:pdf "Part D Coverage Determination"',                     "medicare_part_d"),
+    ('filetype:pdf "Exception Request"',                                 "medicare_part_d"),
+
+    # ── NEW: Additional Medicaid ──────────────────────────────────────────────
+    ('filetype:pdf Medicaid "authorization request"',                    "medicaid"),
+    ('site:.gov filetype:pdf Medicaid "prior authorization"',            "medicaid/gov"),
+    ('site:.gov filetype:pdf "drug prior authorization"',                "medicaid/gov"),
+
+    # ── NEW: Combined Multi-Field Dorks ──────────────────────────────────────
+    ('filetype:pdf "patient name" "date of birth" "diagnosis code" "prescriber signature"', "combined"),
+    ('filetype:pdf "member id" "NPI" "drug requested"',                  "combined"),
+    ('filetype:pdf "patient information" "clinical information" "provider information"', "combined"),
+    ('filetype:pdf "prescriber name" "diagnosis" "medication"',          "combined"),
+    ('filetype:pdf "office contact" "phone number" "fax number"',        "combined"),
+
+    # ── NEW: Additional Repository Dorks ─────────────────────────────────────
+    ('inurl:documents filetype:pdf "prior authorization"',               "repositories"),
+    ('intitle:"Prior Authorization Request Form" filetype:pdf',          "repositories"),
+    ('intitle:"Medication Prior Authorization" filetype:pdf',            "repositories"),
+    ('intitle:"Coverage Determination Request Form" filetype:pdf',       "repositories"),
 ]
 
 RESULTS_PER_QUERY = 30   # Google results to scan per query (increase for more PDFs)
