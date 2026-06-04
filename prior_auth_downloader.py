@@ -1,56 +1,57 @@
 #!/usr/bin/env python3
 """
-Prior Auth PDF Downloader
-Runs Google dork searches and downloads found PDFs to ~/prior_auth_forms/
+Prior Auth PDF Downloader — Browser Edition
+Opens a real Chrome browser, runs each Google dork, extracts PDF links,
+downloads them. Google sees it as a normal user search.
 
 Install:
-    pip install googlesearch-python requests tqdm
+    pip install selenium webdriver-manager requests tqdm
 
 Run:
     python prior_auth_downloader.py
+
+Chrome must be installed on your laptop (it almost certainly is).
 """
 
 import os, re, time, hashlib, logging
 from pathlib import Path
-from urllib.parse import urlparse, unquote
+from urllib.parse import urlparse, unquote, quote_plus
 
 import requests
 from tqdm import tqdm
-from googlesearch import search
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 
 # ── Output folder ─────────────────────────────────────────────────────────────
 OUTPUT_DIR = Path.home() / "prior_auth_forms"
 
-# ── Google dork queries → subfolder ──────────────────────────────────────────
+# ── Google dork queries ───────────────────────────────────────────────────────
 QUERIES = [
-    # Generic fillable forms
-    ('filetype:pdf "prior authorization form" fillable',                "generic"),
-    ('filetype:pdf "prior authorization request" form',                 "generic"),
-    ('filetype:pdf "prior authorization" "specialty pharmacy" fillable',"generic"),
-    ('filetype:pdf "step therapy" "prior authorization form"',          "generic"),
-
-    # Major insurers
-    ('filetype:pdf "prior authorization form" site:uhc.com',            "insurers/uhc"),
-    ('filetype:pdf "prior authorization form" site:cigna.com',          "insurers/cigna"),
-    ('filetype:pdf "prior authorization form" site:aetna.com',          "insurers/aetna"),
-    ('filetype:pdf "prior authorization form" site:anthem.com',         "insurers/anthem"),
-    ('filetype:pdf "prior authorization form" site:bcbs.com',           "insurers/bcbs"),
-
-    # Specialty therapy
-    ('filetype:pdf "prior authorization" "GLP-1" form',                 "specialty/glp1"),
-    ('filetype:pdf "prior authorization" "biologics" fillable',         "specialty/biologics"),
-    ('filetype:pdf "prior authorization" "oncology" request form',      "specialty/oncology"),
-    ('filetype:pdf "prior authorization" "rheumatology" fillable',      "specialty/rheumatology"),
-
-    # Adobe LiveCycle fillable forms
-    ('filetype:pdf "prior authorization" "Adobe LiveCycle"',            "livecycle"),
+    ('filetype:pdf "prior authorization form" fillable',                 "generic"),
+    ('filetype:pdf "prior authorization request" form',                  "generic"),
+    ('filetype:pdf "prior authorization" "specialty pharmacy" fillable', "generic"),
+    ('filetype:pdf "step therapy" "prior authorization form"',           "generic"),
+    ('filetype:pdf "prior authorization form" site:uhc.com',             "insurers/uhc"),
+    ('filetype:pdf "prior authorization form" site:cigna.com',           "insurers/cigna"),
+    ('filetype:pdf "prior authorization form" site:aetna.com',           "insurers/aetna"),
+    ('filetype:pdf "prior authorization form" site:anthem.com',          "insurers/anthem"),
+    ('filetype:pdf "prior authorization form" site:bcbs.com',            "insurers/bcbs"),
+    ('filetype:pdf "prior authorization" "GLP-1" form',                  "specialty/glp1"),
+    ('filetype:pdf "prior authorization" "biologics" fillable',          "specialty/biologics"),
+    ('filetype:pdf "prior authorization" "oncology" request form',       "specialty/oncology"),
+    ('filetype:pdf "prior authorization" "rheumatology" fillable',       "specialty/rheumatology"),
+    ('filetype:pdf "prior authorization" "Adobe LiveCycle"',             "livecycle"),
 ]
 
-# ── Settings ──────────────────────────────────────────────────────────────────
-RESULTS_PER_QUERY = 20      # Google results to fetch per query
-SEARCH_PAUSE      = 5.0     # seconds between queries (avoids rate limiting)
-DOWNLOAD_PAUSE    = 1.5     # seconds between PDF downloads
-MIN_PDF_SIZE      = 20_000  # bytes — ignore tiny stub/redirect PDFs
+RESULTS_PER_QUERY = 20   # Google results to scan per query
+SEARCH_PAUSE      = 6.0  # seconds between queries
+DOWNLOAD_PAUSE    = 1.5  # seconds between downloads
+MIN_PDF_SIZE      = 20_000
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger(__name__)
@@ -67,14 +68,58 @@ seen_urls   = set()
 seen_hashes = set()
 
 
-def sanitize(name: str) -> str:
-    name = unquote(name)
-    name = re.sub(r'[\\/*?:"<>|]+', "_", name)
-    return re.sub(r"_+", "_", name.strip())[:120]
+def make_driver() -> webdriver.Chrome:
+    """Launch Chrome. Browser window is visible so you can solve CAPTCHAs."""
+    opts = Options()
+    # opts.add_argument("--headless=new")   # uncomment to run silently
+    opts.add_argument("--disable-blink-features=AutomationControlled")
+    opts.add_experimental_option("excludeSwitches", ["enable-automation"])
+    opts.add_experimental_option("useAutomationExtension", False)
+    opts.add_argument("--window-size=1280,900")
+    opts.add_argument("--no-sandbox")
+    opts.add_argument("--disable-dev-shm-usage")
+
+    service = Service(ChromeDriverManager().install())
+    driver  = webdriver.Chrome(service=service, options=opts)
+    driver.execute_script(
+        "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+    )
+    return driver
+
+
+def google_search(driver: webdriver.Chrome, query: str, num: int = 20) -> list[str]:
+    """Search Google with a dork query, return all PDF hrefs found on the page."""
+    url = f"https://www.google.com/search?q={quote_plus(query)}&num={num}"
+    driver.get(url)
+
+    try:
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div#search a"))
+        )
+    except Exception:
+        pass
+
+    time.sleep(2)
+
+    anchors  = driver.find_elements(By.CSS_SELECTOR, "a[href]")
+    pdf_urls = []
+    for a in anchors:
+        try:
+            href = a.get_attribute("href") or ""
+        except Exception:
+            continue
+        # Unwrap Google's redirect wrapper /url?q=...
+        if "/url?q=" in href:
+            href = href.split("/url?q=")[1].split("&")[0]
+        if "pdf" in href.lower() and href.startswith("http"):
+            if href not in pdf_urls:
+                pdf_urls.append(href)
+
+    log.info("  [Google] '%s'  → %d PDF links", query[:65], len(pdf_urls))
+    return pdf_urls
 
 
 def download(url: str, folder: Path) -> bool:
-    """Fetch URL, save if it's a valid PDF. Returns True on success."""
     if url in seen_urls:
         return False
     seen_urls.add(url)
@@ -84,31 +129,28 @@ def download(url: str, folder: Path) -> bool:
         r.raise_for_status()
         data = b"".join(r.iter_content(8192))
     except Exception as e:
-        log.debug("  SKIP  %s  (%s)", url[:80], type(e).__name__)
+        log.debug("  fetch failed (%s): %s", type(e).__name__, url[:80])
         return False
 
     if not data.startswith(b"%PDF"):
-        log.debug("  SKIP  not a PDF: %s", url[:80])
         return False
-
     if len(data) < MIN_PDF_SIZE:
-        log.debug("  SKIP  too small (%d bytes): %s", len(data), url[:80])
+        log.debug("  too small (%d KB): %s", len(data) // 1024, url[:80])
         return False
 
     h = hashlib.md5(data).hexdigest()
     if h in seen_hashes:
-        log.debug("  SKIP  duplicate content: %s", url[:80])
         return False
     seen_hashes.add(h)
 
     folder.mkdir(parents=True, exist_ok=True)
-    parsed  = urlparse(url)
-    domain  = parsed.netloc.replace("www.", "").split(".")[0]
-    base    = os.path.basename(parsed.path) or "form.pdf"
+    parsed = urlparse(url)
+    domain = parsed.netloc.replace("www.", "").split(".")[0]
+    base   = os.path.basename(parsed.path) or "form.pdf"
     if not base.lower().endswith(".pdf"):
         base += ".pdf"
-    fname   = sanitize(f"{domain}_{base}")
-    dest    = folder / fname
+    fname  = re.sub(r'[\\/*?:"<>|]+', "_", unquote(f"{domain}_{base}"))[:120]
+    dest   = folder / fname
     if dest.exists():
         dest = folder / f"{dest.stem}_{h[:6]}.pdf"
 
@@ -118,36 +160,50 @@ def download(url: str, folder: Path) -> bool:
 
 
 def run():
-    total_saved = 0
-    print(f"\nOutput folder: {OUTPUT_DIR}\n")
+    print(f"\nOutput folder: {OUTPUT_DIR}")
+    print("Opening Chrome — you will see a browser window appear.")
+    print("If Google shows a CAPTCHA, solve it in that window,")
+    print("then press Enter in this terminal to continue.\n")
 
-    for query, subfolder in tqdm(QUERIES, desc="Queries", unit="q"):
-        dest = OUTPUT_DIR / subfolder
-        print(f"\n[{subfolder}] {query}")
+    driver = make_driver()
+    total  = 0
 
-        try:
-            urls = list(search(query, num_results=RESULTS_PER_QUERY, sleep_interval=2))
-        except Exception as e:
-            log.warning("  Search failed: %s", e)
+    try:
+        for query, subfolder in tqdm(QUERIES, desc="Queries", unit="q"):
+            print(f"\n→ {query}")
+            dest = OUTPUT_DIR / subfolder
+
+            try:
+                pdf_urls = google_search(driver, query, num=RESULTS_PER_QUERY)
+            except Exception as e:
+                log.warning("  Search error: %s", e)
+                time.sleep(SEARCH_PAUSE)
+                continue
+
+            # CAPTCHA check
+            if not pdf_urls:
+                src = driver.page_source.lower()
+                if "captcha" in src or "unusual traffic" in src:
+                    input("\n  CAPTCHA detected — solve it in the browser window, "
+                          "then press Enter here to continue: ")
+                    pdf_urls = google_search(driver, query, num=RESULTS_PER_QUERY)
+
+            saved = 0
+            for url in pdf_urls:
+                if download(url, dest):
+                    saved += 1
+                time.sleep(DOWNLOAD_PAUSE)
+
+            total += saved
+            log.info("  %d PDF(s) saved for this query", saved)
             time.sleep(SEARCH_PAUSE)
-            continue
 
-        pdf_urls = [u for u in urls if u.lower().endswith(".pdf") or "pdf" in u.lower()]
-        log.info("  Found %d results (%d PDF-looking)", len(urls), len(pdf_urls))
-
-        saved = 0
-        for url in pdf_urls:
-            if download(url, dest):
-                saved += 1
-            time.sleep(DOWNLOAD_PAUSE)
-
-        total_saved += saved
-        log.info("  Saved %d from this query", saved)
-        time.sleep(SEARCH_PAUSE)
+    finally:
+        driver.quit()
 
     print(f"\n{'='*55}")
-    print(f"Done. {total_saved} PDFs saved to {OUTPUT_DIR}")
-    print(f"Unique URLs tried: {len(seen_urls)}")
+    print(f"Done. {total} PDFs saved to {OUTPUT_DIR}")
+    print(f"URLs tried: {len(seen_urls)}")
 
 
 if __name__ == "__main__":
