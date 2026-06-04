@@ -32,6 +32,7 @@ OUTPUT_DIR = Path.home() / "prior_auth_forms"
 
 # ── Google dork queries ───────────────────────────────────────────────────────
 QUERIES = [
+    # ── Original dorks ────────────────────────────────────────────────────────
     ('filetype:pdf "prior authorization form" fillable',                 "generic"),
     ('filetype:pdf "prior authorization request" form',                  "generic"),
     ('filetype:pdf "prior authorization" "specialty pharmacy" fillable', "generic"),
@@ -46,6 +47,77 @@ QUERIES = [
     ('filetype:pdf "prior authorization" "oncology" request form',       "specialty/oncology"),
     ('filetype:pdf "prior authorization" "rheumatology" fillable',       "specialty/rheumatology"),
     ('filetype:pdf "prior authorization" "Adobe LiveCycle"',             "livecycle"),
+
+    # ── Universal PA Form Dorks ───────────────────────────────────────────────
+    ('filetype:pdf "prior authorization request form"',                  "universal"),
+    ('filetype:pdf "prior authorization form"',                          "universal"),
+    ('filetype:pdf "authorization request form"',                        "universal"),
+    ('filetype:pdf "coverage determination request"',                    "universal"),
+    ('filetype:pdf "medical exception request"',                         "universal"),
+    ('filetype:pdf "predetermination request form"',                     "universal"),
+    ('filetype:pdf "request for coverage"',                              "universal"),
+    ('filetype:pdf "specialty medication request form"',                 "universal"),
+
+    # ── Field-Based Dorks (form field labels) ─────────────────────────────────
+    ('filetype:pdf "patient name" "prescriber name"',                    "fields"),
+    ('filetype:pdf "member id" "prescriber"',                            "fields"),
+    ('filetype:pdf "date of birth" "prescriber"',                        "fields"),
+    ('filetype:pdf "requesting provider"',                               "fields"),
+    ('filetype:pdf "provider information"',                              "fields"),
+    ('filetype:pdf "patient information" "provider information"',        "fields"),
+    ('filetype:pdf "office contact"',                                    "fields"),
+    ('filetype:pdf "diagnosis code"',                                    "fields"),
+    ('filetype:pdf "ICD-10"',                                            "fields"),
+    ('filetype:pdf "NPI Number"',                                        "fields"),
+
+    # ── Fax-Based Dorks ───────────────────────────────────────────────────────
+    ('filetype:pdf "fax completed form"',                                "fax"),
+    ('filetype:pdf "fax this request"',                                  "fax"),
+    ('filetype:pdf "fax completed prior authorization"',                 "fax"),
+    ('filetype:pdf "fax number"',                                        "fax"),
+    ('filetype:pdf "urgent review"',                                     "fax"),
+    ('filetype:pdf "expedited review"',                                  "fax"),
+
+    # ── Clinical Criteria Dorks ───────────────────────────────────────────────
+    ('filetype:pdf "clinical information"',                              "clinical"),
+    ('filetype:pdf "medical necessity"',                                 "clinical"),
+    ('filetype:pdf "supporting documentation"',                          "clinical"),
+    ('filetype:pdf "chart notes"',                                       "clinical"),
+    ('filetype:pdf "clinical rationale"',                                "clinical"),
+    ('filetype:pdf "treatment history"',                                 "clinical"),
+
+    # ── Drug-Specific Dorks ───────────────────────────────────────────────────
+    ('filetype:pdf Ozempic "prior authorization"',                       "drugs/ozempic"),
+    ('filetype:pdf Wegovy "prior authorization"',                        "drugs/wegovy"),
+    ('filetype:pdf Mounjaro "prior authorization"',                      "drugs/mounjaro"),
+    ('filetype:pdf Zepbound "prior authorization"',                      "drugs/zepbound"),
+    ('filetype:pdf Skyrizi "prior authorization"',                       "drugs/skyrizi"),
+    ('filetype:pdf Dupixent "prior authorization"',                      "drugs/dupixent"),
+    ('filetype:pdf Humira "prior authorization"',                        "drugs/humira"),
+    ('filetype:pdf Enbrel "prior authorization"',                        "drugs/enbrel"),
+    ('filetype:pdf Rinvoq "prior authorization"',                        "drugs/rinvoq"),
+    ('filetype:pdf Xeljanz "prior authorization"',                       "drugs/xeljanz"),
+    ('filetype:pdf Cosentyx "prior authorization"',                      "drugs/cosentyx"),
+    ('filetype:pdf Stelara "prior authorization"',                       "drugs/stelara"),
+
+    # ── Diagnosis-Specific Dorks ──────────────────────────────────────────────
+    ('filetype:pdf "rheumatoid arthritis" "prior authorization"',        "diagnosis/rheumatoid_arthritis"),
+    ('filetype:pdf "psoriasis" "prior authorization"',                   "diagnosis/psoriasis"),
+    ('filetype:pdf "crohn\'s disease" "prior authorization"',            "diagnosis/crohns"),
+    ('filetype:pdf "ulcerative colitis" "prior authorization"',          "diagnosis/ulcerative_colitis"),
+    ('filetype:pdf "migraine" "prior authorization"',                    "diagnosis/migraine"),
+    ('filetype:pdf "ADHD" "prior authorization"',                        "diagnosis/adhd"),
+
+    # ── PBM-Specific Dorks ────────────────────────────────────────────────────
+    ('site:caremark.com filetype:pdf "prior authorization"',             "pbm/caremark"),
+    ('site:caremark.com filetype:pdf "request form"',                    "pbm/caremark"),
+    ('site:caremark.com filetype:pdf "specialty medication"',            "pbm/caremark"),
+    ('site:optumrx.com filetype:pdf "prior authorization"',              "pbm/optumrx"),
+    ('site:express-scripts.com filetype:pdf "prior authorization"',      "pbm/express_scripts"),
+    ('site:primetherapeutics.com filetype:pdf "prior authorization"',    "pbm/prime_therapeutics"),
+    ('site:medimpact.com filetype:pdf "prior authorization"',            "pbm/medimpact"),
+    ('site:navitus.com filetype:pdf "prior authorization"',              "pbm/navitus"),
+    ('site:maxor.com filetype:pdf "prior authorization"',                "pbm/maxor"),
 ]
 
 RESULTS_PER_QUERY = 20   # Google results to scan per query
