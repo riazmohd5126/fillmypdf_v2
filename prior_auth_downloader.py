@@ -155,7 +155,7 @@ QUERIES = [
     ('filetype:pdf "Rhode Island" Medicaid "prior authorization"',       "states/rhode_island"),
 ]
 
-RESULTS_PER_QUERY = 20   # Google results to scan per query
+RESULTS_PER_QUERY = 30   # Google results to scan per query (increase for more PDFs)
 SEARCH_PAUSE      = 6.0  # seconds between queries
 DOWNLOAD_PAUSE    = 1.5  # seconds between downloads
 MIN_PDF_SIZE      = 20_000
@@ -194,20 +194,8 @@ def make_driver() -> webdriver.Chrome:
     return driver
 
 
-def google_search(driver: webdriver.Chrome, query: str, num: int = 20) -> list[str]:
-    """Search Google with a dork query, return all PDF hrefs found on the page."""
-    url = f"https://www.google.com/search?q={quote_plus(query)}&num={num}"
-    driver.get(url)
-
-    try:
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "div#search a"))
-        )
-    except Exception:
-        pass
-
-    time.sleep(2)
-
+def extract_pdf_links(driver: webdriver.Chrome) -> list[str]:
+    """Extract all PDF-looking hrefs from the current page."""
     anchors  = driver.find_elements(By.CSS_SELECTOR, "a[href]")
     pdf_urls = []
     for a in anchors:
@@ -215,15 +203,39 @@ def google_search(driver: webdriver.Chrome, query: str, num: int = 20) -> list[s
             href = a.get_attribute("href") or ""
         except Exception:
             continue
-        # Unwrap Google's redirect wrapper /url?q=...
         if "/url?q=" in href:
             href = href.split("/url?q=")[1].split("&")[0]
         if "pdf" in href.lower() and href.startswith("http"):
             if href not in pdf_urls:
                 pdf_urls.append(href)
-
-    log.info("  [Google] '%s'  → %d PDF links", query[:65], len(pdf_urls))
     return pdf_urls
+
+
+def google_search(driver: webdriver.Chrome, query: str, num: int = 30) -> list[str]:
+    """Search Google with a dork query across pages 1 and 2, return all PDF hrefs."""
+    all_pdf_urls = []
+
+    for start in [0, num]:   # page 1, then page 2
+        url = f"https://www.google.com/search?q={quote_plus(query)}&num={num}&start={start}"
+        driver.get(url)
+        try:
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "div#search a"))
+            )
+        except Exception:
+            pass
+        time.sleep(2)
+
+        links = extract_pdf_links(driver)
+        all_pdf_urls.extend(l for l in links if l not in all_pdf_urls)
+
+        # Stop if no results on this page
+        if not links:
+            break
+        time.sleep(2)
+
+    log.info("  [Google] '%s'  → %d PDF links", query[:65], len(all_pdf_urls))
+    return all_pdf_urls
 
 
 def download(url: str, folder: Path) -> bool:
