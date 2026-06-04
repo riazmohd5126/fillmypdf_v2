@@ -118,6 +118,41 @@ QUERIES = [
     ('site:medimpact.com filetype:pdf "prior authorization"',            "pbm/medimpact"),
     ('site:navitus.com filetype:pdf "prior authorization"',              "pbm/navitus"),
     ('site:maxor.com filetype:pdf "prior authorization"',                "pbm/maxor"),
+
+    # ── Medicare Part D Dorks ─────────────────────────────────────────────────
+    ('filetype:pdf "medicare part d" "coverage determination"',          "medicare_part_d"),
+    ('filetype:pdf "redetermination request form"',                      "medicare_part_d"),
+    ('filetype:pdf "part d prior authorization"',                        "medicare_part_d"),
+    ('filetype:pdf "medicare prescription drug coverage"',               "medicare_part_d"),
+
+    # ── Medicaid Dorks ────────────────────────────────────────────────────────
+    ('filetype:pdf Medicaid "prior authorization"',                      "medicaid"),
+    ('filetype:pdf Medicaid "PA request form"',                          "medicaid"),
+    ('filetype:pdf "state medicaid" "prior authorization"',              "medicaid"),
+    ('site:.gov filetype:pdf "prior authorization request"',             "medicaid/gov"),
+
+    # ── Specialty Pharmacy Forms ──────────────────────────────────────────────
+    ('filetype:pdf "specialty pharmacy" "patient information"',          "specialty_pharmacy"),
+    ('filetype:pdf "specialty enrollment form"',                         "specialty_pharmacy"),
+    ('filetype:pdf "prescription referral form"',                        "specialty_pharmacy"),
+    ('filetype:pdf "therapy initiation form"',                           "specialty_pharmacy"),
+
+    # ── Form Repository Dorks ─────────────────────────────────────────────────
+    ('inurl:prior-authorization filetype:pdf',                           "repositories"),
+    ('inurl:priorauth filetype:pdf',                                     "repositories"),
+    ('inurl:forms filetype:pdf "prior authorization"',                   "repositories"),
+    ('intitle:"Prior Authorization" filetype:pdf',                       "repositories"),
+    ('intitle:"Authorization Request Form" filetype:pdf',                "repositories"),
+    ('filetype:pdf site:sharepoint.com "prior authorization"',           "repositories/sharepoint"),
+    ('filetype:pdf site:box.com "prior authorization"',                  "repositories/box"),
+    ('filetype:pdf site:dropbox.com "prior authorization"',              "repositories/dropbox"),
+
+    # ── State-Specific Medicaid ───────────────────────────────────────────────
+    ('filetype:pdf Texas Medicaid "prior authorization"',                "states/texas"),
+    ('filetype:pdf California Medicaid "prior authorization"',           "states/california"),
+    ('filetype:pdf Florida Medicaid "prior authorization"',              "states/florida"),
+    ('filetype:pdf "New York" Medicaid "prior authorization"',           "states/new_york"),
+    ('filetype:pdf "Rhode Island" Medicaid "prior authorization"',       "states/rhode_island"),
 ]
 
 RESULTS_PER_QUERY = 20   # Google results to scan per query
