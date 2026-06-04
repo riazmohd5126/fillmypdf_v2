@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
 Fillable Prior Authorization PDF Downloader — Reliable Edition
-Uses three free, no-key-required sources to find and download
-fillable prior auth PDFs for autofill testing.
+Uses five free sources to find and download fillable prior auth PDFs.
 
-Sources:
-  1. Wayback Machine CDX API  — searches archive.org for *prior*auth*.pdf
-     URL patterns across the entire crawled web. Downloads from archive.org
-     so URLs never 404.
-  2. Common Crawl CDX API     — searches CC index with URL keyword filter.
-  3. HTML page crawler        — crawls real insurer provider portal pages
-     and harvests embedded PDF links.
+Sources (all free, no credit card):
+  1. Wayback Machine CDX API  — glob patterns like *prior*auth*.pdf across
+     all of archive.org. Downloads served by archive.org — never 404.
+  2. Common Crawl CDX API     — domain + keyword URL filter across CC index.
+  3. HTML page crawler        — crawls real insurer provider portal pages.
+  4. SearXNG                  — open-source meta-search that proxies Google
+     AND Bing dorks. Use any public instance, no account needed.
+  5. Google Custom Search API — 100 free queries/day, needs Google account
+     only (no credit card). Pass --google-key + --google-cx.
 
 All PDFs validated: must be ≥20 KB and have AcroForm fields (fillable).
 
@@ -18,9 +19,24 @@ Requirements:
     pip install requests beautifulsoup4 lxml tqdm pypdf
 
 Usage:
+    # All sources (SearXNG + archives + crawl):
     python get_fillable_prior_auth.py
+
+    # With Google CSE (best targeted results):
+    python get_fillable_prior_auth.py --google-key KEY --google-cx CX
+
+    # Skip slow sources, just run SearXNG:
+    python get_fillable_prior_auth.py --sources searx
+
+    # Custom output folder + verbose:
     python get_fillable_prior_auth.py --output ~/Desktop/pa_forms --verbose
-    python get_fillable_prior_auth.py --sources wayback,crawl   # skip CC
+
+How to get Google CSE key (free, no credit card):
+    1. Go to console.cloud.google.com → New project → Enable "Custom Search API"
+    2. Create API key under "Credentials"
+    3. Go to programmablesearchengine.google.com → New engine → Search the web
+    4. Copy the CX (Search engine ID)
+    → 100 free queries/day, no billing required
 """
 
 import io
@@ -122,6 +138,42 @@ CRAWL_PAGES: list[tuple[str, str]] = [
     ("https://www.cms.gov/medicare/prior-authorization-and-pre-claim-review-initiatives", "cms"),
     ("https://www.molinahealthcare.com/providers/wa/medicaid/auth/priorauth.aspx",   "insurers/molina"),
     ("https://provider.carefirst.com/carefirst-resources/provider/px-clinical-criteria.page", "insurers/bcbs"),
+]
+
+# ── Google dork queries (used by SearXNG and Google CSE) ─────────────────────
+GOOGLE_DORKS: list[tuple[str, str]] = [
+    # (query, output_folder)
+    ('filetype:pdf "prior authorization form" fillable',                        "generic"),
+    ('filetype:pdf "prior authorization request" form fillable',                "generic"),
+    ('filetype:pdf "prior authorization" "patient name" "date of birth" "prescriber"', "generic"),
+    ('filetype:pdf "prior authorization" "fax" "date of birth" "prescriber"',  "generic"),
+    ('filetype:pdf "prior authorization" "procedure code" OR "CPT code"',       "procedure"),
+    ('filetype:pdf "prior authorization" "drug name" OR "NDC"',                 "medication"),
+    ('filetype:pdf "prior authorization" "GLP-1" OR "semaglutide" OR "Ozempic"', "specialty/glp1"),
+    ('filetype:pdf "prior authorization" "biologic" fillable',                  "specialty/biologics"),
+    ('filetype:pdf "prior authorization" "oncology" request',                   "specialty/oncology"),
+    ('filetype:pdf "prior authorization" "rheumatology" fillable',              "specialty/rheumatology"),
+    ('filetype:pdf "prior authorization" "step therapy" form',                  "step_therapy"),
+    ('filetype:pdf "prior authorization" "Adobe LiveCycle"',                    "livecycle"),
+    ('filetype:pdf "prior authorization" site:uhc.com',                         "insurers/uhc"),
+    ('filetype:pdf "prior authorization" site:cigna.com',                       "insurers/cigna"),
+    ('filetype:pdf "prior authorization" site:aetna.com',                       "insurers/aetna"),
+    ('filetype:pdf "prior authorization" site:anthem.com',                      "insurers/anthem"),
+    ('filetype:pdf "prior authorization" site:humana.com',                      "insurers/humana"),
+    ('filetype:pdf "prior authorization" site:caremark.com',                    "insurers/caremark"),
+    ('filetype:pdf "prior authorization" site:optumrx.com',                     "insurers/optum"),
+    ('filetype:pdf "prior authorization" site:cms.gov',                         "cms"),
+    ('filetype:pdf "prior authorization" site:medicaid.gov',                    "medicaid"),
+]
+
+# ── Public SearXNG instances (try in order, skip if down) ────────────────────
+SEARX_INSTANCES: list[str] = [
+    "https://searx.be",
+    "https://searxng.site",
+    "https://search.ononoki.org",
+    "https://paulgo.io",
+    "https://searx.tiekoetter.com",
+    "https://searx.colbster937.dev",
 ]
 
 # ── HTTP session ──────────────────────────────────────────────────────────────
@@ -288,6 +340,132 @@ def crawl_page(page_url: str) -> list[str]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Source 4 — SearXNG  (proxies Google + Bing dorks, no account needed)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_searx_instance: str = ""
+
+def get_searx_instance() -> str:
+    """Return the first reachable SearXNG instance."""
+    global _searx_instance
+    if _searx_instance:
+        return _searx_instance
+    for base in SEARX_INSTANCES:
+        try:
+            r = SESSION.get(
+                f"{base}/search",
+                params={"q": "test", "format": "json"},
+                timeout=8,
+                headers={"Accept": "application/json"},
+            )
+            if r.status_code == 200:
+                _searx_instance = base
+                log.info("SearXNG: using %s", base)
+                return base
+        except Exception:
+            continue
+    log.warning("SearXNG: no reachable instance found")
+    return ""
+
+
+def searx_search(query: str, max_results: int = 50) -> list[str]:
+    """
+    Search via a public SearXNG instance.
+    Sends real Google/Bing dorks — filetype:pdf is honored.
+    Returns PDF URLs extracted from results.
+    """
+    base = get_searx_instance()
+    if not base:
+        return []
+
+    urls: list[str] = []
+    for page in range(1, (max_results // 10) + 2):
+        params = {
+            "q":       query,
+            "format":  "json",
+            "engines": "google,bing,duckduckgo",
+            "pageno":  page,
+        }
+        try:
+            resp = SESSION.get(
+                f"{base}/search",
+                params=params,
+                timeout=20,
+                headers={"Accept": "application/json"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
+            log.debug("SearXNG error page=%d: %s", page, exc)
+            break
+
+        results = data.get("results", [])
+        if not results:
+            break
+
+        for r in results:
+            url = r.get("url", "")
+            if url and ".pdf" in url.lower():
+                urls.append(url)
+
+        if len(results) < 10:
+            break
+        if len(urls) >= max_results:
+            break
+        time.sleep(random.uniform(1.5, 3.0))
+
+    log.info("  SearXNG '%s'  → %d PDF URLs", query[:65], len(urls))
+    return list(dict.fromkeys(urls))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Source 5 — Google Custom Search API  (optional, 100 free queries/day)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def google_cse_search(query: str, api_key: str, cx: str, max_results: int = 100) -> list[str]:
+    """
+    Google Custom Search JSON API.
+    Supports filetype:pdf natively via fileType param.
+    Free tier: 100 queries/day, Google account only (no credit card).
+
+    Setup (5 min, free):
+      1. console.cloud.google.com → new project → enable "Custom Search API"
+      2. Credentials → Create API key
+      3. programmablesearchengine.google.com → New engine → "Search the whole web"
+      4. Copy CX (Search engine ID)
+    """
+    endpoint = "https://www.googleapis.com/customsearch/v1"
+    urls: list[str] = []
+    start = 1
+
+    clean_q = re.sub(r"filetype:\w+", "", query).strip()
+    ft_match = re.search(r"filetype:(\w+)", query, re.I)
+    filetype = ft_match.group(1) if ft_match else None
+
+    while start <= min(max_results, 91):
+        params: dict = {"key": api_key, "cx": cx, "q": clean_q, "num": 10, "start": start}
+        if filetype:
+            params["fileType"] = filetype
+        try:
+            resp = SESSION.get(endpoint, params=params, timeout=15)
+            resp.raise_for_status()
+            items = resp.json().get("items", [])
+            if not items:
+                break
+            urls.extend(i["link"] for i in items if i.get("link"))
+            start += len(items)
+            if len(items) < 10:
+                break
+        except Exception as exc:
+            log.warning("  Google CSE error: %s", exc)
+            break
+        time.sleep(1.0)
+
+    log.info("  Google CSE '%s'  → %d results", query[:65], len(urls))
+    return urls
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # PDF download + validation
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -383,6 +561,9 @@ def run(
     wb_limit: int,
     cc_limit: int,
     download_delay: float,
+    google_key: str = "",
+    google_cx: str = "",
+    searx_results: int = 30,
 ) -> None:
     base_dir.mkdir(parents=True, exist_ok=True)
     saved = 0
@@ -433,6 +614,35 @@ def run(
                 attempt(url, folder)
             time.sleep(2.0)
 
+    # ── Source 4: SearXNG (Google + Bing dorks via proxy) ────────────────────
+    if "searx" in sources:
+        print(f"\n{'='*62}")
+        print("SOURCE 4 — SearXNG  (Google + Bing dorks, no API key)")
+        print(f"{'='*62}")
+        instance = get_searx_instance()
+        if not instance:
+            print("  No reachable SearXNG instance — skipping this source.")
+        else:
+            print(f"  Using instance: {instance}\n")
+            for query, folder in tqdm(GOOGLE_DORKS, desc="SearXNG", unit="query"):
+                urls = searx_search(query, max_results=searx_results)
+                for url in urls:
+                    attempt(url, folder)
+                time.sleep(random.uniform(3.0, 5.0))
+
+    # ── Source 5: Google Custom Search API ───────────────────────────────────
+    if "google" in sources and google_key and google_cx:
+        print(f"\n{'='*62}")
+        print("SOURCE 5 — Google Custom Search API  (100 free queries/day)")
+        print(f"{'='*62}\n")
+        for query, folder in tqdm(GOOGLE_DORKS, desc="Google CSE", unit="query"):
+            urls = google_cse_search(query, google_key, google_cx)
+            for url in urls:
+                attempt(url, folder)
+            time.sleep(1.5)
+    elif "google" in sources and not (google_key and google_cx):
+        print("\nGoogle CSE: --google-key and --google-cx not provided — skipping.")
+
     # ── Summary ───────────────────────────────────────────────────────────────
     log_file = base_dir / "download_log.txt"
     with open(log_file, "w") as f:
@@ -470,14 +680,22 @@ def main() -> None:
         default=str(Path.home() / "prior_auth_forms"),
         help="Output folder (default: ~/prior_auth_forms)")
     parser.add_argument("--sources",
-        default="wayback,commoncrawl,crawl",
-        help="Comma-separated sources to use: wayback,commoncrawl,crawl (default: all three)")
+        default="searx,wayback,commoncrawl,crawl",
+        help="Comma-separated sources: searx,wayback,commoncrawl,crawl,google (default: all except google)")
     parser.add_argument("--wb-limit", type=int, default=100,
         help="Max Wayback CDX results per pattern (default: 100)")
     parser.add_argument("--cc-limit", type=int, default=200,
         help="Max Common Crawl CDX results per domain (default: 200)")
     parser.add_argument("--download-delay", type=float, default=1.0,
         help="Seconds between downloads (default: 1.0)")
+    parser.add_argument("--searx-results", type=int, default=30,
+        help="Max PDF results per SearXNG query (default: 30)")
+    parser.add_argument("--google-key",
+        default=os.environ.get("GOOGLE_CSE_API_KEY", ""),
+        help="Google Custom Search API key (or set GOOGLE_CSE_API_KEY env var)")
+    parser.add_argument("--google-cx",
+        default=os.environ.get("GOOGLE_CSE_CX", ""),
+        help="Google Custom Search Engine ID (or set GOOGLE_CSE_CX env var)")
     parser.add_argument("--verbose", "-v", action="store_true",
         help="Show debug logs including skip reasons")
 
@@ -493,10 +711,14 @@ def main() -> None:
         log.warning("pypdf not installed — fillable check disabled. Run: pip install pypdf")
 
     sources = {s.strip().lower() for s in args.sources.split(",")}
-    valid = {"wayback", "commoncrawl", "crawl"}
+    valid = {"wayback", "commoncrawl", "crawl", "searx", "google"}
     bad = sources - valid
     if bad:
         parser.error(f"Unknown source(s): {bad}. Valid: {valid}")
+
+    if "google" in sources and not (args.google_key and args.google_cx):
+        print("NOTE: 'google' source requires --google-key and --google-cx (or env vars).")
+        print("      See docstring for free setup instructions.\n")
 
     run(
         base_dir=Path(args.output),
@@ -504,6 +726,9 @@ def main() -> None:
         wb_limit=args.wb_limit,
         cc_limit=args.cc_limit,
         download_delay=args.download_delay,
+        google_key=args.google_key,
+        google_cx=args.google_cx,
+        searx_results=args.searx_results,
     )
 
 
