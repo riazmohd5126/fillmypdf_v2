@@ -236,11 +236,16 @@ QUERIES = [
     ('filetype:pdf "prescriber name" "diagnosis" "medication"',          "combined"),
     ('filetype:pdf "office contact" "phone number" "fax number"',        "combined"),
 
-    # ── NEW: Additional Repository Dorks ─────────────────────────────────────
-    ('inurl:documents filetype:pdf "prior authorization"',               "repositories"),
-    ('intitle:"Prior Authorization Request Form" filetype:pdf',          "repositories"),
-    ('intitle:"Medication Prior Authorization" filetype:pdf',            "repositories"),
+    # ── NEW: intitle + inurl variants ────────────────────────────────────────
     ('intitle:"Coverage Determination Request Form" filetype:pdf',       "repositories"),
+
+    # ── 6 new dorks (checked against existing list) ───────────────────────────
+    ('filetype:pdf "prior authorization" "fax"',                         "fax"),
+    ('filetype:pdf "standardized prior authorization" inurl:form',       "universal"),
+    ('filetype:pdf "medication prior authorization" (site:.gov OR site:.us)', "medicaid/gov"),
+    ('filetype:pdf "PA request form" (site:caremark.com OR site:express-scripts.com)', "pbm/caremark"),
+    ('filetype:pdf "prior authorization" (site:uhcprovider.com OR site:aetna.com OR site:cigna.com)', "insurers/uhc"),
+    ('filetype:pdf intitle:"prior authorization" "section"',             "repositories"),
 ]
 
 RESULTS_PER_QUERY = 30   # Google results to scan per query (increase for more PDFs)
@@ -261,6 +266,29 @@ SESSION.headers.update({
 
 seen_urls   = set()
 seen_hashes = set()
+
+# Persistent harvest log — survives between runs so nothing is downloaded twice
+HARVEST_LOG = OUTPUT_DIR / ".harvested_urls.txt"
+
+
+def load_harvest_log() -> None:
+    """Load previously harvested URLs into seen_urls so they are skipped."""
+    if not HARVEST_LOG.exists():
+        return
+    with open(HARVEST_LOG) as f:
+        for line in f:
+            url = line.strip()
+            if url:
+                seen_urls.add(url)
+    if seen_urls:
+        log.info("Loaded %d already-harvested URLs from log — will skip these.", len(seen_urls))
+
+
+def record_harvested(url: str) -> None:
+    """Append a successfully downloaded URL to the persistent log."""
+    HARVEST_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with open(HARVEST_LOG, "a") as f:
+        f.write(url + "\n")
 
 
 def make_driver() -> webdriver.Chrome:
@@ -362,12 +390,16 @@ def download(url: str, folder: Path) -> bool:
         dest = folder / f"{dest.stem}_{h[:6]}.pdf"
 
     dest.write_bytes(data)
+    record_harvested(url)
     log.info("  SAVED  %s  (%d KB)", dest.name, len(data) // 1024)
     return True
 
 
 def run():
+    load_harvest_log()
+
     print(f"\nOutput folder: {OUTPUT_DIR}")
+    print(f"Already harvested (will skip): {len(seen_urls)} URLs")
     print("Opening Chrome — you will see a browser window appear.")
     print("If Google shows a CAPTCHA, solve it in that window,")
     print("then press Enter in this terminal to continue.\n")
