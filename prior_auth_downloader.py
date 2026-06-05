@@ -246,6 +246,14 @@ QUERIES = [
     ('filetype:pdf "PA request form" (site:caremark.com OR site:express-scripts.com)', "pbm/caremark"),
     ('filetype:pdf "prior authorization" (site:uhcprovider.com OR site:aetna.com OR site:cigna.com)', "insurers/uhc"),
     ('filetype:pdf intitle:"prior authorization" "section"',             "repositories"),
+
+    # ── 6 new insurer / drug dorks ────────────────────────────────────────────
+    ('site:aetna.com filetype:pdf ("precertification" OR "prior authorization") inurl:documents-forms', "insurers/aetna"),
+    ('site:humana.com filetype:pdf ("preauthorization" OR "prior authorization")',  "insurers/humana"),
+    ('site:bcbs filetype:pdf "prior authorization" form',                "insurers/bcbs"),
+    ('site:highmark.com filetype:pdf "prior authorization"',             "insurers/highmark"),
+    ('site:floridablue.com filetype:pdf "prior authorization"',          "insurers/floridablue"),
+    ('filetype:pdf "prior authorization" ("injectable" OR "specialty" OR "medication")', "medication"),
 ]
 
 RESULTS_PER_QUERY = 30   # Google results to scan per query (increase for more PDFs)
