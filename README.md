@@ -27,6 +27,71 @@ Canonical roadmap: **`docs/FEATURE_MATRIX_ROUTE.md`** · React matrix viewer · 
 
 ---
 
+## Running Fully On-Prem (HIPAA / Local Qwen)
+
+By default FillMyPDF uses Google Gemini for the AI field-mapping step. For
+HIPAA compliance you can switch to a **self-hosted Qwen model** so **no
+patient data ever leaves your server**. `commonforms` (field detection) and
+all PDF filling already run locally — only the LLM call needs to change.
+
+### Step 1 — Install Ollama and pull a model
+
+```bash
+# macOS
+brew install ollama
+ollama serve &                         # starts on port 11434
+
+# 8 GB Mac (comfortable fit)
+ollama pull qwen2.5:3b-instruct
+
+# 16 GB+ or a dedicated GPU box
+ollama pull qwen2.5:7b-instruct
+```
+
+To use a **separate machine** (recommended for production), replace
+`localhost` below with that host's IP:
+
+```
+LOCAL_AI_BASE_URL=http://192.168.1.42:11434/v1
+LOCAL_AI_MODEL=qwen2.5:7b-instruct
+```
+
+### Step 2 — Configure the app
+
+In your `.env` file:
+
+```env
+AI_PROVIDER=local          # route all LLM calls to Ollama instead of Gemini
+LOCAL_AI_BASE_URL=http://localhost:11434/v1
+LOCAL_AI_MODEL=qwen2.5:3b-instruct
+LOCAL_AI_API_KEY=ollama    # Ollama ignores this; any non-empty value works
+
+# Hard guardrail: reject any request that would send data to an external host
+AI_LOCAL_ONLY=True
+```
+
+No Gemini API key is needed in local mode. In the UI the dashboard navbar
+will show a **"Local Qwen · HIPAA Mode"** green badge confirming the setting.
+
+### Step 3 — Verify
+
+```bash
+curl -s http://localhost:8000/ai-provider | python3 -m json.tool
+# Should show: "ai_provider": "local", "hipaa_mode": true
+```
+
+Batch fill requests can also override the provider per-request:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/batch/fill-csv \
+  -H "X-API-Key: <your-key>" \
+  -F "pdf_template=@form.pdf" \
+  -F "csv_file=@data.csv" \
+  -F "ai_provider=local"   # no ai_api_key needed
+```
+
+---
+
 ## 🚀 Quick Start
 
 ### **1. Extract Project**

@@ -8,6 +8,7 @@ PDF Utility Routes — Merge & Split
 
 from __future__ import annotations
 
+import io
 import uuid
 from pathlib import Path
 from typing import List, Optional
@@ -60,7 +61,7 @@ async def merge_pdfs(
         if len(raw) > MAX_PDF_BYTES:
             raise HTTPException(400, f"File {i + 1} exceeds 50 MiB limit.")
         try:
-            reader = PdfReader(raw)  # type: ignore[arg-type]
+            reader = PdfReader(io.BytesIO(raw))
             writer.append(reader)
         except Exception as exc:
             raise HTTPException(422, f"Could not read file {i + 1}: {exc}")
@@ -122,7 +123,7 @@ async def split_pdf(
         raise HTTPException(400, "File exceeds 50 MiB limit.")
 
     try:
-        reader = PdfReader(raw)  # type: ignore[arg-type]
+        reader = PdfReader(io.BytesIO(raw))
     except Exception as exc:
         raise HTTPException(422, f"Could not read PDF: {exc}")
 

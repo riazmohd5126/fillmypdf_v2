@@ -163,6 +163,10 @@ class TemplateFillResponse(BaseModel):
     cache_hit: bool = False
     download_url: str
     message: Optional[str] = None
+    # Optional verbose fields — only populated when return_mappings=true
+    mappings: Optional[Dict[str, str]] = None
+    confidence: Optional[Dict[str, float]] = None
+    field_labels: Optional[Dict[str, str]] = None
 
 
 class TemplateBatchResponse(BaseModel):

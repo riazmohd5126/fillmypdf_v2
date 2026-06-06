@@ -16,6 +16,7 @@ import json
 
 from ...services.batch_fill_service import BatchFillService
 from ...services.template_cache import TemplateCache
+from ...services.ai_provider import prepare_ai_config
 from ...config import settings
 from ..dependencies.auth import require_api_key, require_admin
 from ...models import FormTemplateInspectionResponse
@@ -100,20 +101,25 @@ async def batch_fill_json(
         description="JSON array of data objects",
         examples=[EX_JSON_RECORDS_TWO],
     ),
-    ai_api_key: str = Form(
-        ...,
-        description="AI provider API key",
+    ai_api_key: Optional[str] = Form(
+        None,
+        description="AI provider API key (required for Gemini; omit when ai_provider='local')",
         examples=[EX_AI_API_KEY],
     ),
-    ai_base_url: str = Form(
-        default=EX_AI_BASE_URL,
-        description="AI API base URL",
+    ai_base_url: Optional[str] = Form(
+        None,
+        description="AI API base URL (leave blank to use server default)",
         examples=[EX_AI_BASE_URL],
     ),
-    ai_model: str = Form(
-        default="gemini-2.5-flash",
-        description="AI model name",
+    ai_model: Optional[str] = Form(
+        None,
+        description="AI model name (leave blank to use server default)",
         examples=[EX_AI_MODEL],
+    ),
+    ai_provider: Optional[str] = Form(
+        None,
+        description="LLM provider override: 'gemini' (cloud) or 'local' (on-prem Qwen via Ollama/vLLM). "
+                    "Omit to use the server-level AI_PROVIDER setting.",
     ),
     dpi: int = Form(
         default=200,
@@ -132,11 +138,26 @@ async def batch_fill_json(
     Pass `profile_ids` (comma-separated) to merge multiple profiles — e.g. a
     patient profile and a provider profile — as base data for every record.
 
+    **Local/HIPAA mode:** set `ai_provider=local` (or configure `AI_PROVIDER=local`
+    server-side) to route all LLM calls to your on-prem Ollama/vLLM server.
+    No `ai_api_key` is needed in that case.
+
     **Returns:** ZIP file with filled PDFs + batch_report.json
     """
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(400, "Template must be a PDF file")
-    
+
+    # Resolve provider (server default, per-request override, local vs cloud)
+    try:
+        resolved_key, resolved_url, resolved_model = prepare_ai_config(
+            request_api_key=ai_api_key,
+            request_base_url=ai_base_url,
+            request_model=ai_model,
+            provider_hint=ai_provider,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
     # Parse JSON array
     try:
         data_array = json.loads(user_data_array)
@@ -168,9 +189,9 @@ async def batch_fill_json(
         result = batch_service.process_batch_json(
             template_pdf_path=template_path,
             user_data_array=data_array,
-            ai_api_key=ai_api_key,
-            ai_base_url=ai_base_url,
-            ai_model=ai_model,
+            ai_api_key=resolved_key,
+            ai_base_url=resolved_url,
+            ai_model=resolved_model,
             batch_id=batch_id,
             dpi=dpi,
             profile_id=profile_id,
@@ -202,20 +223,24 @@ async def batch_fill_json(
 async def batch_fill_csv(
     pdf_template: UploadFile = File(..., description="PDF template to fill"),
     csv_file: UploadFile = File(..., description="CSV file with data"),
-    ai_api_key: str = Form(
-        ...,
-        description="AI provider API key",
+    ai_api_key: Optional[str] = Form(
+        None,
+        description="AI provider API key (required for Gemini; omit when ai_provider='local')",
         examples=[EX_AI_API_KEY],
     ),
-    ai_base_url: str = Form(
-        default=EX_AI_BASE_URL,
-        description="AI API base URL",
+    ai_base_url: Optional[str] = Form(
+        None,
+        description="AI API base URL (leave blank to use server default)",
         examples=[EX_AI_BASE_URL],
     ),
-    ai_model: str = Form(
-        default="gemini-2.5-flash",
-        description="AI model name",
+    ai_model: Optional[str] = Form(
+        None,
+        description="AI model name (leave blank to use server default)",
         examples=[EX_AI_MODEL],
+    ),
+    ai_provider: Optional[str] = Form(
+        None,
+        description="'gemini' or 'local' — overrides server AI_PROVIDER setting for this request",
     ),
     dpi: int = Form(
         default=200,
@@ -241,7 +266,17 @@ async def batch_fill_csv(
     
     if not csv_file.filename.lower().endswith('.csv'):
         raise HTTPException(400, "Data file must be CSV format")
-    
+
+    try:
+        resolved_key, resolved_url, resolved_model = prepare_ai_config(
+            request_api_key=ai_api_key,
+            request_base_url=ai_base_url,
+            request_model=ai_model,
+            provider_hint=ai_provider,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
     # Generate job ID
     batch_id = f"csv_{uuid.uuid4().hex[:8]}"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -262,9 +297,9 @@ async def batch_fill_csv(
             template_pdf_path=template_path,
             csv_content=csv_content,
             csv_filename=csv_file.filename,
-            ai_api_key=ai_api_key,
-            ai_base_url=ai_base_url,
-            ai_model=ai_model,
+            ai_api_key=resolved_key,
+            ai_base_url=resolved_url,
+            ai_model=resolved_model,
             batch_id=batch_id,
             dpi=dpi,
             profile_id=profile_id,
@@ -308,20 +343,24 @@ async def batch_fill_csv(
 async def batch_fill_xlsx(
     pdf_template: UploadFile = File(..., description="PDF template to fill"),
     xlsx_file: UploadFile = File(..., description=".xlsx with header row"),
-    ai_api_key: str = Form(
-        ...,
-        description="AI provider API key",
+    ai_api_key: Optional[str] = Form(
+        None,
+        description="AI provider API key (required for Gemini; omit when ai_provider='local')",
         examples=[EX_AI_API_KEY],
     ),
-    ai_base_url: str = Form(
-        default=EX_AI_BASE_URL,
-        description="AI API base URL",
+    ai_base_url: Optional[str] = Form(
+        None,
+        description="AI API base URL (leave blank to use server default)",
         examples=[EX_AI_BASE_URL],
     ),
-    ai_model: str = Form(
-        default="gemini-2.5-flash",
-        description="AI model name",
+    ai_model: Optional[str] = Form(
+        None,
+        description="AI model name (leave blank to use server default)",
         examples=[EX_AI_MODEL],
+    ),
+    ai_provider: Optional[str] = Form(
+        None,
+        description="'gemini' or 'local' — overrides server AI_PROVIDER setting for this request",
     ),
     dpi: int = Form(
         default=200,
@@ -345,6 +384,16 @@ async def batch_fill_xlsx(
     if not (fn.endswith(".xlsx")):
         raise HTTPException(400, "Data file must be Excel .xlsx format")
 
+    try:
+        resolved_key, resolved_url, resolved_model = prepare_ai_config(
+            request_api_key=ai_api_key,
+            request_base_url=ai_base_url,
+            request_model=ai_model,
+            provider_hint=ai_provider,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
     batch_id = f"xlsx_{uuid.uuid4().hex[:8]}"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     template_path = settings.UPLOAD_DIR / f"{timestamp}_{batch_id}_template.pdf"
@@ -360,9 +409,9 @@ async def batch_fill_xlsx(
             template_pdf_path=template_path,
             xlsx_content=xlsx_content,
             xlsx_filename=xlsx_file.filename or "data.xlsx",
-            ai_api_key=ai_api_key,
-            ai_base_url=ai_base_url,
-            ai_model=ai_model,
+            ai_api_key=resolved_key,
+            ai_base_url=resolved_url,
+            ai_model=resolved_model,
             batch_id=batch_id,
             dpi=dpi,
             profile_id=profile_id,

@@ -104,6 +104,7 @@ def _build_overlay_pdf(
     y: float,
     box_w: float,
     box_h: float,
+    timestamp_text: "str | None" = None,
 ) -> io.BytesIO:
     overlay = io.BytesIO()
     c = canvas.Canvas(overlay, pagesize=(page_w, page_h))
@@ -113,13 +114,26 @@ def _build_overlay_pdf(
     if tw <= 0 or th <= 0:
         raise ESignValidationError("Signature image has no pixels.")
 
-    scale = min(box_w / float(tw), box_h / float(th))
+    # Reserve space at the bottom of the box for the timestamp line
+    TIMESTAMP_FONT_SIZE = max(6.0, box_h * 0.15)
+    timestamp_line_h = TIMESTAMP_FONT_SIZE + 2 if timestamp_text else 0.0
+    img_box_h = box_h - timestamp_line_h
+
+    scale = min(box_w / float(tw), max(1.0, img_box_h) / float(th))
     draw_w = tw * scale
     draw_h = th * scale
+    # Centre the image horizontally; push it up above the timestamp line
     inset_x = x + max(0.0, (box_w - draw_w) / 2.0)
-    inset_y = y + max(0.0, (box_h - draw_h) / 2.0)
+    inset_y = y + timestamp_line_h + max(0.0, (img_box_h - draw_h) / 2.0)
 
     c.drawImage(ir, inset_x, inset_y, width=draw_w, height=draw_h, mask="auto")
+
+    if timestamp_text:
+        c.setFont("Helvetica", TIMESTAMP_FONT_SIZE)
+        c.setFillColorRGB(0.3, 0.3, 0.3)  # dark grey — subtle
+        # Left-align under the signature; clip to box width
+        c.drawString(x + 2, y + 1, timestamp_text)
+
     c.showPage()
     c.save()
     overlay.seek(0)
@@ -139,8 +153,15 @@ def apply_signature_overlay(
     audit_id: str = "",
     signer_name: str = "",
     signer_email: str = "",
+    include_timestamp: bool = True,
+    timestamp_override: "str | None" = None,
 ) -> str:
-    """Apply overlay, embed metadata, write output, return SHA-256 hex digest."""
+    """Apply overlay, embed metadata, write output, return SHA-256 hex digest.
+
+    When ``include_timestamp`` is True a small date/time line is drawn at the
+    bottom of the signature box, e.g. "Signed: 2026-05-30 14:22 UTC".
+    Pass ``timestamp_override`` to supply a custom string (useful in tests).
+    """
     reader = PdfReader(str(input_pdf_path))
     npages = len(reader.pages)
     if npages == 0:
@@ -153,10 +174,20 @@ def apply_signature_overlay(
     page_w = float(mb.width)
     page_h = float(mb.height)
 
+    # Build the timestamp string that will be rendered on the overlay
+    signed_at = datetime.now(timezone.utc)
+    signed_at_iso = signed_at.isoformat()
+    if include_timestamp:
+        ts_text = timestamp_override or signed_at.strftime("Signed: %Y-%m-%d %H:%M UTC")
+    else:
+        ts_text = None
+
     x, y, bw, bh = _bbox_pts(
         page_w, page_h, x_pct=x_pct, y_pct=y_pct, width_pct=width_pct, height_pct=height_pct
     )
-    overlay_buf = _build_overlay_pdf(page_w, page_h, png_bytes, x=x, y=y, box_w=bw, box_h=bh)
+    overlay_buf = _build_overlay_pdf(
+        page_w, page_h, png_bytes, x=x, y=y, box_w=bw, box_h=bh, timestamp_text=ts_text
+    )
     overlay_pdf = PdfReader(overlay_buf)
     overlay_pg = overlay_pdf.pages[0]
 
@@ -165,13 +196,12 @@ def apply_signature_overlay(
     writer.pages[page_index].merge_page(overlay_pg)
 
     # Embed signing metadata into PDF Info dictionary for tamper-evidence
-    signed_at = datetime.now(timezone.utc).isoformat()
     writer.add_metadata(
         {
             "/Producer": "FillMyPDF e-Sign Service",
             "/Creator": "FillMyPDF",
             "/FillMyPDF_AuditID": audit_id,
-            "/FillMyPDF_SignedAt": signed_at,
+            "/FillMyPDF_SignedAt": signed_at_iso,
             "/FillMyPDF_SignerName": signer_name or "",
             "/FillMyPDF_SignerEmail": signer_email or "",
         }

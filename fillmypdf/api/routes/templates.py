@@ -52,6 +52,7 @@ from ...models.template import (
     TemplateSignResponse,
 )
 from ...services.template_service import TemplateService
+from ...services.ai_provider import prepare_ai_config
 from ..dependencies.auth import require_api_key, require_admin
 from ..openapi_form_examples import (
     EX_AI_API_KEY,
@@ -223,7 +224,11 @@ async def get_template_pdf(template_id: str):
 async def fill_template(
     template_id: str,
     background_tasks: BackgroundTasks,
-    ai_api_key: str = Form(..., description="AI provider API key", examples=[EX_AI_API_KEY]),
+    ai_api_key: Optional[str] = Form(
+        None,
+        description="AI provider API key (required for Gemini; omit when ai_provider='local')",
+        examples=[EX_AI_API_KEY],
+    ),
     ai_base_url: str = Form(
         default=EX_AI_BASE_URL,
         description="AI API base URL",
@@ -233,6 +238,10 @@ async def fill_template(
         default="gemini-2.5-flash",
         description="AI model",
         examples=[EX_AI_MODEL],
+    ),
+    ai_provider: Optional[str] = Form(
+        None,
+        description="'gemini' or 'local' — overrides server AI_PROVIDER for this request",
     ),
     user_data: str = Form(
         ...,
@@ -249,6 +258,10 @@ async def fill_template(
         description="Comma-separated profile IDs to merge (e.g. 'prof_abc,prof_xyz'). Takes precedence over profile_id.",
     ),
     dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
+    return_mappings: bool = Form(
+        default=False,
+        description="When true, include per-field mappings, confidence scores, and labels in the response (useful for A/B testing)",
+    ),
 ):
     """
     Fill a stored template with one record.
@@ -276,15 +289,26 @@ async def fill_template(
     parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
 
     try:
+        resolved_key, resolved_url, resolved_model = prepare_ai_config(
+            request_api_key=ai_api_key,
+            request_base_url=ai_base_url,
+            request_model=ai_model,
+            provider_hint=ai_provider,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    try:
         resp = _get_service().fill(
             template_id=template_id,
             user_data=data,
-            ai_api_key=ai_api_key,
-            ai_base_url=ai_base_url,
-            ai_model=ai_model,
+            ai_api_key=resolved_key,
+            ai_base_url=resolved_url,
+            ai_model=resolved_model,
             dpi=dpi,
             profile_id=profile_id,
             profile_ids=parsed_ids,
+            return_mappings=return_mappings,
         )
     except Exception as exc:
         raise HTTPException(500, f"Fill failed: {exc}")
@@ -305,7 +329,11 @@ async def fill_template(
 async def batch_fill_template(
     template_id: str,
     background_tasks: BackgroundTasks,
-    ai_api_key: str = Form(..., examples=[EX_AI_API_KEY]),
+    ai_api_key: Optional[str] = Form(
+        None,
+        description="AI provider API key (required for Gemini; omit when ai_provider='local')",
+        examples=[EX_AI_API_KEY],
+    ),
     ai_base_url: str = Form(
         default=EX_AI_BASE_URL,
         examples=[EX_AI_BASE_URL],
@@ -313,6 +341,10 @@ async def batch_fill_template(
     ai_model: str = Form(
         default="gemini-2.5-flash",
         examples=[EX_AI_MODEL],
+    ),
+    ai_provider: Optional[str] = Form(
+        None,
+        description="'gemini' or 'local' — overrides server AI_PROVIDER for this request",
     ),
     records: str = Form(
         ...,
@@ -355,12 +387,22 @@ async def batch_fill_template(
     parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
 
     try:
+        resolved_key, resolved_url, resolved_model = prepare_ai_config(
+            request_api_key=ai_api_key,
+            request_base_url=ai_base_url,
+            request_model=ai_model,
+            provider_hint=ai_provider,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    try:
         resp = _get_service().fill_batch(
             template_id=template_id,
             records=data_list,
-            ai_api_key=ai_api_key,
-            ai_base_url=ai_base_url,
-            ai_model=ai_model,
+            ai_api_key=resolved_key,
+            ai_base_url=resolved_url,
+            ai_model=resolved_model,
             dpi=dpi,
             profile_id=profile_id,
             profile_ids=parsed_ids,
@@ -609,6 +651,7 @@ async def sign_template(
     signer_name: Optional[str] = Form(None),
     signer_email: Optional[str] = Form(None),
     consent_given: bool = Form(..., description="Signer must explicitly consent (ESIGN Act)"),
+    include_timestamp: bool = Form(True, description="Render 'Signed: YYYY-MM-DD HH:MM UTC' on the signature overlay"),
     pdf_file: Optional[UploadFile] = File(
         None,
         description="Optional filled PDF to sign. If omitted, the raw template PDF is used.",
@@ -711,6 +754,7 @@ async def sign_template(
             audit_id=audit_id,
             signer_name=s_name or "",
             signer_email=s_email or "",
+            include_timestamp=include_timestamp,
         )
     except ESignValidationError as e:
         background_tasks.add_task(_cleanup)

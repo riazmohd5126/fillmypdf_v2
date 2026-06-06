@@ -274,6 +274,16 @@ async def health_check():
     return HealthResponse(status="healthy", version=settings.APP_VERSION)
 
 
+@app.get("/ai-provider", tags=["system"])
+async def get_ai_provider_info():
+    """
+    Returns the active LLM provider configuration (no auth required).
+    The UI uses this to pre-select Gemini vs. Local Qwen and show the HIPAA badge.
+    """
+    from .services.ai_provider import provider_info
+    return provider_info()
+
+
 @app.get("/usage", response_model=UsageStats, tags=["system"])
 async def get_usage():
     """Get global API usage statistics (no auth required)"""

@@ -1,0 +1,45 @@
+{
+  "session_id": "sess_b87473c62d624544",
+  "title": "test2",
+  "status": "complete",
+  "template_id": null,
+  "base_pdf_filename": "signed_70863a2c10b8.pdf",
+  "current_pdf_filename": "signed_sess_b87473c62d624544_step1_f6b508aa1522.pdf",
+  "current_signer_index": 2,
+  "signers": [
+    {
+      "index": 0,
+      "name": "riaz",
+      "email": "riazconnect@gmail.com",
+      "field_key": null,
+      "page_index": 0,
+      "x_pct": 55.0,
+      "y_pct": 5.0,
+      "width_pct": 40.0,
+      "height_pct": 12.0,
+      "status": "signed",
+      "signed_at": "2026-06-05T18:12:22.350330+00:00",
+      "audit_id": "sig_2281d7097e5242dc",
+      "signed_pdf_filename": "signed_sess_b87473c62d624544_step0_4594609bc7cd.pdf"
+    },
+    {
+      "index": 1,
+      "name": "niraj",
+      "email": "riaz.mohd123@yahoo.com",
+      "field_key": null,
+      "page_index": 0,
+      "x_pct": 55.0,
+      "y_pct": 5.0,
+      "width_pct": 40.0,
+      "height_pct": 12.0,
+      "status": "signed",
+      "signed_at": "2026-06-05T18:12:53.983676+00:00",
+      "audit_id": "sig_d5bca34f97184840",
+      "signed_pdf_filename": "signed_sess_b87473c62d624544_step1_f6b508aa1522.pdf"
+    }
+  ],
+  "final_pdf_filename": "signed_sess_b87473c62d624544_step1_f6b508aa1522.pdf",
+  "created_by_key_id": "key_716ba8b9c025",
+  "created_at": "2026-06-05T18:12:06.008744+00:00",
+  "updated_at": "2026-06-05T18:12:53.983682+00:00"
+}

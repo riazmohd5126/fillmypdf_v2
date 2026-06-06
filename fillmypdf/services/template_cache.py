@@ -2,15 +2,26 @@
 Template Mapping Cache
 ======================
 Caches AI field→value mappings keyed by a fingerprint of the form's
-{field_name: inferred_label} dictionary.
+{field_name: inferred_label} dictionary **combined with a hash of the
+normalised user data**.
 
-Why fingerprint labels, not raw PDF bytes?
+Why include user data in the fingerprint?
+  The AI maps *user values* to form fields. Two requests against the same
+  template but with different user data (e.g. Alice vs Bob) must produce
+  different filled PDFs, so their cache entries must be separate. Without
+  user data in the key, the cache would return Alice's values for Bob.
+
+  The user-data hash covers only the *flat* string representation so minor
+  structural differences (structured vs flat bundle) do not cause spurious
+  misses for identical leaf values.
+
+Why fingerprint labels too?
   The same form may be re-converted by commonforms on every batch run,
   producing slightly different binary output. What stays stable is the set
   of detected field names and the text labels next to them. We hash those.
 
-Cache hit means the AI step is skipped entirely — the same form is mapped
-at most once per unique (fields × labels) combination.
+Cache hit means the AI step is skipped entirely — the same (form × data)
+combination is mapped at most once.
 
 Storage layout:
   storage/template_cache/<fingerprint>.json
@@ -76,17 +87,40 @@ class TemplateCache:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def fingerprint(field_labels: Dict[str, str]) -> str:
+    def fingerprint(
+        field_labels: Dict[str, str],
+        user_data: "Optional[Dict]" = None,
+    ) -> str:
         """
-        Stable 32-char hex key from the sorted {field_name: label} dict.
-        Two forms with the same detected fields and labels hash identically.
+        Stable 32-char hex key from the sorted field-label dict **plus** a
+        normalised hash of the user data.
+
+        Including user data ensures that two fill requests for the same
+        template with different records get separate cache entries, avoiding
+        the value-reuse bug where the first user's values would be returned
+        for all subsequent users of the same template.
+
+        Pass ``user_data=None`` (or omit) to get a labels-only fingerprint
+        (e.g. for admin cache listing endpoints).
         """
-        canonical = json.dumps(
+        label_part = json.dumps(
             {k: v for k, v in sorted(field_labels.items())},
             sort_keys=True,
             ensure_ascii=False,
         )
-        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:32]
+        if user_data:
+            # Flatten to a sorted stable string representation.
+            # Extract the "flat" sub-dict if this is a canonical bundle.
+            flat = user_data.get("flat", user_data) if isinstance(user_data, dict) else user_data
+            user_part = json.dumps(
+                {k: str(v) for k, v in sorted(flat.items()) if isinstance(k, str)},
+                sort_keys=True,
+                ensure_ascii=False,
+            )
+        else:
+            user_part = ""
+        combined = f"{label_part}\x00{user_part}"
+        return hashlib.sha256(combined.encode("utf-8")).hexdigest()[:32]
 
     # ------------------------------------------------------------------
     # Read / write

@@ -25,6 +25,8 @@ from ...models import SignatureApplyResponse
 from ...services.esign_service import ESignValidationError, apply_signature_overlay, typed_name_to_png
 from ...services.sign_audit_service import SignAuditService
 from ...services.sign_certificate_service import generate_certificate
+from ...services.signature_detect_service import SignatureDetectService
+from ...services.ai_provider import prepare_ai_config
 from ..dependencies.auth import get_current_key_id, require_admin, require_api_key
 
 
@@ -38,6 +40,7 @@ MAX_PDF_BYTES = 26_214_400       # 25 MiB
 MAX_SIGNATURE_PNG_BYTES = 4_194_304  # 4 MiB
 
 _audit = SignAuditService()
+_detect_svc = SignatureDetectService()
 
 
 def _unlink_if_exists(path: Path) -> None:
@@ -106,6 +109,89 @@ async def get_certificate(audit_id: str):
 
 
 # ---------------------------------------------------------------------------
+# POST /signatures/detect-fields  — auto-detect signature placement zones
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/detect-fields",
+    summary="Auto-detect signature and date fields in a PDF",
+)
+async def detect_signature_fields(
+    file: UploadFile = File(..., description="PDF to analyse"),
+    ai_api_key: Optional[str] = Form(None, description="AI key — enables AI fallback when AcroForm yields nothing. Omit when ai_provider='local'."),
+    ai_base_url: Optional[str] = Form(None, description="Custom AI base URL (leave blank to use server default)"),
+    ai_model: Optional[str] = Form(None, description="AI model name (leave blank to use server default)"),
+    ai_provider: Optional[str] = Form(None, description="'gemini' or 'local' — overrides server AI_PROVIDER for this request"),
+    max_pages: int = Form(3, ge=1, le=10, description="Max pages to analyse with AI fallback"),
+):
+    """
+    Detects signature and date zones in a PDF.
+
+    **Strategy:**
+    1. Reads AcroForm `/Sig` annotations and text fields with "sign"/"date"
+       labels — deterministic, no AI required.
+    2. If nothing found **and** `ai_api_key` is provided, renders each page
+       to an image and asks Gemini to locate signature zones visually.
+
+    Returns a list of suggested ``SignatureField`` objects with percentage
+    coordinates ready to paste into a template manifest or pass directly to
+    `POST /signatures/apply`.
+    """
+    if not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(400, "File must be a PDF.")
+
+    raw = await file.read()
+    if len(raw) > MAX_PDF_BYTES:
+        raise HTTPException(400, f"PDF exceeds {MAX_PDF_BYTES // (1024 * 1024)} MiB limit.")
+
+    try:
+        resolved_key, resolved_url, resolved_model = prepare_ai_config(
+            request_api_key=ai_api_key,
+            request_base_url=ai_base_url,
+            request_model=ai_model,
+            provider_hint=ai_provider,
+            require_cloud_key=False,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    detected = _detect_svc.detect(
+        raw,
+        ai_api_key=resolved_key or None,
+        ai_base_url=resolved_url or None,
+        ai_model=resolved_model,
+        max_pages_ai=max_pages,
+    )
+
+    fields = [
+        {
+            "key": f.key,
+            "label": f.label,
+            "page_index": f.page_index,
+            "x_pct": f.x_pct,
+            "y_pct": f.y_pct,
+            "width_pct": f.width_pct,
+            "height_pct": f.height_pct,
+            "source": f.source,
+            "confidence": f.confidence,
+            "description": f.description,
+        }
+        for f in detected
+    ]
+
+    return {
+        "total": len(fields),
+        "source": "acroform" if all(f["source"] == "acroform" for f in fields) else "mixed" if fields else "none",
+        "fields": fields,
+        "message": (
+            f"Detected {len(fields)} signature zone(s)."
+            if fields else
+            "No signature zones detected. Try providing an ai_api_key for AI-based detection."
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
 # POST /signatures/apply  — main signing endpoint
 # ---------------------------------------------------------------------------
 
@@ -135,6 +221,7 @@ async def apply_visual_signature(
     y_pct: float = Form(5.0, ge=0, le=100, description="Bottom edge of signature box (% of page height)"),
     width_pct: float = Form(40.0, ge=0.1, le=100),
     height_pct: float = Form(12.0, ge=0.1, le=100),
+    include_timestamp: bool = Form(True, description="Render a 'Signed: YYYY-MM-DD HH:MM UTC' line at the bottom of the signature box"),
 ):
     """
     Merges a semi-transparent PNG onto one page inside a rectangle defined by
@@ -211,6 +298,7 @@ async def apply_visual_signature(
                 audit_id=audit_id,
                 signer_name=s_name or "",
                 signer_email=s_email or "",
+                include_timestamp=include_timestamp,
             )
         except ESignValidationError as e:
             raise HTTPException(400, str(e)) from e

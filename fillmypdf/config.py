@@ -45,10 +45,34 @@ class Settings(BaseSettings):
     PROFILES_FREE_LIMIT: int = 1
     PROFILES_PRO_LIMIT: int = -1
     
-    # AI Settings (defaults)
+    # AI Settings (defaults — Gemini cloud)
     DEFAULT_AI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
     DEFAULT_AI_MODEL: str = "gemini-2.5-flash"
     DEFAULT_DPI: int = 200
+
+    # ── LLM Provider toggle ──────────────────────────────────────────────────
+    # AI_PROVIDER: "gemini" uses the cloud Gemini endpoint above.
+    #              "local"  uses the self-hosted Ollama/vLLM server below.
+    #              Per-request ai_provider= form field overrides this for one call.
+    AI_PROVIDER: str = "gemini"
+
+    # Local / on-prem server (Ollama default; vLLM uses port 8000)
+    # For HIPAA: run Ollama on this machine or point at another host on your LAN.
+    LOCAL_AI_BASE_URL: str = "http://localhost:11434/v1"
+    # 8GB Mac default — fits comfortably; bump to qwen2.5:7b if you close other apps.
+    LOCAL_AI_MODEL: str = "qwen2.5:3b-instruct"
+    # Ollama ignores the API key; set any non-empty string.
+    LOCAL_AI_API_KEY: str = "ollama"
+
+    # Hard HIPAA guardrail — when True, reject any base_url that resolves to an
+    # external host (non-loopback, non-RFC-1918).  Prevents accidental PHI egress.
+    AI_LOCAL_ONLY: bool = False
+
+    # Opt-in: include field coordinates (page, x-band, y-band) in the LLM prompt
+    # to help disambiguate identically-labeled fields in different form sections.
+    # Default OFF so existing behaviour / accuracy is unchanged.  A/B-test on your
+    # PA forms and keep only if avg_confidence improves.
+    AI_USE_COORDINATES: bool = False
     
     # CommonForms Settings
     COMMONFORMS_MODEL: str = "FFDNet-S"

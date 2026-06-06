@@ -95,7 +95,19 @@
 
     <!-- Step 4: Position -->
     <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
-      <h2 class="font-semibold text-gray-900 mb-4">Step 4 — Position</h2>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-semibold text-gray-900">Step 4 — Position</h2>
+        <button onclick="detectFields()" id="detect-btn"
+          class="flex items-center gap-1.5 text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg px-3 py-1.5 font-medium hover:bg-indigo-100 transition">
+          🔍 Detect signature spots
+        </button>
+      </div>
+      <!-- Detected fields picker (hidden until detection runs) -->
+      <div id="detected-fields-row" class="hidden mb-4">
+        <label class="text-xs text-gray-500 mb-1 block">Detected zones — click to pre-fill coordinates</label>
+        <div id="detected-fields-list" class="flex flex-wrap gap-2"></div>
+      </div>
+      <div id="detect-status" class="hidden text-xs text-gray-500 mb-3 bg-gray-50 rounded-lg px-3 py-2"></div>
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="text-xs text-gray-500 mb-1 block">Page (0-based)</label>
@@ -128,6 +140,12 @@
         </span>
       </label>
     </div>
+
+    <!-- Timestamp option -->
+    <label class="flex items-center gap-2 text-xs text-gray-600 mb-4 cursor-pointer select-none">
+      <input id="include-timestamp" type="checkbox" checked class="w-4 h-4 accent-indigo-600"/>
+      <span>Show <strong>"Signed: date &amp; time"</strong> beneath the signature on the PDF</span>
+    </label>
 
     <!-- Submit -->
     <button id="submit-btn" onclick="submitSignature()"
@@ -207,6 +225,62 @@
   canvas.addEventListener('pointerup', () => drawing = false);
   canvas.addEventListener('pointerleave', () => drawing = false);
 
+  // ── Signature field detection ─────────────────────────────────────────────
+  async function detectFields() {
+    const pdfFile = document.getElementById('pdf-file').files[0];
+    if (!pdfFile) { alert('Upload a PDF first, then click Detect.'); return; }
+    const key = getKey();
+    if (!key) { alert('Set your API key first.'); return; }
+
+    const btn = document.getElementById('detect-btn');
+    const status = document.getElementById('detect-status');
+    btn.disabled = true; btn.textContent = '⏳ Detecting…';
+    status.textContent = 'Analysing PDF for signature zones…';
+    status.classList.remove('hidden');
+    document.getElementById('detected-fields-row').classList.add('hidden');
+
+    try {
+      const fd = new FormData();
+      fd.append('file', pdfFile);
+      const r = await fetch(`${API_BASE}/api/v1/signatures/detect-fields`, {
+        method: 'POST', headers: { 'X-API-Key': key }, body: fd,
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+
+      if (!data.fields || data.fields.length === 0) {
+        status.textContent = data.message || 'No signature zones detected automatically. Enter coordinates manually.';
+      } else {
+        status.textContent = data.message || `${data.total} zone(s) detected via ${data.source}.`;
+        const list = document.getElementById('detected-fields-list');
+        list.innerHTML = '';
+        data.fields.forEach(f => {
+          const badge = document.createElement('button');
+          badge.type = 'button';
+          badge.className = 'text-xs px-2.5 py-1 rounded-full border ' +
+            (f.source === 'acroform'
+              ? 'bg-green-50 text-green-800 border-green-200 hover:bg-green-100'
+              : 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100');
+          badge.title = f.description || '';
+          badge.textContent = `${f.source === 'acroform' ? '✅' : '🤖'} ${f.label} (p${f.page_index})`;
+          badge.addEventListener('click', () => {
+            document.getElementById('page-idx').value = f.page_index;
+            document.getElementById('x-pct').value = f.x_pct;
+            document.getElementById('y-pct').value = f.y_pct;
+            document.getElementById('w-pct').value = f.width_pct;
+            status.textContent = `Applied coordinates for "${f.label}" (source: ${f.source}).`;
+          });
+          list.appendChild(badge);
+        });
+        document.getElementById('detected-fields-row').classList.remove('hidden');
+      }
+    } catch(e) {
+      status.textContent = `Detection failed: ${e.message}`;
+    } finally {
+      btn.disabled = false; btn.textContent = '🔍 Detect signature spots';
+    }
+  }
+
   function clearCanvas() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
@@ -258,6 +332,7 @@
     fd.append('width_pct', document.getElementById('w-pct').value);
     fd.append('height_pct', '12');
     fd.append('consent_given', 'true');
+    fd.append('include_timestamp', document.getElementById('include-timestamp').checked ? 'true' : 'false');
 
     const signerName = document.getElementById('signer-name').value.trim();
     const signerEmail = document.getElementById('signer-email').value.trim();

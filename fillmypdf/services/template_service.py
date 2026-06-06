@@ -140,6 +140,7 @@ class TemplateService:
         dpi: int = 200,
         profile_id: Optional[str] = None,
         profile_ids: Optional[List[str]] = None,
+        return_mappings: bool = False,
     ) -> TemplateFillResponse:
         """
         Fill one record against the stored template PDF.
@@ -196,6 +197,9 @@ class TemplateService:
             cache_hit=result.get("cache_hit", False),
             download_url=f"/api/v1/templates/download/{output_filename}",
             message=result.get("error"),
+            mappings=result.get("mappings") if return_mappings else None,
+            confidence=result.get("confidence") if return_mappings else None,
+            field_labels=result.get("field_labels") if return_mappings else None,
         )
 
     # ------------------------------------------------------------------

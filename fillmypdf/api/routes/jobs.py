@@ -51,6 +51,7 @@ from ...models.job import (
 )
 from ...repositories.job_repository import JobRepository
 from ...services.job_runner import get_runner
+from ...services.ai_provider import prepare_ai_config
 from ..dependencies.auth import require_api_key, get_current_key_id
 from ..openapi_form_examples import (
     EX_AI_API_KEY,
@@ -93,7 +94,11 @@ async def submit_batch_job(
         description="JSON array of patient records",
         examples=[EX_JSON_RECORDS_TWO],
     ),
-    ai_api_key: str = Form(..., examples=[EX_AI_API_KEY]),
+    ai_api_key: Optional[str] = Form(
+        None,
+        description="AI provider API key (required for Gemini; omit when ai_provider='local')",
+        examples=[EX_AI_API_KEY],
+    ),
     ai_base_url: str = Form(
         default=EX_AI_BASE_URL,
         examples=[EX_AI_BASE_URL],
@@ -101,6 +106,10 @@ async def submit_batch_job(
     ai_model: str = Form(
         default="gemini-2.5-flash",
         examples=[EX_AI_MODEL],
+    ),
+    ai_provider: Optional[str] = Form(
+        None,
+        description="'gemini' or 'local' — overrides server AI_PROVIDER for this request",
     ),
     dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
     profile_id: Optional[str] = Form(None, examples=[EX_PROFILE_ID]),
@@ -143,13 +152,23 @@ async def submit_batch_job(
     key_id = get_current_key_id(request)
     parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
 
+    try:
+        resolved_key, resolved_url, resolved_model = prepare_ai_config(
+            request_api_key=ai_api_key,
+            request_base_url=ai_base_url,
+            request_model=ai_model,
+            provider_hint=ai_provider,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
     job = get_runner().submit_batch(
         records=data_list,
         template_pdf_bytes=pdf_bytes,
         template_filename=file.filename,
-        ai_api_key=ai_api_key,
-        ai_base_url=ai_base_url,
-        ai_model=ai_model,
+        ai_api_key=resolved_key,
+        ai_base_url=resolved_url,
+        ai_model=resolved_model,
         dpi=dpi,
         profile_id=profile_id,
         profile_ids=parsed_ids,
@@ -189,7 +208,11 @@ async def submit_template_batch_job(
         description="JSON array of patient records",
         examples=[EX_JSON_RECORDS_TWO],
     ),
-    ai_api_key: str = Form(..., examples=[EX_AI_API_KEY]),
+    ai_api_key: Optional[str] = Form(
+        None,
+        description="AI provider API key (required for Gemini; omit when ai_provider='local')",
+        examples=[EX_AI_API_KEY],
+    ),
     ai_base_url: str = Form(
         default=EX_AI_BASE_URL,
         examples=[EX_AI_BASE_URL],
@@ -197,6 +220,10 @@ async def submit_template_batch_job(
     ai_model: str = Form(
         default="gemini-2.5-flash",
         examples=[EX_AI_MODEL],
+    ),
+    ai_provider: Optional[str] = Form(
+        None,
+        description="'gemini' or 'local' — overrides server AI_PROVIDER for this request",
     ),
     dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
     profile_id: Optional[str] = Form(None, examples=[EX_PROFILE_ID]),
@@ -227,12 +254,22 @@ async def submit_template_batch_job(
     key_id = get_current_key_id(request)
     parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
 
+    try:
+        resolved_key, resolved_url, resolved_model = prepare_ai_config(
+            request_api_key=ai_api_key,
+            request_base_url=ai_base_url,
+            request_model=ai_model,
+            provider_hint=ai_provider,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
     job = get_runner().submit_template_batch(
         template_id=template_id,
         records=data_list,
-        ai_api_key=ai_api_key,
-        ai_base_url=ai_base_url,
-        ai_model=ai_model,
+        ai_api_key=resolved_key,
+        ai_base_url=resolved_url,
+        ai_model=resolved_model,
         dpi=dpi,
         profile_id=profile_id,
         profile_ids=parsed_ids,
@@ -264,7 +301,11 @@ async def submit_xlsx_job(
     request: Request,
     file: UploadFile = File(..., description="PDF template"),
     xlsx_file: UploadFile = File(..., description="Excel .xlsx (header row + data)"),
-    ai_api_key: str = Form(..., examples=[EX_AI_API_KEY]),
+    ai_api_key: Optional[str] = Form(
+        None,
+        description="AI provider API key (required for Gemini; omit when ai_provider='local')",
+        examples=[EX_AI_API_KEY],
+    ),
     ai_base_url: str = Form(
         default=EX_AI_BASE_URL,
         examples=[EX_AI_BASE_URL],
@@ -272,6 +313,10 @@ async def submit_xlsx_job(
     ai_model: str = Form(
         default="gemini-2.5-flash",
         examples=[EX_AI_MODEL],
+    ),
+    ai_provider: Optional[str] = Form(
+        None,
+        description="'gemini' or 'local' — overrides server AI_PROVIDER for this request",
     ),
     dpi: int = Form(default=200, ge=150, le=300, examples=[200]),
     profile_id: Optional[str] = Form(None, examples=[EX_PROFILE_ID]),
@@ -295,13 +340,23 @@ async def submit_xlsx_job(
     parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
 
     try:
+        resolved_key, resolved_url, resolved_model = prepare_ai_config(
+            request_api_key=ai_api_key,
+            request_base_url=ai_base_url,
+            request_model=ai_model,
+            provider_hint=ai_provider,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    try:
         job = get_runner().submit_xlsx_batch(
             template_pdf_bytes=pdf_bytes,
             xlsx_bytes=xlsx_bytes,
             xlsx_filename=xlsx_file.filename or "data.xlsx",
-            ai_api_key=ai_api_key,
-            ai_base_url=ai_base_url,
-            ai_model=ai_model,
+            ai_api_key=resolved_key,
+            ai_base_url=resolved_url,
+            ai_model=resolved_model,
             dpi=dpi,
             profile_id=profile_id,
             profile_ids=parsed_ids,

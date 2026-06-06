@@ -13,6 +13,88 @@ from .template_cache import MappingEntry, TemplateCache
 from ..config import settings
 
 
+# ---------------------------------------------------------------------------
+# Prompt context builder (pluggable, opt-in coordinate enhancement)
+# ---------------------------------------------------------------------------
+
+def _build_labeled_fields(
+    fields_info: list[dict],
+    field_labels: dict[str, str],
+) -> list[dict]:
+    """
+    Build the list of field descriptors sent to the LLM.
+
+    When ``settings.AI_USE_COORDINATES`` is False (default) this is identical
+    to the previous behaviour: {field_name, type, label}.
+
+    When True it additionally includes coarse positional context:
+      - page   (0-based)
+      - x_band ("left" | "center" | "right" — thirds of page width)
+      - y_band ("top" | "middle" | "bottom" — thirds of page height)
+
+    The bands let the LLM reason that e.g. "Patient Phone" at the bottom of
+    page 0 is different from "Physician Phone" at the top, even though both
+    have a label containing "Phone".
+
+    Page width/height are not available here (we only have PDF-point coords
+    from pdfplumber), so we use percentile ranks within the page instead.
+    """
+    use_coords = settings.AI_USE_COORDINATES
+
+    if not use_coords:
+        return [
+            {
+                "field_name": f["name"],
+                "type": "textbox" if "/Tx" in f["type"] else "checkbox",
+                "label": field_labels.get(f["name"], f["name"]),
+            }
+            for f in fields_info
+        ]
+
+    # Compute per-page percentile ranks for coarse band assignment
+    # Group x0 and y values by page
+    pages: dict[int, list[dict]] = {}
+    for f in fields_info:
+        pages.setdefault(f["page"], []).append(f)
+
+    page_ranges: dict[int, dict] = {}
+    for pg, pg_fields in pages.items():
+        xs = [f["x0"] for f in pg_fields]
+        ys = [f["y"] for f in pg_fields]
+        page_ranges[pg] = {
+            "x_min": min(xs), "x_max": max(xs) or 1,
+            "y_min": min(ys), "y_max": max(ys) or 1,
+        }
+
+    def _band(val: float, lo: float, hi: float) -> str:
+        rng = hi - lo or 1.0
+        pct = (val - lo) / rng
+        if pct < 0.33:
+            return "low"
+        if pct < 0.67:
+            return "mid"
+        return "high"
+
+    result = []
+    for f in fields_info:
+        ftype = "textbox" if "/Tx" in f["type"] else "checkbox"
+        label = field_labels.get(f["name"], f["name"])
+        pr = page_ranges.get(f["page"], {"x_min": 0, "x_max": 1, "y_min": 0, "y_max": 1})
+        # x_band: left/center/right on the page (pdfplumber x0)
+        x_band = _band(f["x0"], pr["x_min"], pr["x_max"])
+        # y_band: top/middle/bottom — note pdfplumber y=0 is page top
+        y_band = _band(f["y"], pr["y_min"], pr["y_max"])
+        row: dict = {
+            "field_name": f["name"],
+            "type": ftype,
+            "label": label,
+            "page": f["page"],
+            "position": f"x:{x_band} y:{y_band}",
+        }
+        result.append(row)
+    return result
+
+
 class VisionService:
     """AI-powered PDF field mapping and filling"""
 
@@ -223,7 +305,9 @@ class VisionService:
         Plain string values are also accepted (confidence defaults to 1.0).
         """
         # ── Cache lookup ──────────────────────────────────────────────────────
-        fp = self._cache.fingerprint(field_labels)
+        # Include user_data in fingerprint so different records for the same
+        # template get separate cache entries (prevents value-reuse across users).
+        fp = self._cache.fingerprint(field_labels, user_data=user_data)
         cached = self._cache.get(fp)
         if cached is not None:
             values = {k: v.value for k, v in cached.items() if v.value}
@@ -239,11 +323,7 @@ class VisionService:
             flat_data = user_data
             structured_data = None
 
-        labeled_fields = []
-        for f in fields_info:
-            ftype = "textbox" if "/Tx" in f["type"] else "checkbox"
-            label = field_labels.get(f["name"], f["name"])
-            labeled_fields.append({"field_name": f["name"], "type": ftype, "label": label})
+        labeled_fields = _build_labeled_fields(fields_info, field_labels)
 
         prompt = (
             "You are a form-filling assistant.\n\n"

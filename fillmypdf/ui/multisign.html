@@ -78,6 +78,12 @@
           </span>
         </label>
 
+        <!-- Timestamp option -->
+        <label class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
+          <input id="sp-timestamp" type="checkbox" checked class="w-4 h-4 accent-indigo-600"/>
+          <span>Show <strong>"Signed: date &amp; time"</strong> beneath signature on PDF</span>
+        </label>
+
         <div id="sp-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
 
         <button onclick="submitSign()" id="sp-btn"
@@ -293,6 +299,7 @@
 
     const fd = new FormData();
     fd.append('consent_given', 'true');
+    fd.append('include_timestamp', document.getElementById('sp-timestamp').checked ? 'true' : 'false');
 
     if (spTabMode === 'type') {
       const txt = document.getElementById('sp-type-input').value.trim();

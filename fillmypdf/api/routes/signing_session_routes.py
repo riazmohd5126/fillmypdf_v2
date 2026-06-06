@@ -180,6 +180,7 @@ async def sign_session_step(
     signer_name: Optional[str] = Form(None, description="Signer full name (overrides session signer name if provided)"),
     signer_email: Optional[str] = Form(None, description="Signer email"),
     consent_given: bool = Form(..., description="Must be true — ESIGN consent required"),
+    include_timestamp: bool = Form(True, description="Render 'Signed: YYYY-MM-DD HH:MM UTC' on the signature overlay"),
 ):
     """
     Apply the current signer's signature to advance the session.
@@ -265,6 +266,7 @@ async def sign_session_step(
             audit_id=audit_id,
             signer_name=s_name or "",
             signer_email=s_email or "",
+            include_timestamp=include_timestamp,
         )
     except ESignValidationError as e:
         background_tasks.add_task(_cleanup)
