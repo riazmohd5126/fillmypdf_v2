@@ -333,6 +333,13 @@ except ImportError:
 from .api.routes import billing_routes
 app.include_router(billing_routes.router, prefix="/api/v1")
 
+# Approval workflow routes
+try:
+    from .api.routes import approval_routes
+    app.include_router(approval_routes.router, prefix="/api/v1")
+except ImportError as e:
+    print(f"⚠️  Approval routes not available: {e}")
+
 # ---------------------------------------------------------------------------
 # Serve UI static pages at /ui/*
 # ---------------------------------------------------------------------------

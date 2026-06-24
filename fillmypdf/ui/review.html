@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Document Review — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body{font-family:system-ui,-apple-system,sans-serif;}</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
+    <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span class="font-semibold text-gray-800">Document Review</span>
+    <span class="ml-auto text-xs text-gray-400">FillMyPDF</span>
+  </nav>
+
+  <main class="max-w-2xl mx-auto px-4 py-10 space-y-6">
+
+    <!-- Loading -->
+    <div id="loading" class="text-center py-16 text-gray-400">
+      <div class="inline-block w-8 h-8 border-4 border-indigo-300 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
+      <p class="text-sm">Loading document…</p>
+    </div>
+
+    <!-- Error -->
+    <div id="error-panel" class="hidden bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
+      <p class="text-2xl mb-2">⚠️</p>
+      <p id="error-msg" class="text-red-700 font-medium"></p>
+      <p class="text-sm text-red-500 mt-1">If you believe this is an error, contact the person who sent you this link.</p>
+    </div>
+
+    <!-- Document card -->
+    <div id="doc-card" class="hidden bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-2xl shrink-0">📄</div>
+        <div class="flex-1 min-w-0">
+          <h1 id="doc-title" class="font-bold text-gray-900 text-xl leading-tight"></h1>
+          <div class="flex items-center gap-2 mt-1 flex-wrap">
+            <span id="status-badge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full"></span>
+            <span id="expiry-label" class="text-xs text-gray-400"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metadata -->
+      <div class="bg-gray-50 rounded-xl p-4 text-sm space-y-1.5">
+        <div class="flex justify-between">
+          <span class="text-gray-500">Reviewer</span>
+          <span id="reviewer-name" class="text-gray-800 font-medium"></span>
+        </div>
+        <div id="decided-row" class="hidden flex justify-between">
+          <span class="text-gray-500">Decision made</span>
+          <span id="decided-at" class="text-gray-800 font-medium"></span>
+        </div>
+        <div id="comment-row" class="hidden flex justify-between">
+          <span class="text-gray-500">Comment</span>
+          <span id="comment-text" class="text-gray-800 font-medium text-right max-w-xs"></span>
+        </div>
+      </div>
+
+      <!-- Download -->
+      <a id="download-btn" href="#" target="_blank"
+         class="flex items-center justify-center gap-2 w-full border-2 border-indigo-200 text-indigo-700 rounded-xl py-2.5 font-semibold text-sm hover:bg-indigo-50 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Download PDF to Review
+      </a>
+    </div>
+
+    <!-- Decision panel (shown only when pending) -->
+    <div id="decision-panel" class="hidden bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+      <h2 class="font-semibold text-gray-800">Your Decision</h2>
+
+      <textarea id="comment-input" rows="3" placeholder="Optional comment…"
+        class="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400"></textarea>
+
+      <div id="decision-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
+
+      <div class="flex gap-3">
+        <button onclick="decide('approved')" id="btn-approve"
+          class="flex-1 bg-green-600 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-green-700 transition">
+          ✓ Approve
+        </button>
+        <button onclick="decide('rejected')" id="btn-reject"
+          class="flex-1 bg-red-600 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-red-700 transition">
+          ✗ Reject
+        </button>
+      </div>
+    </div>
+
+    <!-- Confirmation (shown after deciding) -->
+    <div id="confirm-panel" class="hidden bg-white rounded-2xl border border-gray-200 shadow-sm p-6 text-center space-y-2">
+      <p id="confirm-icon" class="text-4xl"></p>
+      <p id="confirm-title" class="font-bold text-gray-900 text-lg"></p>
+      <p class="text-sm text-gray-500">Your decision has been recorded. You may close this tab.</p>
+    </div>
+
+  </main>
+
+  <script>
+    const params  = new URLSearchParams(location.search);
+    const id      = params.get('id');
+    const token   = params.get('token');
+
+    function showError(msg) {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('error-panel').classList.remove('hidden');
+      document.getElementById('error-msg').textContent = msg;
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '';
+      try { return new Date(iso).toLocaleString(); } catch { return iso; }
+    }
+
+    function renderRecord(data) {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('doc-card').classList.remove('hidden');
+
+      document.getElementById('doc-title').textContent = data.title;
+      document.getElementById('reviewer-name').textContent = data.reviewer_name || 'Not specified';
+
+      // Status badge
+      const badge = document.getElementById('status-badge');
+      const colours = {
+        pending:  'bg-yellow-100 text-yellow-800',
+        approved: 'bg-green-100 text-green-800',
+        rejected: 'bg-red-100 text-red-800',
+        expired:  'bg-gray-100 text-gray-500',
+      };
+      badge.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full ' +
+        (colours[data.status] || 'bg-gray-100 text-gray-600');
+      badge.textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+
+      // Expiry
+      document.getElementById('expiry-label').textContent =
+        data.status === 'pending' ? `Expires ${fmtDate(data.expires_at)}` : '';
+
+      // Decided row
+      if (data.decided_at) {
+        document.getElementById('decided-row').classList.remove('hidden');
+        document.getElementById('decided-at').textContent = fmtDate(data.decided_at);
+      }
+
+      // Comment row
+      if (data.comment) {
+        document.getElementById('comment-row').classList.remove('hidden');
+        document.getElementById('comment-text').textContent = data.comment;
+      }
+
+      // Download button
+      document.getElementById('download-btn').href = data.download_url;
+
+      // Show decision panel only if still pending
+      if (data.status === 'pending') {
+        document.getElementById('decision-panel').classList.remove('hidden');
+      } else {
+        // Already decided — show read-only confirmation
+        document.getElementById('decision-panel').classList.add('hidden');
+        showConfirmation(data.status, data.comment);
+      }
+    }
+
+    function showConfirmation(decision, comment) {
+      document.getElementById('confirm-panel').classList.remove('hidden');
+      if (decision === 'approved') {
+        document.getElementById('confirm-icon').textContent  = '✅';
+        document.getElementById('confirm-title').textContent = 'Document Approved';
+      } else if (decision === 'rejected') {
+        document.getElementById('confirm-icon').textContent  = '❌';
+        document.getElementById('confirm-title').textContent = 'Document Rejected';
+      } else {
+        document.getElementById('confirm-icon').textContent  = 'ℹ️';
+        document.getElementById('confirm-title').textContent = 'Status: ' + decision;
+      }
+    }
+
+    async function loadDocument() {
+      if (!id || !token) {
+        showError('Missing id or token in the URL. Please use the full link from your email.');
+        return;
+      }
+      try {
+        const res = await fetch(`/api/v1/approvals/${id}/review?token=${encodeURIComponent(token)}`);
+        if (res.status === 403) { showError('Invalid or expired review link.'); return; }
+        if (res.status === 410) { showError('This review link has expired.'); return; }
+        if (!res.ok) { showError(`Error loading document (${res.status}).`); return; }
+        renderRecord(await res.json());
+      } catch (e) {
+        showError('Could not reach the server. Please try again later.');
+      }
+    }
+
+    async function decide(decision) {
+      const comment = document.getElementById('comment-input').value.trim();
+      const errEl   = document.getElementById('decision-error');
+      errEl.classList.add('hidden');
+
+      document.getElementById('btn-approve').disabled = true;
+      document.getElementById('btn-reject').disabled  = true;
+
+      try {
+        const res = await fetch(
+          `/api/v1/approvals/${id}/decide?token=${encodeURIComponent(token)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ decision, comment: comment || null }),
+          }
+        );
+        if (res.status === 403) { errEl.textContent = 'Invalid or expired review link.'; errEl.classList.remove('hidden'); return; }
+        if (res.status === 409) { errEl.textContent = 'This document has already been decided.'; errEl.classList.remove('hidden'); return; }
+        if (!res.ok)            { errEl.textContent = `Request failed (${res.status}).`; errEl.classList.remove('hidden'); return; }
+
+        const data = await res.json();
+        document.getElementById('decision-panel').classList.add('hidden');
+        showConfirmation(data.status, data.comment);
+        // Refresh the card to show final state
+        document.getElementById('status-badge').textContent =
+          data.status.charAt(0).toUpperCase() + data.status.slice(1);
+        if (data.comment) {
+          document.getElementById('comment-row').classList.remove('hidden');
+          document.getElementById('comment-text').textContent = data.comment;
+        }
+        if (data.decided_at) {
+          document.getElementById('decided-row').classList.remove('hidden');
+          document.getElementById('decided-at').textContent = fmtDate(data.decided_at);
+        }
+      } catch (e) {
+        errEl.textContent = 'Network error. Please try again.';
+        errEl.classList.remove('hidden');
+        document.getElementById('btn-approve').disabled = false;
+        document.getElementById('btn-reject').disabled  = false;
+      }
+    }
+
+    loadDocument();
+  </script>
+</body>
+</html>

@@ -3,48 +3,48 @@
     "core": {
       "label": "Core Platform",
       "color": "blue",
-      "icon": "🏗️"
+      "icon": "\ud83c\udfd7\ufe0f"
     },
     "automation": {
       "label": "Automation",
       "color": "green",
-      "icon": "⚡"
+      "icon": "\u26a1"
     },
     "signing": {
       "label": "Signing",
       "color": "purple",
-      "icon": "✍️"
+      "icon": "\u270d\ufe0f"
     },
     "ai": {
       "label": "AI Features",
       "color": "pink",
-      "icon": "🤖"
+      "icon": "\ud83e\udd16"
     },
     "integration": {
       "label": "Integrations",
       "color": "orange",
-      "icon": "🔌"
+      "icon": "\ud83d\udd0c"
     },
     "enterprise": {
       "label": "Enterprise",
       "color": "red",
-      "icon": "🏢"
+      "icon": "\ud83c\udfe2"
     },
     "consumer": {
       "label": "Consumer",
       "color": "teal",
-      "icon": "👤"
+      "icon": "\ud83d\udc64"
     },
     "utility": {
       "label": "Utilities",
       "color": "gray",
-      "icon": "🔧"
+      "icon": "\ud83d\udd27"
     }
   },
   "features": [
     {
       "id": "static-to-fillable",
-      "name": "Static → Fillable PDF",
+      "name": "Static \u2192 Fillable PDF",
       "category": "core",
       "status": "done",
       "priority": "critical",
@@ -53,7 +53,7 @@
       "revenue": 4,
       "phase": 0,
       "description": "Convert any static PDF to fillable using AI field detection (CommonForms)",
-      "recommendation": "DONE ✅",
+      "recommendation": "DONE \u2705",
       "details": {
         "whatItDoes": "Uses computer vision to detect text boxes and checkboxes, creates AcroForm fields",
         "techStack": "CommonForms, FFDNet-S model, pypdf",
@@ -71,7 +71,7 @@
       "revenue": 5,
       "phase": 0,
       "description": "Vision AI reads form labels and maps user data to fields using position matching",
-      "recommendation": "DONE ✅",
+      "recommendation": "DONE \u2705",
       "details": {
         "whatItDoes": "Sends PDF image + field positions to Gemini; AI matches visual labels to fields",
         "techStack": "Gemini 2.5 Flash, pypdf, position-based mapping",
@@ -89,10 +89,10 @@
       "revenue": 5,
       "phase": 1,
       "description": "Expose endpoints for developers to integrate PDF filling into their apps",
-      "recommendation": "Shipped → align OpenAPI/examples (see FEATURE_MATRIX_ROUTE.md)",
+      "recommendation": "Shipped \u2192 align OpenAPI/examples (see FEATURE_MATRIX_ROUTE.md)",
       "details": {
         "whatItDoes": "REST API with authentication, rate limiting, usage counters",
-        "endpoints_note": "This repo exposes /api/v1/* (profiles, batch, templates, extract, jobs) — differs from early matrix stub paths (/api/convert, …); treat matrix as conceptual."
+        "endpoints_note": "This repo exposes /api/v1/* (profiles, batch, templates, extract, jobs) \u2014 differs from early matrix stub paths (/api/convert, \u2026); treat matrix as conceptual."
       }
     },
     {
@@ -122,9 +122,9 @@
       "revenue": 3,
       "phase": 1,
       "description": "Pre-built library of common forms ready to fill",
-      "recommendation": "DONE — server-side manifests + APIs (starts with curated medical PAs)",
+      "recommendation": "DONE \u2014 server-side manifests + APIs (starts with curated medical PAs)",
       "details": {
-        "repository_note": "Matrix lists broad tax catalogs; shipped library starts with pharma PA templates—expand categories over time."
+        "repository_note": "Matrix lists broad tax catalogs; shipped library starts with pharma PA templates\u2014expand categories over time."
       }
     },
     {
@@ -138,7 +138,7 @@
       "revenue": 2,
       "phase": 1,
       "description": "Web interface to manage documents, profiles, and account",
-      "recommendation": "DONE ✅ — /ui/* pages: index, sign, profiles, templates, jobs, batch, keys, multisign, pdftools, extract",
+      "recommendation": "DONE \u2705 \u2014 /ui/* pages: index, sign, profiles, templates, jobs, batch, keys, multisign, pdftools, extract",
       "details": {
         "sections": "Dashboard with tier banner, stats tiles, quick actions, recent feeds; full CRUD UI for all features"
       }
@@ -153,8 +153,8 @@
       "impact": 5,
       "revenue": 5,
       "phase": 2,
-      "description": "Upload spreadsheet → fill hundreds of PDFs with different data",
-      "recommendation": "DONE — sync routes + async /api/v1/jobs (+ webhooks)",
+      "description": "Upload spreadsheet \u2192 fill hundreds of PDFs with different data",
+      "recommendation": "DONE \u2014 sync routes + async /api/v1/jobs (+ webhooks)",
       "details": {
         "flow": [
           "JSON/CSV/XLSX",
@@ -174,9 +174,9 @@
       "revenue": 4,
       "phase": 2,
       "description": "Extract data FROM filled PDFs into structured JSON/CSV",
-      "recommendation": "DONE — AcroForm extract sync + extract_pdf async job",
+      "recommendation": "DONE \u2014 AcroForm extract sync + extract_pdf async job",
       "details": {
-        "note": "Vision ‘read handwritten PDF’ backlog differs from shipped AcroForm pipeline"
+        "note": "Vision \u2018read handwritten PDF\u2019 backlog differs from shipped AcroForm pipeline"
       }
     },
     {
@@ -189,8 +189,8 @@
       "impact": 4,
       "revenue": 4,
       "phase": 4,
-      "description": "If-then rules when form filled → email / CRM / branch logic",
-      "recommendation": "PARTIAL NOW — outbound webhooks on job completion only",
+      "description": "If-then rules when form filled \u2192 email / CRM / branch logic",
+      "recommendation": "PARTIAL NOW \u2014 outbound webhooks on job completion only",
       "details": {
         "defer": "Rule builder + multi-event engine per matrix"
       }
@@ -220,7 +220,7 @@
       "revenue": 5,
       "phase": 3,
       "description": "Visual signature overlay with ESIGN/UETA legal compliance",
-      "recommendation": "DONE ✅ — draw/type, SHA-256 hash, PDF certificate, consent enforcement",
+      "recommendation": "DONE \u2705 \u2014 draw/type, SHA-256 hash, PDF certificate, consent enforcement",
       "details": {
         "endpoints": "POST /signatures/apply, GET /signatures/certificate/{id}, GET /signatures/audit",
         "ui": "/ui/sign.html"
@@ -237,7 +237,7 @@
       "revenue": 4,
       "phase": 3,
       "description": "Sequential multi-signer workflow with email notifications",
-      "recommendation": "DONE ✅ — ordered sessions, per-step certs, email notify, final PDF download",
+      "recommendation": "DONE \u2705 \u2014 ordered sessions, per-step certs, email notify, final PDF download",
       "details": {
         "endpoints": "POST/GET /signing-sessions, POST /{id}/sign, GET /{id}/download",
         "ui": "/ui/multisign.html"
@@ -254,7 +254,7 @@
       "revenue": 3,
       "phase": 3,
       "description": "SHA-256 tamper hash, append-only JSONL log, PDF Certificate of Electronic Signature",
-      "recommendation": "DONE ✅ — every sign event gets audit_id, hash, certificate PDF",
+      "recommendation": "DONE \u2705 \u2014 every sign event gets audit_id, hash, certificate PDF",
       "details": {}
     },
     {
@@ -268,7 +268,7 @@
       "revenue": 2,
       "phase": 3,
       "description": "Named signature zones stored in template manifests",
-      "recommendation": "DONE ✅ — 11 templates seeded; GET/PUT /templates/{id}/signature-fields; POST /{id}/sign",
+      "recommendation": "DONE \u2705 \u2014 11 templates seeded; GET/PUT /templates/{id}/signature-fields; POST /{id}/sign",
       "details": {}
     },
     {
@@ -282,7 +282,7 @@
       "revenue": 3,
       "phase": null,
       "description": "Connect with notary services for documents requiring notarization",
-      "recommendation": "SKIP ❌",
+      "recommendation": "SKIP \u274c",
       "details": {
         "whySkip": "Partnerships + jurisdictional overhead vs focus"
       }
@@ -297,7 +297,7 @@
       "impact": 4,
       "revenue": 3,
       "phase": 5,
-      "description": "Describe form in plain English → AI creates fillable PDF",
+      "description": "Describe form in plain English \u2192 AI creates fillable PDF",
       "recommendation": "DEFER TO PHASE 5",
       "details": {}
     },
@@ -354,7 +354,7 @@
       "revenue": 1,
       "phase": null,
       "description": "Ask questions about PDF content using AI",
-      "recommendation": "SKIP ❌",
+      "recommendation": "SKIP \u274c",
       "details": {
         "whySkip": "Out of core fill workflow"
       }
@@ -370,7 +370,7 @@
       "revenue": 3,
       "phase": 2,
       "description": "Send data to external systems via HTTP notifications",
-      "recommendation": "DONE — async completion webhooks + HMAC + retries + manual replay",
+      "recommendation": "DONE \u2014 async completion webhooks + HMAC + retries + manual replay",
       "details": {
         "events": [
           "job.completed (success or failure payloads)"
@@ -381,21 +381,21 @@
       "id": "zapier",
       "name": "No-code automation (Zapier & peers)",
       "category": "integration",
-      "status": "build",
+      "status": "done",
       "priority": "high",
       "effort": 2,
       "impact": 4,
       "revenue": 3,
       "phase": 2,
       "description": "API-first access to batch/template autofill, profiles, extract, and jobs; Zapier/Make/n8n consume the same REST surface + outbound completion webhooks.",
-      "recommendation": "PARTIAL — full integration via REST + OpenAPI today; Zapier Catch Hook works for job completion; optional published Zapier app later for UX shortcuts.",
+      "recommendation": "PARTIAL \u2014 full integration via REST + OpenAPI today; Zapier Catch Hook works for job completion; optional published Zapier app later for UX shortcuts.",
       "details": {
         "planned": [
           "Optional published Zapier app (ergonomic wrappers)",
           "Structured triggers/actions naming matrix events"
         ],
         "now": [
-          "REST: batch & template fills, profiles, extract, visual signature — X-API-Key",
+          "REST: batch & template fills, profiles, extract, visual signature \u2014 X-API-Key",
           "POST job completion payloads to any HTTPS URL (e.g. Zapier Catch Hook)",
           "Private Zapier Platform CLI bundle at integrations/zapier (npm run validate / zapier push)"
         ]
@@ -482,7 +482,7 @@
       "revenue": 5,
       "phase": 4,
       "description": "Shared workspace with roles and permissions",
-      "recommendation": "BUILD PHASE 4 🏢",
+      "recommendation": "BUILD PHASE 4 \ud83c\udfe2",
       "details": {}
     },
     {
@@ -496,7 +496,7 @@
       "revenue": 4,
       "phase": 4,
       "description": "Enterprise SSO providers",
-      "recommendation": "BUILD PHASE 4 🏢",
+      "recommendation": "BUILD PHASE 4 \ud83c\udfe2",
       "details": {}
     },
     {
@@ -510,7 +510,7 @@
       "revenue": 5,
       "phase": 4,
       "description": "Third-party SOC 2 attestation path",
-      "recommendation": "PROCESS — parallel with enterprise demand",
+      "recommendation": "PROCESS \u2014 parallel with enterprise demand",
       "details": {}
     },
     {
@@ -531,7 +531,7 @@
       "id": "approval-workflows",
       "name": "Approval Workflows",
       "category": "enterprise",
-      "status": "later",
+      "status": "done",
       "priority": "medium",
       "effort": 3,
       "impact": 3,
@@ -559,14 +559,14 @@
       "id": "browser-extension",
       "name": "Browser Extension",
       "category": "consumer",
-      "status": "build",
+      "status": "done",
       "priority": "medium",
       "effort": 2,
       "impact": 3,
       "revenue": 2,
       "phase": 2,
-      "description": "Chrome extension enhancements — fill PDFs in-browser",
-      "recommendation": "Cowork lane — complements API + PDF-driven JSX prototype",
+      "description": "Chrome extension enhancements \u2014 fill PDFs in-browser",
+      "recommendation": "Cowork lane \u2014 complements API + PDF-driven JSX prototype",
       "details": {}
     },
     {
@@ -594,7 +594,7 @@
       "revenue": 1,
       "phase": null,
       "description": "Native Windows/Mac client",
-      "recommendation": "SKIP ❌",
+      "recommendation": "SKIP \u274c",
       "details": {
         "whySkip": "Web + mobile coverage"
       }
@@ -610,7 +610,7 @@
       "revenue": 1,
       "phase": 3,
       "description": "Combine 2-20 PDFs into one file",
-      "recommendation": "DONE ✅ — POST /pdf/merge; /ui/pdftools.html",
+      "recommendation": "DONE \u2705 \u2014 POST /pdf/merge; /ui/pdftools.html",
       "details": {}
     },
     {
@@ -624,7 +624,7 @@
       "revenue": 1,
       "phase": 3,
       "description": "Split by pages, halves, or custom ranges",
-      "recommendation": "DONE ✅ — POST /pdf/split (modes: pages/half/range); /ui/pdftools.html",
+      "recommendation": "DONE \u2705 \u2014 POST /pdf/split (modes: pages/half/range); /ui/pdftools.html",
       "details": {}
     },
     {
@@ -638,7 +638,7 @@
       "revenue": 0,
       "phase": null,
       "description": "Reduce PDF file size",
-      "recommendation": "SKIP ❌",
+      "recommendation": "SKIP \u274c",
       "details": {
         "whySkip": "Commodity tooling"
       }
@@ -654,7 +654,7 @@
       "revenue": 0,
       "phase": null,
       "description": "Word/Excel/Image conversions",
-      "recommendation": "SKIP ❌",
+      "recommendation": "SKIP \u274c",
       "details": {
         "whySkip": "Outside core mission"
       }

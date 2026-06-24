@@ -220,6 +220,76 @@
     el.textContent = msg; el.classList.remove('hidden');
   }
   function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  // ── Send for Approval ─────────────────────────────────────────────────────
+  async function doApproval() {
+    const key = getKey();
+    if (!key) { showErr('appr', 'No API key set.'); return; }
+    const filename = document.getElementById('appr-filename').value.trim();
+    const title    = document.getElementById('appr-title').value.trim();
+    const email    = document.getElementById('appr-email').value.trim();
+    if (!filename) { showErr('appr', 'Enter a PDF filename.'); return; }
+    if (!title)    { showErr('appr', 'Enter a title.'); return; }
+    const btn = document.getElementById('appr-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    document.getElementById('appr-error').classList.add('hidden');
+    document.getElementById('appr-result').classList.add('hidden');
+    const fd = new FormData();
+    fd.append('title', title);
+    fd.append('pdf_filename', filename);
+    if (email) fd.append('reviewer_email', email);
+    try {
+      const r = await fetch('/api/v1/approvals', { method:'POST', headers:{'X-API-Key':key}, body:fd });
+      if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.detail||`HTTP ${r.status}`); }
+      const data = await r.json();
+      const link = location.origin + data.review_url;
+      document.getElementById('appr-link').href = link;
+      document.getElementById('appr-link').textContent = link;
+      document.getElementById('appr-result').classList.remove('hidden');
+    } catch(e) { showErr('appr', e.message); }
+    finally { btn.disabled=false; btn.textContent='Send for Approval'; }
+  }
 </script>
+
+<!-- Send for Approval section (appended after split) -->
+<main class="max-w-3xl mx-auto px-4 pb-10">
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+    <div class="flex items-center gap-3 mb-1">
+      <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-xl">✅</div>
+      <div>
+        <h2 class="font-bold text-gray-900">Send for Approval</h2>
+        <p class="text-xs text-gray-400">Route a filled PDF to a reviewer for approve/reject.</p>
+      </div>
+    </div>
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">PDF Filename (from a previous fill)</label>
+        <input id="appr-filename" type="text" placeholder="pa_linzess_molina_tx_20260624_filled.pdf"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"/>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Document Title</label>
+        <input id="appr-title" type="text" placeholder="PA for Jane Doe — Linzess"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"/>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Reviewer Email (optional — sends review link)</label>
+        <input id="appr-email" type="email" placeholder="physician@clinic.com"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"/>
+      </div>
+    </div>
+    <div id="appr-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
+    <div id="appr-result" class="hidden bg-green-50 border border-green-200 rounded-xl p-4">
+      <p class="text-sm font-semibold text-green-800 mb-2">✔ Approval request created</p>
+      <p class="text-xs text-green-700 mb-1">Share this review link with the reviewer:</p>
+      <a id="appr-link" href="#" target="_blank"
+        class="text-xs text-indigo-600 hover:underline break-all"></a>
+    </div>
+    <button onclick="doApproval()" id="appr-btn"
+      class="w-full bg-amber-600 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-amber-700">
+      Send for Approval
+    </button>
+  </div>
+</main>
 </body>
 </html>

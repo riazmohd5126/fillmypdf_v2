@@ -144,6 +144,89 @@ def notify_session_complete(
     return _send(to=to_email, subject=subject, html=html, plain=plain)
 
 
+def notify_approval_requested(
+    *,
+    to_email: str,
+    reviewer_name: str,
+    title: str,
+    approval_id: str,
+    review_token: str,
+) -> bool:
+    """Email sent to a reviewer when an approval request is created for them."""
+    review_url = f"{_base()}/ui/review.html?id={approval_id}&token={review_token}"
+    subject = f"Document review requested: '{title}'"
+    plain = (
+        f"Hi {reviewer_name or 'there'},\n\n"
+        f"You have been asked to review the following document:\n"
+        f"  {title}\n\n"
+        f"Click the link below to view the document and approve or reject it:\n"
+        f"  {review_url}\n\n"
+        f"This link is valid for 7 days. No login is required.\n\n"
+        f"FillMyPDF"
+    )
+    html = f"""
+<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;color:#111827;max-width:560px;margin:auto;padding:24px">
+  <div style="background:#d97706;border-radius:12px;padding:24px;color:white;margin-bottom:24px">
+    <h1 style="margin:0;font-size:20px">Review Requested</h1>
+    <p style="margin:8px 0 0;opacity:.85;font-size:14px">FillMyPDF</p>
+  </div>
+  <p>Hi <strong>{reviewer_name or 'there'}</strong>,</p>
+  <p>You have been asked to review the following document:</p>
+  <div style="background:#f3f4f6;border-radius:8px;padding:16px;margin:16px 0">
+    <p style="margin:0;font-weight:600;font-size:16px">{title}</p>
+  </div>
+  <a href="{review_url}" style="display:inline-block;background:#d97706;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;margin:8px 0">
+    Review Document &rarr;
+  </a>
+  <p style="color:#6b7280;font-size:13px;margin-top:16px">
+    This link is valid for 7 days. No login is required.
+  </p>
+  <p style="color:#9ca3af;font-size:12px;margin-top:32px">FillMyPDF &mdash; automated notification.</p>
+</body></html>"""
+    return _send(to=to_email, subject=subject, html=html, plain=plain)
+
+
+def notify_approval_decided(
+    *,
+    to_email: str,
+    title: str,
+    decision: str,
+    comment: str | None,
+    approval_id: str,
+) -> bool:
+    """Email sent to the requester when a reviewer approves or rejects."""
+    is_approved = decision == "approved"
+    header_color = "#16a34a" if is_approved else "#dc2626"
+    label = "Approved" if is_approved else "Rejected"
+    subject = f"Document {label.lower()}: '{title}'"
+    comment_line = f"\nReviewer comment: {comment}" if comment else ""
+    plain = (
+        f"Your document '{title}' has been {label.lower()} by the reviewer.\n"
+        f"{comment_line}\n\n"
+        f"Approval ID: {approval_id}\n\nFillMyPDF"
+    )
+    comment_html = (
+        f'<div style="background:#f3f4f6;border-radius:8px;padding:12px;margin-top:12px">'
+        f'<p style="margin:0;font-size:13px;color:#374151"><strong>Comment:</strong> {comment}</p>'
+        f'</div>'
+        if comment else ""
+    )
+    html = f"""
+<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;color:#111827;max-width:560px;margin:auto;padding:24px">
+  <div style="background:{header_color};border-radius:12px;padding:24px;color:white;margin-bottom:24px">
+    <h1 style="margin:0;font-size:20px">Document {label}</h1>
+    <p style="margin:8px 0 0;opacity:.85;font-size:14px">FillMyPDF</p>
+  </div>
+  <p>Your document has been <strong>{label.lower()}</strong>:</p>
+  <div style="background:#f3f4f6;border-radius:8px;padding:16px;margin:16px 0">
+    <p style="margin:0;font-weight:600;font-size:16px">{title}</p>
+  </div>
+  {comment_html}
+  <p style="color:#9ca3af;font-size:12px;margin-top:32px">FillMyPDF &mdash; automated notification.</p>
+</body></html>"""
+    return _send(to=to_email, subject=subject, html=html, plain=plain)
+
+
 def notify_signer_complete_step(
     *,
     to_email: str,
