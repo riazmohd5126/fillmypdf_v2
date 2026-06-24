@@ -30,6 +30,8 @@ from __future__ import annotations
 
 import ipaddress
 from urllib.parse import urlparse
+from urllib.request import urlopen
+from urllib.error import URLError
 from typing import Optional
 
 from ..config import settings
@@ -137,32 +139,108 @@ def resolve_ai_config(
     return api_key, base_url, model
 
 
+def _local_server_reachable(base_url: str, timeout: float = 1.5) -> bool:
+    """
+    Probe the local AI server with a short timeout.
+
+    Returns True if the server responds (any HTTP response, even 404/405 —
+    we only care that it is running).  Returns False on any network error.
+
+    Used for the fail-open check: when PA_FORCE_LOCAL is on, prefer local
+    but fall back to cloud if Ollama/vLLM is not running.
+    """
+    try:
+        # Probe the base URL directly; Ollama returns 200 on "/"
+        probe = base_url.rstrip("/").rsplit("/v1", 1)[0] or base_url
+        urlopen(probe, timeout=timeout)  # noqa: S310
+        return True
+    except URLError:
+        return False
+    except Exception:
+        return False
+
+
+def resolve_provider_for_category(
+    category: Optional[str],
+    provider_hint: Optional[str],
+) -> Optional[str]:
+    """
+    Decide which provider hint to use based on the template's category.
+
+    Rules (in priority order):
+      1. If the caller passed an explicit provider_hint, always honour it.
+         (Per-request override always wins — generic and PA callers alike.)
+      2. If PA_FORCE_LOCAL is on AND the template category is in PA_CATEGORIES:
+           - Probe the local server.
+           - Reachable   → return "local"  (PA form goes to Qwen).
+           - Unreachable → return None     (fail-open: cloud resolution as usual).
+      3. Otherwise return the original provider_hint unchanged.
+
+    This function never raises; failures are silent so callers degrade
+    gracefully.  The AI_LOCAL_ONLY hard guardrail in assert_egress_allowed
+    will still block cloud egress if needed.
+    """
+    # Rule 1 — explicit per-request hint always wins
+    if provider_hint and provider_hint.strip():
+        return provider_hint
+
+    # Rule 2 — PA auto-routing
+    if (
+        settings.PA_FORCE_LOCAL
+        and category
+        and category in settings.PA_CATEGORIES
+    ):
+        if _local_server_reachable(
+            settings.LOCAL_AI_BASE_URL,
+            timeout=settings.PA_LOCAL_PROBE_TIMEOUT,
+        ):
+            return "local"
+        # Fail-open: local is down, fall through to normal cloud resolution
+        print(
+            f"  [PA routing] Local server unreachable — falling back to cloud "
+            f"for PA template (category={category!r}).  "
+            f"Set AI_LOCAL_ONLY=True to block this fallback."
+        )
+        return None
+
+    # Rule 3 — unchanged
+    return provider_hint
+
+
 def prepare_ai_config(
     *,
     request_api_key: Optional[str] = None,
     request_base_url: Optional[str] = None,
     request_model: Optional[str] = None,
     provider_hint: Optional[str] = None,
+    category: Optional[str] = None,
     require_cloud_key: bool = True,
 ) -> tuple[str, str, str]:
     """
     Resolve provider settings, enforce the HIPAA egress guardrail, and
     validate that a cloud API key is present when required.
 
+    Pass ``category`` (from the template manifest) to activate automatic
+    PA-vs-generic routing.  Callers that omit ``category`` (generic/upload
+    flows) behave exactly as before.
+
     Set ``require_cloud_key=False`` for endpoints where AI is optional
     (e.g. signature detect-fields with AcroForm-first fallback).
 
     Raises ValueError on blocked egress or missing Gemini key in cloud mode.
     """
+    # Resolve the effective provider hint, honouring PA auto-routing
+    effective_hint = resolve_provider_for_category(category, provider_hint)
+
     api_key, base_url, model = resolve_ai_config(
         request_api_key=request_api_key,
         request_base_url=request_base_url,
         request_model=request_model,
-        provider_hint=provider_hint,
+        provider_hint=effective_hint,
     )
     assert_egress_allowed(base_url)
 
-    effective = (provider_hint or "").strip().lower() or settings.AI_PROVIDER.lower()
+    effective = (effective_hint or "").strip().lower() or settings.AI_PROVIDER.lower()
     if require_cloud_key and effective != "local" and not (api_key or "").strip():
         raise ValueError(
             "ai_api_key is required when using Gemini/cloud mode. "

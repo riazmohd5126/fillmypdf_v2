@@ -223,3 +223,124 @@ class TestBuildLabeledFields:
     def test_coordinate_mode_off_unchanged_output(self):
         rows_off = _build_labeled_fields(SAMPLE_FIELDS, SAMPLE_LABELS)
         assert all("position" not in r for r in rows_off)
+
+
+# ---------------------------------------------------------------------------
+# PA auto-routing: resolve_provider_for_category
+# ---------------------------------------------------------------------------
+
+from fillmypdf.services.ai_provider import resolve_provider_for_category
+
+
+class TestResolveProviderForCategory:
+    """
+    Tests for the PA auto-routing helper.
+
+    The helper decides which provider hint to use based on the template's
+    category and whether PA_FORCE_LOCAL is enabled.
+    """
+
+    def _patch_pa(self, monkeypatch, *, force_local: bool, reachable: bool):
+        """Helper: configure PA settings and stub the local-server probe."""
+        from fillmypdf import config as cfg
+        import fillmypdf.services.ai_provider as module
+
+        monkeypatch.setattr(cfg.settings, "PA_FORCE_LOCAL", force_local)
+        monkeypatch.setattr(cfg.settings, "PA_CATEGORIES", ["prior_authorization"])
+        monkeypatch.setattr(cfg.settings, "LOCAL_AI_BASE_URL", "http://localhost:11434/v1")
+        monkeypatch.setattr(cfg.settings, "PA_LOCAL_PROBE_TIMEOUT", 0.1)
+        # Stub the network probe so tests are fast and hermetic
+        monkeypatch.setattr(module, "_local_server_reachable", lambda *a, **kw: reachable)
+
+    # ── Rule 1: explicit hint always wins ─────────────────────────────────
+
+    def test_explicit_hint_wins_over_pa_routing(self, monkeypatch):
+        """If caller passes ai_provider=gemini on a PA form, respect it."""
+        self._patch_pa(monkeypatch, force_local=True, reachable=True)
+        result = resolve_provider_for_category("prior_authorization", "gemini")
+        assert result == "gemini"
+
+    def test_explicit_local_hint_passes_through(self, monkeypatch):
+        self._patch_pa(monkeypatch, force_local=False, reachable=False)
+        result = resolve_provider_for_category("prior_authorization", "local")
+        assert result == "local"
+
+    # ── Rule 2: PA auto-routing ───────────────────────────────────────────
+
+    def test_pa_category_local_reachable_returns_local(self, monkeypatch):
+        """PA form + PA_FORCE_LOCAL=True + server reachable → force local."""
+        self._patch_pa(monkeypatch, force_local=True, reachable=True)
+        result = resolve_provider_for_category("prior_authorization", None)
+        assert result == "local"
+
+    def test_pa_category_local_unreachable_fails_open(self, monkeypatch):
+        """PA form + PA_FORCE_LOCAL=True + server down → fail-open (None)."""
+        self._patch_pa(monkeypatch, force_local=True, reachable=False)
+        result = resolve_provider_for_category("prior_authorization", None)
+        assert result is None  # None means normal (cloud) resolution
+
+    def test_pa_force_local_off_no_routing(self, monkeypatch):
+        """PA_FORCE_LOCAL=False → no auto-routing even for PA category."""
+        self._patch_pa(monkeypatch, force_local=False, reachable=True)
+        result = resolve_provider_for_category("prior_authorization", None)
+        assert result is None  # unchanged from input
+
+    # ── Rule 3: non-PA category unchanged ────────────────────────────────
+
+    def test_generic_category_not_routed(self, monkeypatch):
+        """Non-PA template (e.g. 'general') is never auto-routed."""
+        self._patch_pa(monkeypatch, force_local=True, reachable=True)
+        result = resolve_provider_for_category("general", None)
+        assert result is None
+
+    def test_commercial_insurance_not_routed(self, monkeypatch):
+        self._patch_pa(monkeypatch, force_local=True, reachable=True)
+        result = resolve_provider_for_category("commercial_insurance", None)
+        assert result is None
+
+    def test_none_category_not_routed(self, monkeypatch):
+        self._patch_pa(monkeypatch, force_local=True, reachable=True)
+        result = resolve_provider_for_category(None, None)
+        assert result is None
+
+    # ── prepare_ai_config end-to-end ──────────────────────────────────────
+
+    def test_prepare_ai_config_pa_returns_local_triple(self, monkeypatch):
+        """
+        End-to-end: prepare_ai_config with a PA category + PA_FORCE_LOCAL=True
+        returns the local (key, base_url, model) triple.
+        """
+        self._patch_pa(monkeypatch, force_local=True, reachable=True)
+        from fillmypdf import config as cfg
+        monkeypatch.setattr(cfg.settings, "LOCAL_AI_API_KEY", "ollama")
+        monkeypatch.setattr(cfg.settings, "LOCAL_AI_MODEL", "qwen2.5:3b-instruct")
+
+        key, url, model = prepare_ai_config(
+            request_api_key=None,
+            provider_hint=None,
+            category="prior_authorization",
+            require_cloud_key=False,
+        )
+        assert key == "ollama"
+        assert "localhost" in url
+        assert model == "qwen2.5:3b-instruct"
+
+    def test_prepare_ai_config_generic_unchanged(self, monkeypatch):
+        """Generic category → no change even when PA_FORCE_LOCAL is on."""
+        self._patch_pa(monkeypatch, force_local=True, reachable=True)
+        from fillmypdf import config as cfg
+        monkeypatch.setattr(cfg.settings, "DEFAULT_AI_MODEL", "gemini-2.5-flash")
+        monkeypatch.setattr(
+            cfg.settings,
+            "DEFAULT_AI_BASE_URL",
+            "https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+
+        key, url, model = prepare_ai_config(
+            request_api_key="my-gemini-key",
+            provider_hint=None,
+            category="general",
+            require_cloud_key=False,
+        )
+        assert "generativelanguage" in url
+        assert model == "gemini-2.5-flash"

@@ -52,6 +52,7 @@ from ...models.job import (
 from ...repositories.job_repository import JobRepository
 from ...services.job_runner import get_runner
 from ...services.ai_provider import prepare_ai_config
+from ...services.template_service import TemplateService
 from ..dependencies.auth import require_api_key, get_current_key_id
 from ..openapi_form_examples import (
     EX_AI_API_KEY,
@@ -254,12 +255,22 @@ async def submit_template_batch_job(
     key_id = get_current_key_id(request)
     parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
 
+    # Look up the template category so PA forms can be auto-routed to local LLM
+    try:
+        tpl = TemplateService().get(template_id)
+        tpl_category = tpl.category
+    except KeyError:
+        raise HTTPException(404, f"Template '{template_id}' not found")
+    except Exception:
+        tpl_category = None
+
     try:
         resolved_key, resolved_url, resolved_model = prepare_ai_config(
             request_api_key=ai_api_key,
             request_base_url=ai_base_url,
             request_model=ai_model,
             provider_hint=ai_provider,
+            category=tpl_category,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc))

@@ -73,6 +73,23 @@ class Settings(BaseSettings):
     # Default OFF so existing behaviour / accuracy is unchanged.  A/B-test on your
     # PA forms and keep only if avg_confidence improves.
     AI_USE_COORDINATES: bool = False
+
+    # ── Prior-Authorization auto-routing ────────────────────────────────────
+    # Templates whose manifest.category is in PA_CATEGORIES are treated as
+    # PHI-sensitive.  When PA_FORCE_LOCAL=True the server prefers the local LLM
+    # (Ollama/vLLM) for those forms automatically — no per-request flag needed.
+    #
+    # Behaviour summary:
+    #   PA_FORCE_LOCAL=False (default) → behaves exactly like today for all forms.
+    #   PA_FORCE_LOCAL=True            → PA templates silently use local Qwen.
+    #     Fail-open: if the local server is unreachable the call falls back to
+    #     the normal (cloud) resolution so fills keep working.
+    #     Fail-closed: set AI_LOCAL_ONLY=True as well to block the cloud fallback.
+    #   Per-request ai_provider= always wins over this auto-routing.
+    PA_CATEGORIES: list = ["prior_authorization"]
+    PA_FORCE_LOCAL: bool = False
+    # Seconds to wait when probing the local server for the fail-open check.
+    PA_LOCAL_PROBE_TIMEOUT: float = 1.5
     
     # CommonForms Settings
     COMMONFORMS_MODEL: str = "FFDNet-S"

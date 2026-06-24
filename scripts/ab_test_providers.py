@@ -92,7 +92,7 @@ def _post_form(url: str, api_key: str, fields: dict) -> tuple[dict, float]:
     )
     t0 = time.perf_counter()
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=300) as resp:
             elapsed = time.perf_counter() - t0
             return json.loads(resp.read().decode()), elapsed
     except urllib.error.HTTPError as e:

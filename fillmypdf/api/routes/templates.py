@@ -282,7 +282,7 @@ async def fill_template(
         raise HTTPException(400, "user_data must be valid JSON")
 
     try:
-        _get_service().get(template_id)
+        tpl = _get_service().get(template_id)
     except KeyError:
         raise HTTPException(404, f"Template '{template_id}' not found")
 
@@ -294,6 +294,7 @@ async def fill_template(
             request_base_url=ai_base_url,
             request_model=ai_model,
             provider_hint=ai_provider,
+            category=tpl.category,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc))
@@ -380,7 +381,7 @@ async def batch_fill_template(
         raise HTTPException(400, "Maximum 500 records per batch")
 
     try:
-        _get_service().get(template_id)
+        tpl = _get_service().get(template_id)
     except KeyError:
         raise HTTPException(404, f"Template '{template_id}' not found")
 
@@ -392,6 +393,7 @@ async def batch_fill_template(
             request_base_url=ai_base_url,
             request_model=ai_model,
             provider_hint=ai_provider,
+            category=tpl.category,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc))
