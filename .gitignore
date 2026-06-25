@@ -55,3 +55,10 @@ pa21_*/
 *_output/
 linzess_output/
 employees.csv
+
+# PA pipeline artifacts (generated; not committed)
+pa_pipeline/report/
+pa_pipeline/schema_out/
+pa_pipeline/eval_out/
+pa_pipeline/test_set_new/
+*.db
