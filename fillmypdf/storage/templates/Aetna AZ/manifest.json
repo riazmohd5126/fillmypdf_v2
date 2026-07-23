@@ -1,0 +1,18 @@
+{
+  "id": "Aetna AZ",
+  "name": "Aetna AZ",
+  "category": "prior_authorization",
+  "specialty": null,
+  "drug": null,
+  "payer": null,
+  "indications": [],
+  "questions": [],
+  "tags": [],
+  "version": null,
+  "pages": null,
+  "is_public": true,
+  "created_at": "2026-07-20T20:15:29.627406+00:00",
+  "updated_at": "2026-07-20T20:15:29.627406+00:00",
+  "signature_fields": [],
+  "custom": {}
+}

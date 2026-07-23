@@ -249,6 +249,40 @@ def prepare_ai_config(
     return api_key, base_url, model
 
 
+def prepare_local_vision_config() -> tuple[str, str, str]:
+    """
+    Resolve the LOCAL-ONLY vision-language-model config for the ``vlm_local``
+    field-detection engine.
+
+    Returns ``(api_key, base_url, model)`` pointing at the on-prem Ollama/vLLM
+    server (``LOCAL_AI_BASE_URL`` + ``LOCAL_VISION_MODEL``).
+
+    Unlike ``prepare_ai_config`` this has NO cloud branch: the vision engine
+    must never reach an external host such as Gemini.  As a hard guarantee we
+    assert the resolved base_url is a private/loopback host and raise otherwise,
+    regardless of the ``AI_LOCAL_ONLY`` setting.
+    """
+    base_url = settings.LOCAL_AI_BASE_URL
+    host = ""
+    try:
+        host = urlparse(base_url).hostname or ""
+    except Exception:
+        host = ""
+
+    if not _is_private_host(host):
+        raise ValueError(
+            f"vlm_local engine refuses to use non-private LOCAL_AI_BASE_URL "
+            f"host '{host}'.  Point LOCAL_AI_BASE_URL at localhost / an "
+            f"RFC-1918 / .local host so PHI never leaves the network."
+        )
+
+    return (
+        settings.LOCAL_AI_API_KEY,
+        base_url,
+        settings.LOCAL_VISION_MODEL,
+    )
+
+
 def provider_info() -> dict:
     """
     Return a summary dict for the health/usage endpoint so the UI can show

@@ -73,14 +73,27 @@ class FormMap:
 # Field-signature calculation (mirrors pa_profiler.py)
 # ---------------------------------------------------------------------------
 
-def compute_field_signature(pdf_path: str | Path) -> Optional[str]:
+def compute_field_signature(pdf_path) -> Optional[str]:
     """
     Compute the field_signature for a PDF the same way pa_profiler.py does:
     MD5 of sorted "name:type" pairs for all AcroForm fields.
-    Returns None if the PDF has no AcroForm fields.
+
+    Accepts a file path (str | Path) **or** a BytesIO / bytes object so callers
+    can compute the signature directly from in-memory PDF bytes without writing
+    a temporary file.
+
+    Returns None if the PDF has no AcroForm fields or on any error.
     """
+    import io as _io
     try:
-        reader = PdfReader(str(pdf_path), strict=False)
+        if isinstance(pdf_path, (bytes, bytearray)):
+            source = _io.BytesIO(pdf_path)
+        elif isinstance(pdf_path, _io.IOBase):
+            # BytesIO or other file-like — pass directly; PdfReader accepts it
+            source = pdf_path
+        else:
+            source = str(pdf_path)
+        reader = PdfReader(source, strict=False)
         if reader.is_encrypted:
             try:
                 reader.decrypt("")
@@ -146,21 +159,19 @@ class PAMapStore:
     def get_by_signature(self, signature: str) -> Optional[FormMap]:
         """
         Look up a form map by field_signature.
-        Returns the most recently modified match or None.
+
+        Two strategies in order:
+        1. ``form_signatures`` table (if it exists — written by the vision mapper).
+        2. Rebuild signatures on-the-fly from ``form_fields`` data so that renamed
+           or copied PDFs are still matched by their field fingerprint.
         """
         try:
             conn = self._connect()
-            # forms table doesn't store field_signature — we compute it from profiler
-            # artifacts.  The signature is stored per-file in profile.csv; here we
-            # match via the file path stored in the forms table using a cached index.
-            # For pure DB lookup we match via the file column if the signature was
-            # pre-tagged, otherwise fall back to per-file scan.
-            # Simpler: look up by file path when profile gives us the match.
-            # Use the signature index table if it exists.
             tables = {r[0] for r in conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'"
             ).fetchall()}
 
+            row = None
             if "form_signatures" in tables:
                 row = conn.execute(
                     "SELECT f.form_id, f.file, f.payer FROM forms f "
@@ -168,13 +179,28 @@ class PAMapStore:
                     "WHERE fs.signature = ? ORDER BY f.form_id DESC LIMIT 1",
                     (signature,)
                 ).fetchone()
-            else:
-                # No signature index — we can't look up by signature alone.
-                # Caller should use get_by_file() or get_by_pdf_path() instead.
-                conn.close()
-                return None
 
-            if not row:
+            if row is None:
+                # Rebuild signatures from stored field data (raw_name + field_type
+                # per form) and find the first match.  This is a linear scan but
+                # only runs when the faster path misses, and PDFs in the corpus are
+                # typically ≤300.
+                all_forms = conn.execute(
+                    "SELECT form_id, file, payer FROM forms"
+                ).fetchall()
+                for fid, ffile, fpayer in all_forms:
+                    field_rows = conn.execute(
+                        "SELECT raw_name, field_type FROM form_fields WHERE form_id = ?",
+                        (fid,)
+                    ).fetchall()
+                    parts = sorted(f"{r[0]}:{r[1]}" for r in field_rows)
+                    computed = "FORM:" + ";".join(parts)
+                    computed_sig = hashlib.md5(computed.encode()).hexdigest()[:12]
+                    if computed_sig == signature:
+                        row = (fid, ffile, fpayer)
+                        break
+
+            if row is None:
                 conn.close()
                 return None
 

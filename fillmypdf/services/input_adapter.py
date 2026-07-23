@@ -197,6 +197,45 @@ def _normalise_bool(raw: Any) -> str:
     return str(raw)
 
 
+# Canonical enum fields (see models/canonical.py) reject anything outside their
+# Literal set, which otherwise hard-fails the WHOLE record during batch import.
+# Real-world / AI-produced inputs phrase these naturally ("Initial Request",
+# "New therapy", "Rx"), so map common variants to the canonical token before
+# validation. Unrecognised values are dropped (blank) with a warning rather than
+# failing the record.
+_REQUEST_TYPE_ALIASES: Dict[str, str] = {
+    "initial": "initial", "initial request": "initial", "new": "initial",
+    "new request": "initial", "new therapy": "initial", "first request": "initial",
+    "start": "initial", "new start": "initial",
+    "renewal": "renewal", "renew": "renewal", "renewal request": "renewal",
+    "reauthorization": "renewal", "reauth": "renewal", "re-authorization": "renewal",
+    "continuation": "continuation", "continuation of therapy": "continuation",
+    "continued": "continuation", "ongoing": "continuation", "continue": "continuation",
+    "continuation/renewal request": "renewal", "continuation/renewal": "renewal",
+    "appeal": "appeal", "reconsideration": "appeal",
+    "urgent": "urgent", "expedited": "urgent", "emergency": "urgent", "stat": "urgent",
+}
+_BENEFIT_TYPE_ALIASES: Dict[str, str] = {
+    "pharmacy": "pharmacy", "rx": "pharmacy", "drug": "pharmacy", "prescription": "pharmacy",
+    "medical": "medical", "med": "medical",
+    "dme": "dme", "durable medical equipment": "dme", "device": "dme", "medical device": "dme",
+    "both": "both", "medical and pharmacy": "both", "pharmacy and medical": "both",
+}
+
+
+def _coerce_enum(value: Optional[str], aliases: Dict[str, str], field: str) -> Optional[str]:
+    """Map a free-form value to a canonical enum token. Returns the token when
+    recognised (either already canonical or a known variant), else None (with a
+    warning) so one odd value never fails the entire record."""
+    if value is None or str(value).strip() == "":
+        return None
+    key = str(value).strip().lower()
+    if key in aliases:
+        return aliases[key]
+    print(f"  ⚠️  InputAdapter: unrecognized {field}={value!r} — leaving blank")
+    return None
+
+
 def _flatten_dict(d: Dict, prefix: str = "", sep: str = "__") -> Dict[str, str]:
     """Recursively flatten a nested dict into a flat {str: str} dict."""
     out: Dict[str, str] = {}
@@ -340,13 +379,16 @@ class InputAdapter:
                 end=g("service_end_date"),
             )
 
+        req_type = _coerce_enum(g("request_type"), _REQUEST_TYPE_ALIASES, "request_type")
+        benefit = _coerce_enum(g("benefit_type"), _BENEFIT_TYPE_ALIASES, "benefit_type")
+
         medical = MedicalInfo(
             diagnoses=diagnoses,
             medications=medications,
             procedures=procedures,
             service_dates=svc_dates,
-            benefit_type=g("benefit_type"),
-            request_type=g("request_type"),
+            benefit_type=benefit,
+            request_type=req_type,
             indication=g("indication"),
             clinical_notes=g("clinical_notes"),
         )
@@ -388,7 +430,7 @@ class InputAdapter:
         # --- form_context ---
         form_ctx = FormContext(
             indication=g("indication"),
-            request_type=g("request_type"),
+            request_type=req_type,
         )
 
         # --- leftover → custom ---

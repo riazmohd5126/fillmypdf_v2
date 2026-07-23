@@ -78,14 +78,157 @@ class PDFService:
             raw = reader.get_fields()
             if not raw:
                 return {}
+            def _is_pushbutton_dict(d) -> bool:
+                """True if a field/widget dict is a pushbutton: /Btn type with
+                the pushbutton flag (/Ff bit 17, 0x10000) set."""
+                if str(d.get("/FT", "")) != "/Btn":
+                    return False
+                try:
+                    return bool(int(d.get("/Ff", 0) or 0) & 0x10000)
+                except (TypeError, ValueError):
+                    return False
+
             result = {}
             for name, field in raw.items():
+                # Skip PUSHBUTTONS — action controls (page navigation,
+                # Print/Reset/Submit triggers), not data-entry fields: they
+                # hold no value and would otherwise surface as bogus all-null
+                # rows (e.g. "Button 1013.Page 20"). Real checkboxes/radios
+                # are /Btn WITHOUT the pushbutton flag, so they stay.
+                #  a) terminal pushbutton widget/field
+                if _is_pushbutton_dict(field):
+                    continue
+                #  b) a non-terminal container node (no /FT of its own) whose
+                #     /Kids are ALL pushbuttons — these appear as an extra
+                #     value-less parent row ("Button 102") above the leaf
+                #     "Button 102.Page 7" widgets.
+                if not field.get("/FT"):
+                    kids = field.get("/Kids")
+                    if kids:
+                        try:
+                            kid_objs = [k.get_object() for k in kids]
+                            if kid_objs and all(_is_pushbutton_dict(k) for k in kid_objs):
+                                continue
+                        except Exception:
+                            pass
+                #  c) a non-terminal GROUPING node whose /Kids are themselves
+                #     named sub-fields (each kid carries its own /T). pypdf lists
+                #     BOTH this parent ("Member Info T") and every leaf ("Member
+                #     Info T.0", ".1", …). The parent holds no value of its own,
+                #     so it would surface as a stray all-null row. Skip it; its
+                #     leaves are reported individually. (A terminal text field
+                #     whose kids are pure appearance widgets has NO /T on those
+                #     kids — that parent is kept.)
+                kids = field.get("/Kids")
+                if kids:
+                    try:
+                        kid_objs = [k.get_object() for k in kids]
+                        if kid_objs and all(k.get("/T") is not None for k in kid_objs):
+                            continue
+                    except Exception:
+                        pass
                 val = field.value
                 result[name] = val if isinstance(val, str) else (str(val) if val is not None else "")
             return result
         except Exception as e:
             print(f"  ⚠️  Could not read form fields: {e}")
             return {}
+
+    @staticmethod
+    def _collect_button_states(reader: PdfReader) -> Dict[str, list]:
+        """Map every /Btn field name → its list of ON-state export values
+        (e.g. ["/Yes"] or ["/Male", "/Female"]).
+
+        Walks the AcroForm field tree so radio groups whose states sit on
+        their kid widgets' /AP /N (not on the parent) are captured. Each field
+        is indexed by BOTH its fully-qualified dotted name and its leaf name.
+        """
+        states_map: Dict[str, list] = {}
+
+        def _widget_states(obj) -> list:
+            out: list = []
+            try:
+                ap = obj.get("/AP")
+                if ap:
+                    n = ap.get_object().get("/N")
+                    if n:
+                        for k in n.get_object().keys():
+                            if str(k) != "/Off" and str(k) not in out:
+                                out.append(str(k))
+            except Exception:
+                pass
+            return out
+
+        def _walk(node_ref, prefix: str) -> None:
+            try:
+                node = node_ref.get_object()
+            except Exception:
+                return
+            t = node.get("/T")
+            if t is not None:
+                name = f"{prefix}.{t}" if prefix else str(t)
+            else:
+                name = prefix
+            kids = node.get("/Kids")
+            if str(node.get("/FT", "")) == "/Btn" and name:
+                states = list(_widget_states(node))
+                if kids:
+                    for kid in kids:
+                        try:
+                            ko = kid.get_object()
+                            if ko.get("/T") is None:  # pure appearance widget
+                                for s in _widget_states(ko):
+                                    if s not in states:
+                                        states.append(s)
+                        except Exception:
+                            continue
+                states_map[name] = states
+                states_map.setdefault(name.split(".")[-1], states)
+            # Recurse into named sub-fields (kids carrying their own /T).
+            if kids:
+                for kid in kids:
+                    try:
+                        if kid.get_object().get("/T") is not None:
+                            _walk(kid, name)
+                    except Exception:
+                        continue
+
+        try:
+            acro = reader.trailer["/Root"].get("/AcroForm")
+            fields = acro.get_object().get("/Fields") if acro else None
+            if fields:
+                for f in fields:
+                    _walk(f, "")
+        except Exception:
+            pass
+        return states_map
+
+    _TRUE_STATES = {"yes", "true", "1", "on", "x", "checked", "selected"}
+
+    @staticmethod
+    def _resolve_button_state(value: str, states: list) -> str:
+        """Resolve a user/AI value to a real button on-state name (e.g. "/Male",
+        "/Yes", "/Off").
+
+        - An explicit option ("Male", "No_2") matches its export state
+          case-insensitively — this is what makes MULTI-option radios fillable.
+        - A generic truthy value ("Yes"/"true"/"1"/"x") checks the box when the
+          field has exactly one on-state, or picks a "Yes"-named state.
+        - Anything falsey / unmatched → "/Off".
+        """
+        v = str(value).strip()
+        vlow = v.lstrip("/").lower()
+        non_off = [s for s in states if s != "/Off"]
+        for s in states:                                  # exact export match
+            if s.lstrip("/").lower() == vlow:
+                return s
+        if vlow in PDFService._TRUE_STATES:               # generic truthy
+            if len(non_off) == 1:
+                return non_off[0]
+            for s in non_off:
+                if s.lstrip("/").lower() == "yes":
+                    return s
+        return "/Off"
 
     def fill_fields(
         self, input_path: Path, output_path: Path, field_values: Dict[str, str]
@@ -97,21 +240,21 @@ class PDFService:
         try:
             reader = PdfReader(str(input_path))
 
-            # Build a lookup: leaf field name → field type (/Btn = checkbox)
-            raw_fields = reader.get_fields() or {}
-            btn_fields: set = set()
-            for name, fld in raw_fields.items():
-                if str(fld.get("/FT", "")) == "/Btn":
-                    btn_fields.add(name)
-                    # Also index by leaf name for flat-name callers
-                    leaf = name.split(".")[-1].rstrip("]").rstrip("[0")
-                    btn_fields.add(leaf)
+            # Build a lookup: field name → its valid button on-states (export
+            # values), e.g. ["/Yes"] for a plain checkbox or ["/Male",
+            # "/Female"] for a Gender radio. pypdf's "/_States_" is unreliable
+            # for radio groups (the states live on the KID widgets' /AP /N, not
+            # the parent), so read them straight from the AcroForm tree.
+            # Indexed by BOTH fully-qualified and leaf name so flat-name callers
+            # still resolve.
+            btn_states = self._collect_button_states(reader)
 
-            # Normalise checkbox values: AI returns "Yes"/"No", pypdf needs /Yes / /Off
+            # Normalise values: checkboxes/radios need a PDF name state
+            # (/Male, /Yes, /Off); text fields pass through unchanged.
             normalised: Dict[str, str] = {}
             for k, v in field_values.items():
-                if k in btn_fields:
-                    normalised[k] = "/Yes" if str(v).strip().lower() in ("yes", "true", "1", "on") else "/Off"
+                if k in btn_states:
+                    normalised[k] = self._resolve_button_state(v, btn_states[k])
                 else:
                     normalised[k] = v
 

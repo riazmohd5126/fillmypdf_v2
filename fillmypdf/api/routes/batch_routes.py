@@ -16,6 +16,7 @@ import json
 
 from ...services.batch_fill_service import BatchFillService
 from ...services.template_cache import TemplateCache
+from ...services.field_map_cache import FieldMapCache
 from ...services.ai_provider import prepare_ai_config
 from ...config import settings
 from ..dependencies.auth import require_api_key, require_admin
@@ -492,8 +493,9 @@ async def list_cache_entries():
     Each entry shows the template fingerprint, when it was cached, and how
     many fields were mapped. Requires an **admin** API key.
     """
-    cache = TemplateCache()
-    return {"entries": cache.list_entries(), "total": len(cache.list_entries())}
+    cache = FieldMapCache()
+    entries = cache.list_entries()
+    return {"entries": entries, "total": len(entries)}
 
 
 @router.delete(
@@ -510,7 +512,7 @@ async def invalidate_cache_entry(fingerprint: str):
     re-runs the AI instead of using the stale cached mappings. Requires
     an **admin** API key.
     """
-    cache = TemplateCache()
+    cache = FieldMapCache()
     if not cache.invalidate(fingerprint):
         raise HTTPException(404, f"Cache entry '{fingerprint}' not found")
     return None
@@ -529,9 +531,14 @@ async def clear_cache():
     The next fill of any template will call the AI fresh. Requires an
     **admin** API key.
     """
-    cache = TemplateCache()
     cleared = 0
-    for entry in cache.list_entries():
-        if cache.invalidate(entry["fingerprint"]):
+    # Clear the active PHI-free mapping cache…
+    fm = FieldMapCache()
+    for entry in fm.list_entries():
+        if fm.invalidate(entry["fingerprint"]):
             cleared += 1
+    # …and also purge the deprecated value cache, which may hold PHI on disk.
+    tc = TemplateCache()
+    for entry in tc.list_entries():
+        tc.invalidate(entry["fingerprint"])
     return None

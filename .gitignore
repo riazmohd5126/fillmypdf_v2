@@ -41,6 +41,8 @@ fillmypdf/storage/api_keys/
 fillmypdf/storage/temp/
 fillmypdf/storage/jobs/
 fillmypdf/storage/template_cache/
+fillmypdf/storage/label_cache/
+fillmypdf/storage/field_map_cache/
 fillmypdf/storage/sign_audit/
 fillmypdf/storage/usage_stats.json
 # Generated fillable PDF cache (converted at runtime from stored templates)

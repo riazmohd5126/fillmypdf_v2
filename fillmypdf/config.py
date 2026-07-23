@@ -50,6 +50,23 @@ class Settings(BaseSettings):
     DEFAULT_AI_MODEL: str = "gemini-2.5-flash"
     DEFAULT_DPI: int = 200
 
+    # ── Gemini label fallback ("use Gemini where AcroForm can't label") ──────
+    # Server-side Gemini key.  When set (here or via the GEMINI_API_KEY env var)
+    # AND AI_LABEL_FALLBACK is True, the acroform extract path AUTOMATICALLY
+    # sends fields whose printed label geometry couldn't resolve
+    # (label_source == "name") to Gemini vision — no per-request ai_labels flag
+    # or key needed.  Never fires when AI_LOCAL_ONLY=True (HIPAA guardrail) or
+    # for a non-acroform engine.  Leave empty to keep the fallback dormant.
+    GEMINI_API_KEY: str = ""
+    AI_LABEL_FALLBACK: bool = True
+
+    # Label cache: persist the (expensive) full-Gemini field→label/section/group
+    # mapping keyed by the blank form's STRUCTURE (no user data), so a template
+    # is labeled by Gemini at most once and every later extract/fill reads it
+    # locally — no repeat AI calls, no PHI egress. Delete storage/label_cache/*
+    # to force a re-label.
+    LABEL_CACHE_ENABLED: bool = True
+
     # ── LLM Provider toggle ──────────────────────────────────────────────────
     # AI_PROVIDER: "gemini" uses the cloud Gemini endpoint above.
     #              "local"  uses the self-hosted Ollama/vLLM server below.
@@ -74,6 +91,38 @@ class Settings(BaseSettings):
     # PA forms and keep only if avg_confidence improves.
     AI_USE_COORDINATES: bool = False
 
+    # ── Field-detection engine ───────────────────────────────────────────────
+    # Selects HOW form fields are located + understood for inspection/extraction.
+    #   "opencv"    (default) — detect field boxes/checkboxes/underlines from the
+    #                rendered page image using OpenCV.  Fully local, no AI, never
+    #                calls Gemini.  Boxes are matched back to AcroForm widgets by
+    #                overlap so fills keep working; labels reuse the pdfplumber
+    #                geometry (or OCR when the page has no text layer).
+    #   "vlm_local" — local Qwen2.5-VL reads the page image for label/section/group.
+    #                LOCAL ONLY: base_url is hard-pinned to LOCAL_AI_BASE_URL and
+    #                asserted private, so it can never egress to Gemini.
+    #   "acroform"  — the original pypdf-widget + pdfplumber-geometry pipeline,
+    #                kept as a deterministic toggle / regression baseline.
+    # Per-request `engine=` on the extract route overrides this for one call.
+    # Default is the original AcroForm+geometry pipeline (proven accurate on
+    # widget PDFs); "opencv" and "vlm_local" are opt-in toggles.
+    FIELD_DETECTION_ENGINE: str = "acroform"
+
+    # DPI used to rasterize pages for the OpenCV / VLM engines.
+    CV_DPI: int = 200
+    # Run OCR (pytesseract) to recover labels only when a page has no text layer
+    # (i.e. scanned image PDFs).  Digital PDFs keep using the free text layer.
+    CV_OCR_ENABLED: bool = True
+    # Minimum intersection-over-union for binding an OpenCV-detected box to an
+    # existing AcroForm widget (so the detected field inherits the real /T name
+    # and stays fillable).  Below this, the box keeps a synthesized name.
+    CV_MATCH_IOU: float = 0.3
+    # Local vision-language model served by Ollama/vLLM for the vlm_local engine.
+    # The text LOCAL_AI_MODEL (e.g. qwen2.5:3b) is NOT multimodal — this must be
+    # a vision variant.  Pull it first:  ollama pull qwen2.5vl:3b
+    # Bump to qwen2.5vl:7b for better accuracy if you have the RAM/VRAM.
+    LOCAL_VISION_MODEL: str = "qwen2.5vl:3b"
+
     # ── Prior-Authorization auto-routing ────────────────────────────────────
     # Templates whose manifest.category is in PA_CATEGORIES are treated as
     # PHI-sensitive.  When PA_FORCE_LOCAL=True the server prefers the local LLM
@@ -97,8 +146,36 @@ class Settings(BaseSettings):
     COMMONFORMS_IMAGE_SIZE: int = 1024
 
     # Template mapping cache (Layer 3)
-    TEMPLATE_CACHE_ENABLED: bool = True
+    # DEPRECATED: this cache stored FILLED VALUES (PHI) on disk. It is now
+    # disabled by default and replaced by FieldMapCache (values-free). Left as
+    # a flag only so an operator can consciously re-enable the old behaviour.
+    TEMPLATE_CACHE_ENABLED: bool = False
     TEMPLATE_CACHE_TTL_DAYS: int = 0        # 0 = never expire
+
+    # Field-mapping cache (PHI-free): caches only which USER KEY feeds which PDF
+    # field (schema), keyed on labels + user keys — never any values. This lets
+    # the same form be mapped once and then filled locally with zero PHI ever
+    # written to disk or sent to the AI on cache hits.
+    FIELD_MAP_CACHE_ENABLED: bool = True
+
+    # ── Canonical fork ("Call 4" at request time) ───────────────────────────
+    # When enabled, the autofill pipeline first maps each PDF field to the FIXED
+    # canonical schema (pa_canonical.CATALOG) and fills every field it can from
+    # canonically-resolved user data — deterministically, with critical-field
+    # deferral (a wrong member_id/dob/npi is left blank rather than guessed).
+    # Only the fields the canonical fork can't place fall through to the general
+    # Call-3 (field→user-key) mapper. Set False to restore pure Call-3 behaviour.
+    CANONICAL_FORK_ENABLED: bool = True
+    # Cache the field→canonical-path mapping per blank form (PHI-free, keyed on
+    # structure + schema version). Built once, reused forever.
+    CANONICAL_MAP_CACHE_ENABLED: bool = True
+    # Allow the canonical mapper to fall back to the AI (blank-form labels only,
+    # PHI-free) for fields resolve_label can't place. One call per form, cached.
+    CANONICAL_AI_FALLBACK: bool = True
+    # Critical canonical fields (member_id, dob, npi, drug…) are DEFERRED (left
+    # blank + reported) unless the mapping confidence meets this bar.
+    # Ladder: high=0.9, medium=0.7, low=0.4.
+    CANONICAL_CRITICAL_MIN_CONFIDENCE: float = 0.9
 
     # Async job queue
     JOB_WORKER_THREADS: int = 4       # concurrent batch workers

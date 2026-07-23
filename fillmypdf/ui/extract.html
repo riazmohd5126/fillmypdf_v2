@@ -56,6 +56,16 @@
           <input id="include-labels" type="checkbox" checked class="text-indigo-600 rounded">
           Include inferred field labels
         </label>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Detection engine</label>
+          <select id="engine" class="text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <option value="gemini" selected>Gemini (full AI pass, cached)</option>
+            <option value="acroform">AcroForm + geometry (original)</option>
+            <option value="opencv">OpenCV (computer vision)</option>
+            <option value="vlm_local">Local Qwen-VL (on-prem AI)</option>
+          </select>
+          <p class="text-[11px] text-gray-400 mt-1">Gemini: first extract of a new form takes ~30–60s, then it's cached and instant.</p>
+        </div>
       </div>
 
       <button type="submit" id="submit-btn"
@@ -99,6 +109,7 @@
 
     const fmt = document.querySelector('input[name="fmt"]:checked').value;
     const includeLabels = document.getElementById('include-labels').checked;
+    const engine = document.getElementById('engine').value;
 
     const btn = document.getElementById('submit-btn');
     btn.disabled = true;
@@ -107,7 +118,7 @@
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const params = new URLSearchParams({ format: fmt, include_labels: includeLabels });
+      const params = new URLSearchParams({ format: fmt, include_labels: includeLabels, engine });
       const r = await fetch(`/api/v1/extract?${params}`, {
         method: 'POST', headers: { 'X-API-Key': key }, body: fd
       });

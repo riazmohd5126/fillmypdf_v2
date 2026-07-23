@@ -236,12 +236,44 @@
         const data = await res.json();
         if (!res.ok) throw new Error(JSON.stringify(data.detail || data));
         const dl = apiBase() + data.download_url;
-        $('signMsg').innerHTML = '<span class="ok">Done. <a href="' + esc(dl) + '" style="color:#93c5fd">Download signed PDF</a></span> (open link with API key if required)';
+        $('signMsg').innerHTML = '<span class="ok">Done. <a href="#" data-url="' + esc(dl) + '" onclick="downloadWithKey(event, this)" style="color:#93c5fd">Download signed PDF</a></span>';
       } catch (e) { $('signMsg').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; }
     };
 
     function esc(s) {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    }
+
+    // Auth-gated download: the download endpoint requires the X-API-Key header,
+    // which a plain link navigation can't send. Fetch the file with the header
+    // into a Blob and trigger a client-side download so neither the key nor the
+    // (potentially PHI) filename ever travels in the URL.
+    async function downloadWithKey(ev, el) {
+      ev.preventDefault();
+      const url = el.getAttribute('data-url');
+      const key = ($('apiKey').value || '').trim();
+      if (!url) return;
+      if (!key) { alert('Enter your API key first.'); return; }
+      const orig = el.textContent;
+      el.textContent = 'Downloading…';
+      try {
+        const r = await fetch(url, { headers: { 'X-API-Key': key } });
+        if (!r.ok) {
+          let msg = 'HTTP ' + r.status;
+          try { const j = await r.json(); msg = j.detail || msg; } catch (e) {}
+          throw new Error(msg);
+        }
+        const blob = await r.blob();
+        const filename = url.split('/').pop() || 'download';
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objUrl; a.download = filename; a.click();
+        URL.revokeObjectURL(objUrl);
+      } catch (e) {
+        alert('Download failed: ' + e.message);
+      } finally {
+        el.textContent = orig;
+      }
     }
   </script>
 </body>

@@ -233,6 +233,13 @@ async def count_requests(request: Request, call_next):
     response = await call_next(request)
     if not request.url.path.startswith(("/docs", "/openapi", "/redoc")):
         track_usage()
+    # Force the browser to revalidate the UI pages on every load. Static HTML is
+    # otherwise heuristically cached (StaticFiles sets no Cache-Control), which
+    # left users clicking a stale dashboard after we shipped fixes. "no-cache"
+    # still allows a 304 when unchanged, so it's cheap — it just guarantees the
+    # latest markup/JS is served after an edit.
+    if request.url.path.startswith(("/ui", "/static")):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
     return response
 
 
@@ -339,6 +346,20 @@ try:
     app.include_router(approval_routes.router, prefix="/api/v1")
 except ImportError as e:
     print(f"⚠️  Approval routes not available: {e}")
+
+# PA fill routes
+try:
+    from .api.routes import pa_routes
+    app.include_router(pa_routes.router, prefix="/api/v1")
+except ImportError as e:
+    print(f"⚠️  PA routes not available: {e}")
+
+# Canonical mapping review / approve-lock routes (admin)
+try:
+    from .api.routes import mapping_review_routes
+    app.include_router(mapping_review_routes.router, prefix="/api/v1")
+except ImportError as e:
+    print(f"⚠️  Mapping review routes not available: {e}")
 
 # ---------------------------------------------------------------------------
 # Serve UI static pages at /ui/*

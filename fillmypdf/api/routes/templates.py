@@ -187,6 +187,92 @@ async def inspect_template_fields(template_id: str):
 
 
 # ---------------------------------------------------------------------------
+# Intake schema (guided web form / CSV) from the locked canonical map
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/{template_id}/schema",
+    summary="Canonical intake schema for a template (from its reviewed/locked map)",
+)
+async def get_template_schema(template_id: str):
+    """
+    Return the set of canonical fields this template needs, derived from its
+    **locked** canonical map (see the Mapping Review workflow). Drives the guided
+    web form and the CSV template — no AI, PHI-free.
+
+    If the form has no reviewed/locked map yet, ``reviewed`` is ``false`` and
+    ``schema`` is empty — review + lock the mapping first for a trustworthy form.
+    """
+    from ...services.canonical_map_cache import CanonicalMapCache
+    from ...services.canonical_schema import derive_schema
+    from ...services.vision_service import VisionService
+
+    try:
+        svc = _get_service()
+        svc.get(template_id)  # ensure exists
+    except KeyError:
+        raise HTTPException(404, f"Template '{template_id}' not found")
+
+    try:
+        fillable_path = svc._ensure_fillable(template_id)
+        fields_info = VisionService("", "", "")._get_fields_with_coords(str(fillable_path))
+    except Exception as exc:
+        raise HTTPException(500, f"Field inspection failed: {exc}")
+
+    if not fields_info:
+        return {"template_id": template_id, "reviewed": False,
+                "message": "No fillable fields detected", "schema": {"fields": [], "groups": []}}
+
+    cache = CanonicalMapCache()
+    sig = cache.signature(fields_info)
+    locked = cache.get_by_signature(sig)
+
+    if locked is None:
+        return {
+            "template_id": template_id,
+            "reviewed": False,
+            "signature": sig,
+            "message": "No reviewed/locked mapping for this form yet. "
+                       "Review and lock it in Mapping Review first.",
+            "schema": {"fields": [], "groups": []},
+        }
+
+    mappings = locked.get("mappings", {})
+    schema = derive_schema(mappings)
+
+    # Annotate fields that map to a multi-row table column so the guided form can
+    # offer per-row inputs (and list values distribute one value per row).
+    from collections import defaultdict
+    by_path: dict = defaultdict(list)
+    for name, m in mappings.items():
+        if isinstance(m, dict) and m.get("canonical") and m["canonical"] != "other":
+            by_path[m["canonical"]].append(name)
+    rows_by_path = {
+        p: len(VisionService.largest_row_run(names, fields_info))
+        for p, names in by_path.items()
+    }
+
+    def _annotate(field: dict) -> dict:
+        field["rows"] = rows_by_path.get(field.get("canonical"), 1)
+        return field
+
+    for f in schema.get("fields", []):
+        _annotate(f)
+    for g in schema.get("groups", []):
+        for f in g.get("fields", []):
+            _annotate(f)
+
+    return {
+        "template_id": template_id,
+        "reviewed": True,
+        "fingerprint": locked.get("fingerprint"),
+        "signature": sig,
+        "schema": schema,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Stream the raw PDF
 # ---------------------------------------------------------------------------
 
@@ -262,6 +348,12 @@ async def fill_template(
         default=False,
         description="When true, include per-field mappings, confidence scores, and labels in the response (useful for A/B testing)",
     ),
+    guided: bool = Form(
+        default=False,
+        description="When true, user_data is already keyed by canonical path "
+        "(patient.dob) and may contain LIST values for repeating table rows "
+        "(drug history, labs). Bypasses InputAdapter for deterministic fill.",
+    ),
 ):
     """
     Fill a stored template with one record.
@@ -310,6 +402,7 @@ async def fill_template(
             profile_id=profile_id,
             profile_ids=parsed_ids,
             return_mappings=return_mappings,
+            preserve_input=guided,
         )
     except Exception as exc:
         raise HTTPException(500, f"Fill failed: {exc}")

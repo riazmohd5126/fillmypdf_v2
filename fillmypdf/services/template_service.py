@@ -141,12 +141,19 @@ class TemplateService:
         profile_id: Optional[str] = None,
         profile_ids: Optional[List[str]] = None,
         return_mappings: bool = False,
+        preserve_input: bool = False,
     ) -> TemplateFillResponse:
         """
         Fill one record against the stored template PDF.
 
         Returns a TemplateFillResponse; the filled PDF is written to
         OUTPUT_DIR and the download_url field points to it.
+
+        ``preserve_input=True`` bypasses ``InputAdapter`` and feeds ``user_data``
+        straight to the pipeline. Guided/CSV intake sends data already keyed by
+        canonical path (``patient.dob``) and may carry LIST values for repeating
+        table columns (drug history, labs) — the adapter would stringify those,
+        so they must pass through untouched for per-row distribution.
         """
         # 1. Merge optional profile data (multi-profile takes precedence)
         base: dict = {}
@@ -162,8 +169,11 @@ class TemplateService:
             except ValueError:
                 pass
 
-        # 2. Normalise input through InputAdapter
-        ai_input = self.input_adapter.to_ai_input(user_data, base)
+        # 2. Normalise input (unless the caller sends canonical-keyed data)
+        if preserve_input:
+            ai_input = {**base, **user_data} if base else dict(user_data)
+        else:
+            ai_input = self.input_adapter.to_ai_input(user_data, base)
 
         # 3. Ensure we have a fillable PDF (cached after first call)
         fillable_path = self._ensure_fillable(template_id)
@@ -195,6 +205,7 @@ class TemplateService:
             fields_skipped_low_confidence=result.get("fields_skipped_low_confidence", 0),
             avg_confidence=result.get("avg_confidence"),
             cache_hit=result.get("cache_hit", False),
+            canonical_map_reviewed=result.get("canonical_map_reviewed", False),
             download_url=f"/api/v1/templates/download/{output_filename}",
             message=result.get("error"),
             mappings=result.get("mappings") if return_mappings else None,

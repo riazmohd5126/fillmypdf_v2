@@ -161,6 +161,8 @@ class TemplateFillResponse(BaseModel):
     fields_skipped_low_confidence: int = 0
     avg_confidence: Optional[float] = None
     cache_hit: bool = False
+    # True when a human-reviewed/locked canonical map was honored for this fill.
+    canonical_map_reviewed: bool = False
     download_url: str
     message: Optional[str] = None
     # Optional verbose fields — only populated when return_mappings=true

@@ -385,11 +385,15 @@
       return;
     }
     const d = data;
+    // Auth-gated download: the /batch/download endpoint requires the X-API-Key
+    // header, which a plain <a href> navigation can't send. Fetch it with the
+    // header into a Blob and trigger a client-side download so the key and the
+    // (potentially PHI) filename never travel in the URL.
     const dlLink = d.download_url
-      ? `<a href="${esc(d.download_url)}" class="inline-flex items-center gap-1 mt-4 bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700">
+      ? `<button type="button" data-url="${esc(d.download_url)}" onclick="downloadResult(this)" class="inline-flex items-center gap-1 mt-4 bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700">
            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
            Download ZIP
-         </a>` : '';
+         </button>` : '';
     el.innerHTML = `
       <div class="bg-green-50 border border-green-200 rounded-xl p-5">
         <p class="text-sm font-semibold text-green-800 mb-3">Batch complete</p>
@@ -400,6 +404,35 @@
         </div>
         ${dlLink}
       </div>`;
+  }
+
+  async function downloadResult(btn) {
+    const dlUrl = btn.getAttribute('data-url');
+    const key = getKey();
+    if (!dlUrl) return;
+    if (!key) { alert('No API key set. Set it on the dashboard first.'); return; }
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = 'Downloading…';
+    try {
+      const r = await fetch(dlUrl, { headers: { 'X-API-Key': key } });
+      if (!r.ok) {
+        let msg = `HTTP ${r.status}`;
+        try { const j = await r.json(); msg = j.detail || msg; } catch {}
+        throw new Error(msg);
+      }
+      const blob = await r.blob();
+      const filename = dlUrl.split('/').pop() || 'batch_result.zip';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Download failed: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = orig;
+    }
   }
 
   function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }

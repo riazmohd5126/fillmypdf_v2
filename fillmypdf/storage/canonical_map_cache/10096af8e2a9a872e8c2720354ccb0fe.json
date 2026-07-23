@@ -1,0 +1,809 @@
+{
+  "version": 1,
+  "schema_version": "606a74102b36",
+  "cached_at": "2026-07-19T13:34:37.829558",
+  "fingerprint": "10096af8e2a9a872e8c2720354ccb0fe",
+  "reviewed": true,
+  "field_labels": {
+    "1": "Subscriber Name",
+    "2": "Phone",
+    "3": "Fax",
+    "4": "Date: (MM/DD/YYYY)",
+    "cb5": "Type of Request (Check one)",
+    "cb9": "Prior Authorization",
+    "cb6": "Step Therapy, Formulary Exception",
+    "cb10": "Medical Device",
+    "cb7": "Quantity Exception",
+    "cb11": "Durable Medical Equipment (DME)",
+    "13": "Please specify",
+    "cb8": "Specialty Drug",
+    "cb12": "Other",
+    "cb14": "SECTION III — REVIEW / Expedited/Urgent Review Requested: By",
+    "Signature": "Signature of Prescriber or Prescriber’s Designee",
+    "cb18": "Gender",
+    "15": "Name",
+    "16": "Phone",
+    "17": "DOB: (MM/DD/YYYY)",
+    "19": "Address",
+    "20": "City",
+    "21": "State",
+    "22": "ZIP Code",
+    "23": "Subscriber Name (if different from Section I)",
+    "24": "Member ID #",
+    "25": "Group Name or Number",
+    "26": "BIN # (if available)",
+    "27": "PCN (if available)",
+    "28": "Rx ID # (if available)",
+    "29": "Name",
+    "30": "NPI #",
+    "31": "Specialty",
+    "32": "Address",
+    "33": "City",
+    "34": "State",
+    "35": "ZIP Code",
+    "36": "Phone",
+    "37": "Fax",
+    "38": "Office Contact Name",
+    "39": "Contact Phone",
+    "40": "Requested Drug Name",
+    "41": "Strength",
+    "42": "Route of Administration",
+    "43": "Quantity",
+    "44": "Days’ Supply",
+    "45": "Expected Therapy Duration",
+    "47": "Approximate date therapy initiated: (MM/DD/YYYY)",
+    "cb46": "Type of therapy",
+    "48": "HCPCS Code",
+    "49": "NDC #",
+    "50": "Dose Per Administration",
+    "51": "For Provider Administered Drugs Only",
+    "52": "Compound Drug Name",
+    "53": "Ingredient",
+    "54": "NDC #",
+    "55": "Quantity",
+    "56": "Ingredient",
+    "57": "NDC #",
+    "58": "Quantity",
+    "59": "Ingredient",
+    "60": "NDC #",
+    "61": "Quantity",
+    "62": "Ingredient",
+    "63": "NDC #",
+    "64": "Quantity",
+    "65": "Ingredient",
+    "66": "NDC #",
+    "67": "Quantity",
+    "68": "Ingredient",
+    "69": "NDC #",
+    "70": "Quantity",
+    "71": "Ingredient",
+    "72": "NDC #",
+    "73": "Quantity",
+    "74": "Ingredient",
+    "75": "NDC #",
+    "76": "Quantity",
+    "77": "Ingredient",
+    "78": "NDC #",
+    "79": "Quantity",
+    "80": "Ingredient",
+    "81": "NDC #",
+    "82": "Quantity",
+    "83": "Ingredient",
+    "84": "NDC #",
+    "85": "Quantity",
+    "86": "Ingredient",
+    "87": "NDC #",
+    "88": "Quantity",
+    "89": "Ingredient",
+    "90": "NDC #",
+    "91": "Quantity",
+    "92": "Ingredient",
+    "93": "NDC #",
+    "94": "Quantity",
+    "95": "Requested DME or Medical Device Name",
+    "96": "Expected Duration of Use",
+    "97": "HCPCS Code (If applicable)",
+    "98": "Patient’s diagnosis related to this request",
+    "99": "ICD Version",
+    "100": "ICD Code",
+    "101": "Patient’s diagnosis related to this request",
+    "102": "ICD Version",
+    "103": "ICD Code",
+    "104": "Drug Name",
+    "105": "Strength",
+    "106": "Frequency",
+    "107": "Dates Started and Stopped or Approximate Duration (MM/DD/YYYY)",
+    "108": "Describe Response, Reason for Failure, or Allergy",
+    "109": "Drug Name",
+    "110": "Strength",
+    "111": "Frequency",
+    "112": "Dates Started and Stopped or Approximate Duration (MM/DD/YYYY)",
+    "113": "Describe Response, Reason for Failure, or Allergy",
+    "114": "Drug Name",
+    "115": "Strength",
+    "116": "Frequency",
+    "117": "Dates Started and Stopped or Approximate Duration (MM/DD/YYYY)",
+    "118": "Describe Response, Reason for Failure, or Allergy",
+    "119": "Drug Name",
+    "120": "Strength",
+    "121": "Frequency",
+    "122": "Dates Started and Stopped or Approximate Duration (MM/DD/YYYY)",
+    "123": "Describe Response, Reason for Failure, or Allergy",
+    "124": "Drug Name",
+    "125": "Strength",
+    "126": "Frequency",
+    "127": "Dates Started and Stopped or Approximate Duration (MM/DD/YYYY)",
+    "128": "Describe Response, Reason for Failure, or Allergy",
+    "129": "Drug Name",
+    "130": "Strength",
+    "131": "Frequency",
+    "132": "Dates Started and Stopped or Approximate Duration (MM/DD/YYYY)",
+    "133": "Describe Response, Reason for Failure, or Allergy",
+    "134": "Drug Allergies",
+    "135": "Height (if applicable)",
+    "136": "Weight (if applicable)",
+    "137": "Date (MM/DD/YYYY)",
+    "138": "Test",
+    "139": "SECTION IX — PATIENT CLINICAL INFORMATION / Value",
+    "140": "Date (MM/DD/YYYY)",
+    "141": "Test",
+    "142": "SECTION IX — PATIENT CLINICAL INFORMATION / Value",
+    "143": "Date (MM/DD/YYYY)",
+    "144": "Test",
+    "145": "SECTION IX — PATIENT CLINICAL INFORMATION / 145",
+    "146": "Date (MM/DD/YYYY)",
+    "147": "Test",
+    "148": "SECTION IX — PATIENT CLINICAL INFORMATION / 148",
+    "149": "SECTION X JUSTIFICATION (Provide or attach any additional justification here: Notes, Treatment plans, lab/test results, etc) / SECTION X ― JUSTIFICATION (Provide or attach any additional justification here: Notes, Treatment plans, lab/test results, etc)"
+  },
+  "mappings": {
+    "1": {
+      "canonical": "insurance.subscriber_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "2": {
+      "canonical": "patient.phone",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "3": {
+      "canonical": "prescriber.fax",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "4": {
+      "canonical": "request.date_of_request",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "cb5": {
+      "canonical": "request.request_type",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "cb9": {
+      "canonical": "request.previous_auth_number",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "cb6": {
+      "canonical": "clinical.prior_therapies",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "cb7": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "cb8": {
+      "canonical": "prescriber.specialty",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "cb12": {
+      "canonical": "clinical.secondary_diagnoses",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "cb14": {
+      "canonical": "request.is_expedited",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Signature": {
+      "canonical": "prescriber.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "cb18": {
+      "canonical": "patient.sex",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "15": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "16": {
+      "canonical": "patient.phone",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "17": {
+      "canonical": "patient.dob",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "19": {
+      "canonical": "patient.address_line1",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "20": {
+      "canonical": "patient.city",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "21": {
+      "canonical": "patient.state",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "22": {
+      "canonical": "patient.zip",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "23": {
+      "canonical": "insurance.subscriber_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "24": {
+      "canonical": "insurance.member_id",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "25": {
+      "canonical": "insurance.group_number",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "26": {
+      "canonical": "insurance.rx_bin",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "27": {
+      "canonical": "insurance.rx_pcn",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "29": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "30": {
+      "canonical": "prescriber.npi",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "31": {
+      "canonical": "prescriber.specialty",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "32": {
+      "canonical": "patient.address_line1",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "33": {
+      "canonical": "patient.city",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "34": {
+      "canonical": "patient.state",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "35": {
+      "canonical": "patient.zip",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "36": {
+      "canonical": "patient.phone",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "37": {
+      "canonical": "prescriber.fax",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "38": {
+      "canonical": "prescriber.contact_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "39": {
+      "canonical": "prescriber.contact_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "40": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "41": {
+      "canonical": "medication.strength",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "42": {
+      "canonical": "medication.route",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "43": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "44": {
+      "canonical": "medication.days_supply",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "45": {
+      "canonical": "request.requested_duration",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "47": {
+      "canonical": "request.date_of_request",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "48": {
+      "canonical": "medication.hcpcs_jcode",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "49": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "50": {
+      "canonical": "medication.strength",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "51": {
+      "canonical": "prescriber.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "52": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "54": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "55": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "57": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "58": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "60": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "61": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "63": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "64": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "66": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "67": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "69": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "70": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "72": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "73": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "75": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "76": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "78": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "79": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "81": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "82": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "84": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "85": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "87": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "88": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "90": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "91": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "93": {
+      "canonical": "medication.ndc",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "94": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "95": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "96": {
+      "canonical": "request.requested_duration",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "97": {
+      "canonical": "medication.hcpcs_jcode",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "98": {
+      "canonical": "clinical.primary_diagnosis_code",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "100": {
+      "canonical": "clinical.primary_diagnosis_code",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "101": {
+      "canonical": "clinical.primary_diagnosis_code",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "103": {
+      "canonical": "clinical.primary_diagnosis_code",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "104": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "105": {
+      "canonical": "medication.strength",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "107": {
+      "canonical": "request.requested_duration",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "109": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "110": {
+      "canonical": "medication.strength",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "112": {
+      "canonical": "request.requested_duration",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "114": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "115": {
+      "canonical": "medication.strength",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "117": {
+      "canonical": "request.requested_duration",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "119": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "120": {
+      "canonical": "medication.strength",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "122": {
+      "canonical": "request.requested_duration",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "124": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "125": {
+      "canonical": "medication.strength",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "127": {
+      "canonical": "request.requested_duration",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "129": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "130": {
+      "canonical": "medication.strength",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "132": {
+      "canonical": "request.requested_duration",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "134": {
+      "canonical": "patient.allergies",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "135": {
+      "canonical": "patient.height_cm",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "136": {
+      "canonical": "patient.weight_kg",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "137": {
+      "canonical": "request.date_of_request",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "138": {
+      "canonical": "clinical.relevant_lab_values",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "139": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "140": {
+      "canonical": "request.date_of_request",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "141": {
+      "canonical": "clinical.relevant_lab_values",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "142": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "143": {
+      "canonical": "request.date_of_request",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "144": {
+      "canonical": "clinical.relevant_lab_values",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "145": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "146": {
+      "canonical": "request.date_of_request",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "147": {
+      "canonical": "clinical.relevant_lab_values",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "148": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "149": {
+      "canonical": "clinical.clinical_rationale",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "106": {
+      "canonical": "medication.sig",
+      "confidence": "medium",
+      "source": "ai"
+    },
+    "108": {
+      "canonical": "clinical.treatment_history_notes",
+      "confidence": "high",
+      "source": "ai"
+    },
+    "111": {
+      "canonical": "medication.sig",
+      "confidence": "medium",
+      "source": "ai"
+    },
+    "113": {
+      "canonical": "clinical.treatment_history_notes",
+      "confidence": "high",
+      "source": "ai"
+    },
+    "116": {
+      "canonical": "medication.sig",
+      "confidence": "medium",
+      "source": "ai"
+    },
+    "118": {
+      "canonical": "clinical.treatment_history_notes",
+      "confidence": "high",
+      "source": "ai"
+    },
+    "121": {
+      "canonical": "medication.sig",
+      "confidence": "medium",
+      "source": "ai"
+    },
+    "123": {
+      "canonical": "clinical.treatment_history_notes",
+      "confidence": "high",
+      "source": "ai"
+    },
+    "126": {
+      "canonical": "medication.sig",
+      "confidence": "medium",
+      "source": "ai"
+    },
+    "128": {
+      "canonical": "clinical.treatment_history_notes",
+      "confidence": "high",
+      "source": "ai"
+    },
+    "131": {
+      "canonical": "medication.sig",
+      "confidence": "medium",
+      "source": "ai"
+    },
+    "133": {
+      "canonical": "clinical.treatment_history_notes",
+      "confidence": "high",
+      "source": "ai"
+    }
+  },
+  "form_label": "aetna_az-prescription-drug-prior-authorizathion-request-_263213f9cd4c.pdf",
+  "signature": "ecd5f855ba31",
+  "updated_at": "2026-07-20T16:30:07.948809"
+}

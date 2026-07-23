@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Guided Fill — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+
+<nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
+  <a href="/ui/index.html" class="text-indigo-600 text-sm hover:underline">← Dashboard</a>
+  <span class="text-gray-300">|</span>
+  <span class="font-semibold text-gray-800">Guided Fill</span>
+  <a href="/ui/mapping_review.html" class="ml-auto text-xs text-indigo-600 hover:underline">Mapping Review →</a>
+</nav>
+
+<main class="max-w-6xl mx-auto px-4 py-8 space-y-6">
+
+  <div class="bg-indigo-600 rounded-2xl p-6 text-white">
+    <h1 class="text-2xl font-bold">Guided Form Fill</h1>
+    <p class="text-indigo-200 text-sm mt-1">
+      Pick a form, enter data into a clean form auto-generated from its reviewed
+      mapping, and download the filled PDF. Locked mappings fill deterministically
+      — no AI guessing, and only the fields the form actually needs.
+    </p>
+  </div>
+
+  <div id="no-key" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+    No API key set. Open the <a href="/ui/index.html" class="underline font-semibold">Dashboard</a> and set your API key first.
+  </div>
+  <div id="error-box" class="hidden bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700"></div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- LEFT: form picker -->
+    <div class="space-y-4">
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="font-semibold text-gray-800 text-sm uppercase tracking-wide">Choose a Form</h2>
+          <button onclick="loadTemplates()" class="text-xs text-indigo-600 hover:underline">Refresh</button>
+        </div>
+        <div id="tpl-list" class="space-y-2 text-sm">
+          <div class="text-gray-400 text-xs">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: dynamic form -->
+    <div class="lg:col-span-2 space-y-4">
+      <div id="form-empty" class="bg-white rounded-2xl border border-dashed border-gray-300 p-10 text-center text-gray-400 text-sm">
+        Select a form on the left to begin.
+      </div>
+
+      <div id="not-reviewed" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-6 text-sm text-amber-800">
+        <p class="font-semibold mb-1">This form isn't reviewed yet.</p>
+        <p>Guided Fill only offers forms whose canonical mapping has been reviewed &amp; locked, so the fill is trustworthy.
+           Go to <a href="/ui/mapping_review.html" class="underline font-semibold">Mapping Review</a>, build/lock this form's map, then come back.</p>
+      </div>
+
+      <div id="form-card" class="hidden bg-white rounded-2xl border border-gray-200 shadow-sm">
+        <div class="p-5 border-b border-gray-100 flex items-center gap-3 flex-wrap">
+          <div>
+            <p class="font-semibold text-gray-800" id="form-title">—</p>
+            <p class="text-xs text-gray-400" id="form-sub">—</p>
+          </div>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">LOCKED mapping</span>
+          <div class="ml-auto flex gap-2">
+            <button onclick="downloadCsv()" id="csv-btn"
+              class="bg-gray-100 text-gray-700 rounded-lg px-3 py-2 font-semibold text-xs hover:bg-gray-200 transition">
+              Download CSV template
+            </button>
+            <button onclick="useSample()"
+              class="bg-amber-50 text-amber-700 border border-amber-200 rounded-lg px-3 py-2 font-semibold text-xs hover:bg-amber-100 transition">
+              Sample data
+            </button>
+          </div>
+        </div>
+
+        <div class="p-5 space-y-5" id="form-body"></div>
+
+        <div class="p-5 border-t border-gray-100 space-y-3">
+          <div class="flex items-center gap-2">
+            <label class="text-xs text-gray-500 w-28">Gemini key (opt.)</label>
+            <input id="ai-key" type="password" placeholder="only needed if unmapped tail" class="inp flex-1"/>
+          </div>
+          <div id="fill-success" class="hidden bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm">
+            <p class="font-medium text-green-800 mb-2">PDF filled successfully!</p>
+            <div id="locked-badge" class="hidden items-center gap-1.5 bg-emerald-100 text-emerald-800 rounded-full px-2.5 py-1 text-xs font-medium mb-2 w-max">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              Reviewed mapping used (locked, no AI)
+            </div>
+            <a id="dl-btn" href="#" class="inline-flex items-center gap-2 bg-green-600 text-white rounded-lg px-3 py-2 text-sm font-medium hover:bg-green-700">Download PDF</a>
+          </div>
+          <button onclick="fillForm()" id="fill-btn"
+            class="w-full bg-indigo-600 text-white rounded-xl py-3 font-semibold text-sm hover:bg-indigo-700 transition">
+            Fill &amp; Download PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<style>
+  .label { display:block; font-size:0.7rem; color:#6b7280; margin-bottom:2px; font-weight:500 }
+  .inp   { width:100%; border:1px solid #d1d5db; border-radius:0.5rem; padding:6px 10px; font-size:0.82rem; outline:none; background:white; font-family:inherit; resize:vertical }
+  .inp:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.15) }
+</style>
+
+<script>
+function getKey(){ return localStorage.getItem('fmp_api_key') || ''; }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function showErr(m){ const e=document.getElementById('error-box'); e.textContent=m; e.classList.remove('hidden'); }
+function clearErr(){ document.getElementById('error-box').classList.add('hidden'); }
+
+let current = null;   // {template_id, fingerprint, schema}
+
+async function api(path, opts){
+  const r = await fetch(path, Object.assign({ headers: { 'X-API-Key': getKey() } }, opts||{}));
+  if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${r.status}`); }
+  return r.json();
+}
+
+async function loadTemplates(){
+  clearErr();
+  const el = document.getElementById('tpl-list');
+  el.innerHTML = '<div class="text-gray-400 text-xs">Loading…</div>';
+  try {
+    const d = await api('/api/v1/templates');
+    const items = d.templates || d.items || d || [];
+    const list = Array.isArray(items) ? items : (items.templates || []);
+    if(!list.length){ el.innerHTML = '<p class="text-gray-400 text-xs">No templates. Add one in the Templates screen.</p>'; return; }
+    el.innerHTML = list.map(t=>`
+      <button onclick="openTemplate('${esc(t.id)}','${esc(t.name||t.id)}')"
+        class="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 transition border border-gray-100">
+        <div class="font-medium text-gray-800 truncate">${esc(t.name||t.id)}</div>
+        <div class="text-[11px] text-gray-400">${esc(t.category||'')} ${t.field_count?('· '+t.field_count+' fields'):''}</div>
+      </button>`).join('');
+  } catch(e){ el.innerHTML=''; showErr(e.message); }
+}
+
+const TYPE_INPUT = { date:'date', number:'number', member_id:'text', npi:'text', ndc:'text', phone:'tel', email:'email', zip:'text' };
+
+function fieldControl(f){
+  const req = f.required ? ' <span class="text-red-500">*</span>' : '';
+  const crit = f.critical ? ' <span class="text-[9px] align-middle px-1 py-0.5 rounded bg-red-100 text-red-700">critical</span>' : '';
+  const id = 'f_' + f.canonical.replace(/[^a-z0-9]/gi,'_');
+  const rows = f.rows || 1;
+  let control, spanClass = '', hint = '';
+  if(rows > 1){
+    // Multi-row table column: one value per line, distributed top→bottom.
+    spanClass = ' class="col-span-2"';
+    hint = ` <span class="text-[9px] align-middle px-1 py-0.5 rounded bg-indigo-100 text-indigo-700">${rows} rows · one per line</span>`;
+    control = `<textarea id="${id}" data-canon="${esc(f.canonical)}" data-rows="1" rows="${Math.min(rows,6)}" class="inp" placeholder="One value per line (up to ${rows} rows)"></textarea>`;
+  } else if(f.canonical === 'patient.sex'){
+    control = `<select id="${id}" data-canon="${esc(f.canonical)}" class="inp"><option value="">—</option><option>M</option><option>F</option><option>X</option></select>`;
+  } else if(f.type === 'checkbox'){
+    control = `<select id="${id}" data-canon="${esc(f.canonical)}" class="inp"><option value="">—</option><option>Yes</option><option>No</option></select>`;
+  } else {
+    const t = TYPE_INPUT[f.type] || 'text';
+    control = `<input id="${id}" data-canon="${esc(f.canonical)}" type="${t}" class="inp"/>`;
+  }
+  return `<div${spanClass}>
+      <label class="label" for="${id}">${esc(f.label)}${req}${crit}${hint}</label>
+      ${control}
+    </div>`;
+}
+
+async function openTemplate(id, name){
+  clearErr();
+  document.getElementById('form-empty').classList.add('hidden');
+  document.getElementById('form-card').classList.add('hidden');
+  document.getElementById('not-reviewed').classList.add('hidden');
+  document.getElementById('fill-success').classList.add('hidden');
+  try {
+    const d = await api('/api/v1/templates/'+encodeURIComponent(id)+'/schema');
+    if(!d.reviewed){
+      document.getElementById('not-reviewed').classList.remove('hidden');
+      return;
+    }
+    current = { template_id: id, fingerprint: d.fingerprint, schema: d.schema, name };
+    renderForm(d, name);
+  } catch(e){ showErr(e.message); }
+}
+
+function renderForm(d, name){
+  document.getElementById('form-title').textContent = name;
+  const total = (d.schema.fields||[]).length;
+  document.getElementById('form-sub').textContent = `${total} canonical fields · deterministic fill`;
+  document.getElementById('form-body').innerHTML = (d.schema.groups||[]).map(g=>`
+    <div>
+      <h3 class="font-semibold text-gray-700 text-sm mb-2">${esc(g.title)}</h3>
+      <div class="grid grid-cols-2 gap-3">
+        ${g.fields.map(fieldControl).join('')}
+      </div>
+    </div>`).join('');
+  document.getElementById('form-card').classList.remove('hidden');
+}
+
+function collect(){
+  const body = {};
+  document.querySelectorAll('[data-canon]').forEach(el=>{
+    const canon = el.getAttribute('data-canon');
+    if(el.getAttribute('data-rows') === '1'){
+      // Multi-row column: split lines into a list (one value per table row).
+      const lines = (el.value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+      if(lines.length === 1) body[canon] = lines[0];
+      else if(lines.length > 1) body[canon] = lines;
+    } else {
+      const v = (el.value||'').trim();
+      if(v) body[canon] = v;
+    }
+  });
+  return body;
+}
+
+async function fillForm(){
+  if(!current) return;
+  clearErr();
+  const btn = document.getElementById('fill-btn');
+  btn.disabled = true; btn.textContent = 'Filling…';
+  document.getElementById('fill-success').classList.add('hidden');
+  try {
+    const fd = new FormData();
+    fd.append('user_data', JSON.stringify(collect()));
+    fd.append('guided', 'true');   // canonical-keyed data; preserve lists, no InputAdapter
+    const aiKey = document.getElementById('ai-key').value.trim();
+    if(aiKey) fd.append('ai_api_key', aiKey);
+    const r = await fetch('/api/v1/templates/'+encodeURIComponent(current.template_id)+'/fill', {
+      method:'POST', headers:{ 'X-API-Key': getKey() }, body: fd,
+    });
+    if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${r.status}`); }
+    const result = await r.json();
+
+    const dlBtn = document.getElementById('dl-btn');
+    dlBtn.onclick = async (ev)=>{
+      ev.preventDefault();
+      const dr = await fetch(result.download_url, { headers: { 'X-API-Key': getKey() } });
+      const blob = await dr.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download = current.template_id+'_filled.pdf'; a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    const badge = document.getElementById('locked-badge');
+    badge.classList.toggle('hidden', !result.canonical_map_reviewed);
+    badge.classList.toggle('flex', !!result.canonical_map_reviewed);
+    document.getElementById('fill-success').classList.remove('hidden');
+  } catch(e){ showErr(e.message); }
+  finally { btn.disabled=false; btn.textContent='Fill & Download PDF'; }
+}
+
+async function downloadCsv(){
+  if(!current || !current.fingerprint){ showErr('No mapping fingerprint for this form.'); return; }
+  try {
+    const r = await fetch('/api/v1/mappings/'+encodeURIComponent(current.fingerprint)+'/schema.csv', { headers: { 'X-API-Key': getKey() } });
+    if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${r.status} (CSV template needs an admin key)`); }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download = current.template_id+'_template.csv'; a.click();
+    URL.revokeObjectURL(url);
+  } catch(e){ showErr(e.message); }
+}
+
+function useSample(){
+  const SAMPLE = {
+    'patient.first_name':'Jane', 'patient.last_name':'Testpatient', 'patient.full_name':'Jane Testpatient',
+    'patient.dob':'1975-03-22', 'patient.sex':'F', 'patient.address_line1':'123 Maple St',
+    'patient.city':'Springfield', 'patient.state':'IL', 'patient.zip':'62701', 'patient.phone':'2175550123',
+    'insurance.payer_name':'Molina Healthcare', 'insurance.member_id':'MOL987654321', 'insurance.group_number':'GRP-12345',
+    'prescriber.full_name':'Dr. Robert Prescriber MD', 'prescriber.npi':'1234567893', 'prescriber.fax':'2175559877',
+    'prescriber.phone':'2175559876', 'prescriber.specialty':'Gastroenterology',
+    'facility.name':'Springfield GI Associates', 'facility.npi':'1487654321',
+    'medication.drug_name':['Linzess','Amitiza','Metamucil'], 'medication.strength':['290 mcg','24 mcg','—'],
+    'medication.sig':['1 capsule daily','1 capsule BID','1 tsp daily'],
+    'medication.quantity':'30', 'medication.days_supply':'30',
+    'clinical.primary_diagnosis_code':'K58.9', 'clinical.clinical_rationale':'IBS-C, inadequate response to prior therapy.',
+    'clinical.relevant_lab_values':['A1C 6.1%','TSH 2.3','eGFR 88'],
+    'request.request_type':'initial', 'request.date_of_request':'2026-07-22',
+  };
+  document.querySelectorAll('[data-canon]').forEach(el=>{
+    const v = SAMPLE[el.getAttribute('data-canon')];
+    if(v===undefined) return;
+    // Multi-row textareas take a list (one value per line); scalars just set.
+    el.value = Array.isArray(v) ? (el.getAttribute('data-rows')==='1' ? v.join('\n') : v[0]) : v;
+  });
+}
+
+if(!getKey()) document.getElementById('no-key').classList.remove('hidden');
+loadTemplates();
+</script>
+</body>
+</html>

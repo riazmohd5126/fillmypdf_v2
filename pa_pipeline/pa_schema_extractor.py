@@ -98,16 +98,44 @@ def _hit(pattern: str, norm: str) -> bool:
 
 
 def classify_field(raw: str):
-    """Return (canonical_field, confidence). High tier wins globally."""
+    """Return (canonical_field, confidence) using most-specific-wins logic.
+
+    Collects ALL matching aliases across every canonical field and picks the one
+    with the longest matched alias string.  This prevents short generic aliases
+    like 'name' (4 chars) from beating specific aliases like 'insurance' (9 chars)
+    for a field like 'Primary Insurance Name'.
+
+    Tiers:
+      high — matched an explicit alias from CATALOG
+      low  — matched only the leaf-name fallback (e.g. 'dob' matching 'dob field')
+      none — no match
+    """
     norm = normalize(raw)
     if not norm:
         return ("UNMAPPED", "none")
+
+    # --- high tier: collect all alias hits, pick longest matched alias ---
+    best_high: tuple | None = None  # (matched_alias_len, cname)
     for cname, _e, _c, high, _low in CANON:
-        if any(_hit(p, norm) for p in high):
-            return (cname, "high")
+        for p in high:
+            if _hit(p, norm):
+                if best_high is None or len(p) > best_high[0]:
+                    best_high = (len(p), cname)
+
+    if best_high is not None:
+        return (best_high[1], "high")
+
+    # --- low tier: same most-specific logic on leaf-name fallbacks ---
+    best_low: tuple | None = None
     for cname, _e, _c, _high, low in CANON:
-        if any(_hit(p, norm) for p in low):
-            return (cname, "low")
+        for p in low:
+            if _hit(p, norm):
+                if best_low is None or len(p) > best_low[0]:
+                    best_low = (len(p), cname)
+
+    if best_low is not None:
+        return (best_low[1], "low")
+
     return ("UNMAPPED", "none")
 
 

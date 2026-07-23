@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PA Form Autofill — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+
+<nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
+  <a href="/ui/index.html" class="text-indigo-600 text-sm hover:underline">← Dashboard</a>
+  <span class="text-gray-300">|</span>
+  <span class="font-semibold text-gray-800">Prior Authorization Autofill</span>
+</nav>
+
+<main class="max-w-4xl mx-auto px-4 py-8 space-y-6">
+
+  <!-- Header -->
+  <div class="bg-indigo-600 rounded-2xl p-6 text-white">
+    <h1 class="text-2xl font-bold">PA Form Autofill</h1>
+    <p class="text-indigo-200 text-sm mt-1">
+      Fill in patient data below → download the pre-filled PDF. No PHI sent to the cloud.
+    </p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- LEFT: Form picker + links -->
+    <div class="space-y-4">
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-3">
+        <h2 class="font-semibold text-gray-800 text-sm uppercase tracking-wide">Choose a Form</h2>
+        <div id="form-list" class="space-y-2 text-sm">
+          <div class="text-gray-400 text-xs">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Selected form info -->
+      <div id="form-info-card" class="hidden bg-white rounded-2xl border border-indigo-200 p-5 shadow-sm space-y-2 text-sm">
+        <p class="font-semibold text-indigo-700" id="selected-label"></p>
+        <a id="blank-form-link" href="#" target="_blank"
+           class="flex items-center gap-1 text-xs text-gray-500 hover:text-indigo-600">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7
+                 -1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+          View blank form
+        </a>
+        <p class="text-xs text-gray-400" id="form-size"></p>
+      </div>
+    </div>
+
+    <!-- RIGHT: Patient data form -->
+    <div class="lg:col-span-2 space-y-4">
+
+      <!-- Patient -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-3">
+        <h2 class="font-semibold text-gray-700 text-sm flex items-center gap-2">
+          <span class="bg-blue-100 text-blue-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">P</span>
+          Patient
+        </h2>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2"><label class="label">Full Name</label>
+            <input id="patient_full_name" class="inp" placeholder="Jane Doe"/></div>
+          <div><label class="label">First Name</label>
+            <input id="patient_first_name" class="inp" placeholder="Jane"/></div>
+          <div><label class="label">Last Name</label>
+            <input id="patient_last_name" class="inp" placeholder="Doe"/></div>
+          <div><label class="label">Date of Birth</label>
+            <input id="patient_dob" class="inp" placeholder="MM/DD/YYYY or YYYY-MM-DD"/></div>
+          <div><label class="label">Sex</label>
+            <select id="patient_sex" class="inp"><option value="">—</option><option>M</option><option>F</option><option>X</option></select></div>
+          <div class="col-span-2"><label class="label">Address</label>
+            <input id="patient_address" class="inp" placeholder="123 Main St"/></div>
+          <div><label class="label">City</label>
+            <input id="patient_city" class="inp" placeholder="Springfield"/></div>
+          <div><label class="label">State</label>
+            <input id="patient_state" class="inp" placeholder="IL" maxlength="2"/></div>
+          <div><label class="label">ZIP</label>
+            <input id="patient_zip" class="inp" placeholder="62701"/></div>
+          <div><label class="label">Phone</label>
+            <input id="patient_phone" class="inp" placeholder="2175550123"/></div>
+        </div>
+      </div>
+
+      <!-- Insurance -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-3">
+        <h2 class="font-semibold text-gray-700 text-sm flex items-center gap-2">
+          <span class="bg-green-100 text-green-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">I</span>
+          Insurance
+        </h2>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="label">Payer / Insurance Company</label>
+            <input id="payer_name" class="inp" placeholder="Molina Healthcare"/></div>
+          <div><label class="label">Member ID *</label>
+            <input id="member_id" class="inp" placeholder="MOL987654321"/></div>
+          <div><label class="label">Group Number</label>
+            <input id="group_number" class="inp" placeholder="GRP-12345"/></div>
+          <div><label class="label">Plan Name</label>
+            <input id="plan_name" class="inp" placeholder="Molina Medicaid IL"/></div>
+        </div>
+      </div>
+
+      <!-- Prescriber -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-3">
+        <h2 class="font-semibold text-gray-700 text-sm flex items-center gap-2">
+          <span class="bg-purple-100 text-purple-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">Rx</span>
+          Prescriber
+        </h2>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2"><label class="label">Prescriber Full Name *</label>
+            <input id="prescriber_full_name" class="inp" placeholder="Dr. Jane Smith MD"/></div>
+          <div><label class="label">NPI * (10 digits)</label>
+            <input id="prescriber_npi" class="inp" placeholder="1234567893" maxlength="10"/></div>
+          <div><label class="label">Fax *</label>
+            <input id="prescriber_fax" class="inp" placeholder="2175559877"/></div>
+          <div><label class="label">Phone</label>
+            <input id="prescriber_phone" class="inp" placeholder="2175559876"/></div>
+          <div><label class="label">Specialty</label>
+            <input id="prescriber_specialty" class="inp" placeholder="Gastroenterology"/></div>
+          <div><label class="label">Facility / Practice Name</label>
+            <input id="facility_name" class="inp" placeholder="Springfield GI Associates"/></div>
+          <div><label class="label">Facility NPI</label>
+            <input id="facility_npi" class="inp" placeholder="1487654321"/></div>
+        </div>
+      </div>
+
+      <!-- Medication -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-3">
+        <h2 class="font-semibold text-gray-700 text-sm flex items-center gap-2">
+          <span class="bg-red-100 text-red-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">Rx</span>
+          Medication & Clinical
+        </h2>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="label">Drug Name *</label>
+            <input id="drug_name" class="inp" placeholder="Linzess"/></div>
+          <div><label class="label">NDC</label>
+            <input id="ndc" class="inp" placeholder="00074-3799-90"/></div>
+          <div><label class="label">Strength</label>
+            <input id="strength" class="inp" placeholder="290 mcg"/></div>
+          <div><label class="label">Sig / Directions</label>
+            <input id="sig" class="inp" placeholder="1 capsule daily"/></div>
+          <div><label class="label">Quantity</label>
+            <input id="quantity" class="inp" type="number" placeholder="30"/></div>
+          <div><label class="label">Days Supply</label>
+            <input id="days_supply" class="inp" type="number" placeholder="30"/></div>
+          <div><label class="label">Diagnosis Code (ICD-10) *</label>
+            <input id="diagnosis_code" class="inp" placeholder="K58.9"/></div>
+          <div><label class="label">Request Type</label>
+            <select id="request_type" class="inp">
+              <option value="">—</option>
+              <option value="new">New</option>
+              <option value="renewal">Renewal</option>
+            </select></div>
+          <div><label class="label">Date of Request</label>
+            <input id="date_of_request" class="inp" placeholder="YYYY-MM-DD"/></div>
+          <div class="flex items-center gap-2 pt-4">
+            <input type="checkbox" id="is_expedited" class="w-4 h-4"/>
+            <label for="is_expedited" class="text-sm text-gray-600">Expedited / Urgent</label>
+          </div>
+          <div class="col-span-2"><label class="label">Clinical Rationale</label>
+            <textarea id="clinical_rationale" class="inp h-20 resize-none"
+              placeholder="Medical necessity justification…"></textarea></div>
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div id="error-box" class="hidden bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700"></div>
+
+      <div class="flex gap-3">
+        <button onclick="fillForm()" id="fill-btn"
+          class="flex-1 bg-indigo-600 text-white rounded-xl py-3 font-semibold text-sm hover:bg-indigo-700 transition">
+          Generate Filled PDF
+        </button>
+        <button onclick="fillReport()" id="report-btn"
+          class="bg-gray-100 text-gray-700 rounded-xl px-4 py-3 font-semibold text-sm hover:bg-gray-200 transition text-nowrap">
+          View Report
+        </button>
+        <button onclick="useSample()"
+          class="bg-amber-50 text-amber-700 border border-amber-200 rounded-xl px-4 py-3 font-semibold text-sm hover:bg-amber-100 transition text-nowrap">
+          Use Sample
+        </button>
+      </div>
+
+      <!-- Report panel -->
+      <div id="report-panel" class="hidden bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
+        <h3 class="font-semibold text-gray-800">Fill Report</h3>
+        <div id="report-summary" class="grid grid-cols-3 gap-3 text-sm"></div>
+        <div class="overflow-x-auto max-h-64 border border-gray-100 rounded-xl">
+          <table class="w-full text-xs" id="report-table">
+            <thead class="bg-gray-50 sticky top-0">
+              <tr>
+                <th class="text-left px-3 py-2 text-gray-500 font-medium">Field</th>
+                <th class="text-left px-3 py-2 text-gray-500 font-medium">Canonical</th>
+                <th class="text-left px-3 py-2 text-gray-500 font-medium">Value written</th>
+                <th class="text-left px-3 py-2 text-gray-500 font-medium">Source</th>
+              </tr>
+            </thead>
+            <tbody id="report-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<style>
+  .label { display:block; font-size:0.7rem; color:#6b7280; margin-bottom:2px; font-weight:500 }
+  .inp   { width:100%; border:1px solid #d1d5db; border-radius:0.5rem; padding:6px 10px;
+           font-size:0.82rem; outline:none; background:white }
+  .inp:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.15) }
+</style>
+
+<script>
+const SAMPLE = {
+  patient_full_name: "Jane A Testpatient",
+  patient_first_name: "Jane",
+  patient_last_name: "Testpatient",
+  patient_dob: "1975-03-22",
+  patient_sex: "F",
+  patient_address: "123 Maple Street",
+  patient_city: "Springfield",
+  patient_state: "IL",
+  patient_zip: "62701",
+  patient_phone: "2175550123",
+  payer_name: "Molina Healthcare",
+  member_id: "MOL987654321",
+  group_number: "GRP-12345",
+  plan_name: "Molina Medicaid IL",
+  prescriber_full_name: "Dr. Robert Testprescriber MD",
+  prescriber_npi: "1234567893",
+  prescriber_fax: "2175559877",
+  prescriber_phone: "2175559876",
+  prescriber_specialty: "Gastroenterology",
+  facility_name: "Springfield GI Associates",
+  facility_npi: "1487654321",
+  drug_name: "Linzess",
+  ndc: "00074-3799-90",
+  strength: "290 mcg",
+  sig: "1 capsule by mouth once daily on empty stomach",
+  quantity: 30,
+  days_supply: 30,
+  diagnosis_code: "K58.9",
+  clinical_rationale: "Patient has chronic IBS-C with inadequate response to dietary modifications and osmotic laxatives over 6 months. Linzess is indicated per FDA approval for IBS-C.",
+  request_type: "new",
+  date_of_request: "2026-06-24",
+};
+
+let selectedFormId = "texas_medicaid_pa";
+
+// Load form list
+async function loadForms() {
+  try {
+    const r = await fetch("/api/v1/pa/forms");
+    const data = await r.json();
+    const el = document.getElementById("form-list");
+    if (!data.forms.length) { el.innerHTML = '<p class="text-gray-400 text-xs">No forms loaded.</p>'; return; }
+    el.innerHTML = data.forms.map(f => `
+      <button onclick="selectForm('${f.id}','${f.label}','${f.blank_url}','${f.size_kb} KB')"
+        class="w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-indigo-50 transition
+               ${f.id === selectedFormId ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-700'}"
+        id="btn-${f.id}">
+        ${f.label}
+      </button>`).join("");
+    // auto-select first
+    if (data.forms.length) {
+      const f = data.forms[0];
+      selectForm(f.id, f.label, f.blank_url, f.size_kb + " KB");
+    }
+  } catch(e) { console.error(e); }
+}
+
+function selectForm(id, label, blankUrl, size) {
+  selectedFormId = id;
+  document.querySelectorAll("[id^='btn-']").forEach(b => b.classList.remove("bg-indigo-50","text-indigo-700","font-semibold"));
+  const btn = document.getElementById("btn-" + id);
+  if (btn) btn.classList.add("bg-indigo-50","text-indigo-700","font-semibold");
+  document.getElementById("selected-label").textContent = label;
+  document.getElementById("blank-form-link").href = blankUrl;
+  document.getElementById("form-size").textContent = size;
+  document.getElementById("form-info-card").classList.remove("hidden");
+}
+
+function getPayload() {
+  const fields = [
+    "patient_full_name","patient_first_name","patient_last_name","patient_dob",
+    "patient_sex","patient_address","patient_city","patient_state","patient_zip","patient_phone",
+    "payer_name","member_id","group_number","plan_name",
+    "prescriber_full_name","prescriber_npi","prescriber_fax","prescriber_phone",
+    "prescriber_specialty","facility_name","facility_npi",
+    "drug_name","ndc","strength","sig","diagnosis_code","clinical_rationale",
+    "request_type","date_of_request"
+  ];
+  const body = { form_id: selectedFormId };
+  for (const f of fields) {
+    const v = document.getElementById(f)?.value?.trim();
+    if (v) body[f] = v;
+  }
+  const qty = document.getElementById("quantity")?.value;
+  if (qty) body.quantity = parseInt(qty);
+  const ds = document.getElementById("days_supply")?.value;
+  if (ds) body.days_supply = parseInt(ds);
+  body.is_expedited = document.getElementById("is_expedited")?.checked || false;
+  return body;
+}
+
+async function fillForm() {
+  const btn = document.getElementById("fill-btn");
+  btn.disabled = true; btn.textContent = "Generating…";
+  document.getElementById("error-box").classList.add("hidden");
+  try {
+    const r = await fetch("/api/v1/pa/fill", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(getPayload()),
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      throw new Error(e.detail || `HTTP ${r.status}`);
+    }
+    const filled = parseInt(r.headers.get("X-Fields-Filled") || "0");
+    const total  = parseInt(r.headers.get("X-Fields-Total") || "0");
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = selectedFormId + "_filled.pdf"; a.click();
+    URL.revokeObjectURL(url);
+    alert(`✅ Done! ${filled} of ${total} fields filled (${Math.round(filled/total*100)}%). PDF downloading now.`);
+  } catch(e) {
+    document.getElementById("error-box").textContent = e.message;
+    document.getElementById("error-box").classList.remove("hidden");
+  } finally {
+    btn.disabled = false; btn.textContent = "Generate Filled PDF";
+  }
+}
+
+async function fillReport() {
+  const btn = document.getElementById("report-btn");
+  btn.disabled = true; btn.textContent = "Loading…";
+  document.getElementById("error-box").classList.add("hidden");
+  try {
+    const r = await fetch("/api/v1/pa/fill/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(getPayload()),
+    });
+    if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.detail||`HTTP ${r.status}`); }
+    const data = await r.json();
+    const s = data.summary;
+    document.getElementById("report-summary").innerHTML = [
+      stat("Fields Total", s.total_fields),
+      stat("Filled", s.filled, "text-green-700"),
+      stat("Fill Rate", (s.fill_rate*100).toFixed(0)+"%", "text-indigo-700"),
+      stat("Catalog matched", s.catalog_matched),
+      stat("DB matched", s.map_matched),
+      stat("Deferred (critical)", s.deferred_critical, s.deferred_critical>0?"text-red-600":""),
+      stat("Unmapped", s.unmapped, s.unmapped>0?"text-amber-600":""),
+      stat("Validation errors", s.validation_failures, s.validation_failures>0?"text-red-600":""),
+    ].join("");
+    const rows = data.fields.filter(f=>f.normalized);
+    document.getElementById("report-body").innerHTML = rows.slice(0,200).map(f=>`
+      <tr class="border-t border-gray-50 hover:bg-gray-50">
+        <td class="px-3 py-1.5 text-gray-500 font-mono">${esc(f.raw_name)}</td>
+        <td class="px-3 py-1.5 text-indigo-600">${esc(f.canonical_field)}</td>
+        <td class="px-3 py-1.5 text-gray-800 max-w-xs truncate">${esc(f.normalized)}</td>
+        <td class="px-3 py-1.5"><span class="text-xs px-2 py-0.5 rounded-full
+          ${f.source==='catalog'?'bg-blue-100 text-blue-700':f.source==='map'?'bg-green-100 text-green-700':'bg-gray-100 text-gray-600'}">
+          ${esc(f.source)}</span></td>
+      </tr>`).join("");
+    document.getElementById("report-panel").classList.remove("hidden");
+    document.getElementById("report-panel").scrollIntoView({behavior:"smooth"});
+  } catch(e) {
+    document.getElementById("error-box").textContent = e.message;
+    document.getElementById("error-box").classList.remove("hidden");
+  } finally {
+    btn.disabled = false; btn.textContent = "View Report";
+  }
+}
+
+function stat(label, val, cls="text-gray-800") {
+  return `<div class="bg-gray-50 rounded-xl p-3">
+    <div class="text-xs text-gray-400">${label}</div>
+    <div class="text-lg font-bold ${cls}">${val}</div>
+  </div>`;
+}
+
+function useSample() {
+  for (const [k,v] of Object.entries(SAMPLE)) {
+    const el = document.getElementById(k);
+    if (!el) continue;
+    if (el.tagName === "SELECT") el.value = v;
+    else if (el.type === "checkbox") el.checked = v;
+    else el.value = v;
+  }
+}
+
+function esc(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+loadForms();
+</script>
+</body>
+</html>

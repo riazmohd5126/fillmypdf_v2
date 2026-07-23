@@ -93,7 +93,7 @@ CATALOG: List[CanonicalField] = [
         ("phone", "home phone", "patient phone", "telephone", "cell"),
         sensitive=True),
     CanonicalField("patient.email", "email",
-        ("email", "e-mail", "patient email"), sensitive=True),
+        ("email", "e-mail", "patient email", "email address"), sensitive=True),
     CanonicalField("patient.ssn", "ssn",
         ("ssn", "social security", "social security number"),
         sensitive=True, notes="Rare on PA; always encrypt. Auto-detect and mask."),
@@ -106,7 +106,8 @@ CATALOG: List[CanonicalField] = [
 
     # ---- INSURANCE / COVERAGE --------------------------------------------
     CanonicalField("insurance.payer_name", "text",
-        ("insurance", "plan", "payer", "carrier", "insurance company", "health plan"),
+        ("insurance", "plan", "payer", "carrier", "insurance company", "health plan",
+         "submitted to", "submit to", "plan name", "insurance name"),
         required=True),
     CanonicalField("insurance.member_id", "member_id",
         ("member id", "member #", "subscriber id", "id number", "insurance id",
@@ -138,7 +139,9 @@ CATALOG: List[CanonicalField] = [
         ("prescriber last name", "physician last name")),
     CanonicalField("prescriber.full_name", "text",
         ("prescriber", "prescriber name", "physician name", "provider name",
-         "doctor", "md", "provider"),
+         "doctor", "md", "provider", "print", "printed name",
+         "physician print", "prescriber print", "physician signature",
+         "ordering provider", "requesting physician"),
         required=True),
     CanonicalField("prescriber.npi", "npi",
         ("npi", "prescriber npi", "provider npi", "individual npi"),
@@ -223,7 +226,8 @@ CATALOG: List[CanonicalField] = [
 
     # ---- CLINICAL / JUSTIFICATION ----------------------------------------
     CanonicalField("clinical.primary_diagnosis_code", "icd10",
-        ("diagnosis", "icd-10", "icd10", "dx", "primary diagnosis", "diagnosis code"),
+        ("diagnosis", "icd-10", "icd10", "dx", "primary diagnosis", "diagnosis code",
+         "icd code", "icd-10 code", "icd10 code", "principal diagnosis"),
         required=True, notes="CRITICAL: ICD-10 format validated."),
     CanonicalField("clinical.primary_diagnosis_description", "text",
         ("diagnosis description", "dx description")),
@@ -233,7 +237,9 @@ CATALOG: List[CanonicalField] = [
     CanonicalField("clinical.date_of_diagnosis", "date",
         ("date of diagnosis", "onset date", "diagnosis date")),
     CanonicalField("clinical.relevant_lab_values", "text",
-        ("lab results", "labs", "lab values", "relevant labs"),
+        ("lab results", "labs", "lab values", "relevant labs",
+         "relevant laboratory", "relevant lab", "laboratory test",
+         "lab test", "lab name", "test name"),
         repeating=True),
     CanonicalField("clinical.clinical_rationale", "text",
         ("clinical justification", "medical necessity", "rationale", "justification",
@@ -255,7 +261,9 @@ CATALOG: List[CanonicalField] = [
 
     # ---- REQUEST METADATA -------------------------------------------------
     CanonicalField("request.request_type", "enum",
-        ("request type", "new/renewal", "initial or renewal", "type of request"),
+        ("request type", "new/renewal", "initial or renewal", "type of request",
+         "new therapy", "continuation of therapy", "new request",
+         "initial request", "continuation", "renewal request", "renewal"),
         notes="new | renewal | continuation | expedited."),
     CanonicalField("request.is_expedited", "checkbox",
         ("urgent", "expedited", "stat", "expedited request")),
@@ -300,15 +308,28 @@ def _norm_label(s: str) -> str:
     return re.sub(r"\s+", " ", s)
 
 def resolve_label(form_label: str) -> Optional[str]:
-    """Map a raw form label -> canonical path via aliases. Exact-normalized first,
-    then substring fallback. Returns None if unknown (let the AI step handle it)."""
+    """Map a raw form label -> canonical path using most-specific-wins logic.
+
+    1. Exact-normalized match (fastest, always correct).
+    2. Word-boundary substring search: collect ALL alias hits and return the one
+       with the longest alias.  This prevents short generic aliases like 'name'
+       from overriding 'insurance' for a field like 'Primary Insurance Name'.
+       Aligns with the same logic in pa_schema_extractor.classify_field().
+    Returns None if no alias matches.
+    """
     n = _norm_label(form_label)
+    if not n:
+        return None
+    # --- exact match ---
     if n in ALIAS_INDEX:
         return ALIAS_INDEX[n]
+    # --- most-specific substring match ---
+    best: tuple | None = None   # (alias_len, path)
     for alias, path in ALIAS_INDEX.items():
         if alias in n or n in alias:
-            return path
-    return None
+            if best is None or len(alias) > best[0]:
+                best = (len(alias), path)
+    return best[1] if best else None
 
 
 # ---------------------------------------------------------------------------
