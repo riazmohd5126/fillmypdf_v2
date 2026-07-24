@@ -54,6 +54,8 @@ _LABEL_OVERRIDES = {
     "daw": "Dispense as Written",
     "primary_diagnosis_code": "Primary Diagnosis (ICD-10)",
     "primary_diagnosis_description": "Diagnosis Description",
+    "icd_version": "ICD Version",
+    "functional_status": "Functional Status (ADLs)",
     "member_id": "Member ID",
     "address_line1": "Address",
     "address_line2": "Address Line 2",

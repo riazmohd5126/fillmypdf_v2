@@ -204,6 +204,14 @@ CATALOG: List[CanonicalField] = [
         ("route", "route of administration", "roa")),
     CanonicalField("medication.sig", "text",
         ("directions", "sig", "instructions", "dosing", "dosing instructions")),
+    CanonicalField("medication.frequency", "text",
+        ("frequency", "frequency and schedule", "dosing frequency",
+         "administration frequency", "freq"),
+        notes="Dosing cadence column, often separate from full sig on tables."),
+    CanonicalField("medication.ingredient", "text",
+        ("ingredient", "ingredient name", "compound ingredient", "active ingredient"),
+        repeating=True,
+        notes="Compound-drug component; repeats one row per ingredient."),
     CanonicalField("medication.quantity", "number",
         ("quantity", "qty", "quantity per fill")),
     CanonicalField("medication.days_supply", "number",
@@ -212,7 +220,8 @@ CATALOG: List[CanonicalField] = [
     CanonicalField("medication.daw", "checkbox",
         ("daw", "dispense as written", "brand necessary")),
     CanonicalField("medication.hcpcs_jcode", "jcode",
-        ("j-code", "jcode", "hcpcs", "hcpcs code"),
+        ("j-code", "jcode", "hcpcs", "hcpcs code", "billing code", "billing code / j code",
+         "billing code/ j code"),
         notes="Medical (buy-and-bill) PA."),
     CanonicalField("medication.cpt_code", "cpt",
         ("cpt", "cpt code", "procedure code")),
@@ -231,6 +240,10 @@ CATALOG: List[CanonicalField] = [
         required=True, notes="CRITICAL: ICD-10 format validated."),
     CanonicalField("clinical.primary_diagnosis_description", "text",
         ("diagnosis description", "dx description")),
+    CanonicalField("clinical.icd_version", "text",
+        ("icd version", "icd-10 version", "icd10 version", "icd code set",
+         "icd version number"),
+        notes="ICD code set version label next to the diagnosis code."),
     CanonicalField("clinical.secondary_diagnoses", "icd10",
         ("secondary diagnosis", "other diagnoses", "additional diagnoses"),
         repeating=True),
@@ -257,7 +270,19 @@ CATALOG: List[CanonicalField] = [
     CanonicalField("clinical.date_of_last_treatment", "date",
         ("date of last treatment", "last treatment date")),
     CanonicalField("clinical.treatment_history_notes", "text",
-        ("treatment history", "history notes")),
+        ("treatment history", "history notes", "describe response",
+         "reason for failure", "response reason for failure",
+         "describe response reason for failure or allergy")),
+    CanonicalField("clinical.functional_status", "text",
+        ("functional status", "activities of daily living", "adl", "adls",
+         "feeding", "bathing", "dressing", "dressing upper body",
+         "dressing lower body", "toileting", "toilet/hygiene", "grooming",
+         "transfer", "bed mobility", "wheelchair mobility", "ambulation",
+         "gait", "mobility"),
+        repeating=True,
+        notes="SNF/therapy functional assessment items (ADLs). One row per "
+              "activity; scored current/prior. Incremental cluster — extend as "
+              "more rehab/therapy forms are reviewed."),
 
     # ---- REQUEST METADATA -------------------------------------------------
     CanonicalField("request.request_type", "enum",
@@ -416,6 +441,8 @@ class Medication(BaseModel):
     dosage_form: Optional[str] = None
     route: Optional[str] = None
     sig: Optional[str] = None
+    frequency: Optional[str] = None
+    ingredient: Optional[str] = None
     quantity: Optional[float] = None
     days_supply: Optional[int] = None
     refills: Optional[int] = None
@@ -430,6 +457,7 @@ class Medication(BaseModel):
 class Clinical(BaseModel):
     primary_diagnosis_code: Optional[str] = None
     primary_diagnosis_description: Optional[str] = None
+    icd_version: Optional[str] = None
     secondary_diagnoses: List[str] = Field(default_factory=list)
     date_of_diagnosis: Optional[date] = None
     relevant_lab_values: List[str] = Field(default_factory=list)
@@ -439,6 +467,7 @@ class Clinical(BaseModel):
     step_therapy_completed: Optional[bool] = None
     date_of_last_treatment: Optional[date] = None
     treatment_history_notes: Optional[str] = None
+    functional_status: List[str] = Field(default_factory=list)
 
 
 class RequestMeta(BaseModel):
