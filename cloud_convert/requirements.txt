@@ -1,0 +1,10 @@
+# Cloud converter service — flat PDF -> fillable (commonforms/FFDNet).
+# Pin commonforms to whatever the main app uses; it pulls in torch/ultralytics
+# (or onnxruntime for the FFDNet-*-cpu "fast" models).
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+pypdf>=4.0.0
+commonforms
+# The FFDNet-S "fast" (ONNX) path needs onnxruntime; the .pt path needs torch.
+onnxruntime>=1.17.0

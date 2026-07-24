@@ -37,27 +37,21 @@ class PDFService:
                 print(f"  📄 PDF already fillable ({len(reader.get_fields())} fields)")
                 return True
 
-            # Try commonforms conversion
-            try:
-                from commonforms import prepare_form  # type: ignore
-                prepare_form(
-                    str(input_path),
-                    str(output_path),
-                    model_or_path="FFDNet-L",
-                    confidence=0.2,
-                    use_signature_fields=True,
-                    image_size=1600,
-                )
-                converted_reader = PdfReader(str(output_path))
-                field_count = len(converted_reader.get_fields() or {})
-                print(f"  🔄 PDF converted to fillable via commonforms ({field_count} fields)")
-                return True
-            except ImportError:
-                print("  ⚠️  commonforms not available, copying PDF as-is")
-            except Exception as cf_err:
-                print(f"  ⚠️  commonforms conversion failed ({cf_err}), copying as-is")
+            # Flat PDF: detect + inject fields. This runs a YOLO (commonforms)
+            # model which is RAM-heavy — thin clients offload it to the cloud.
+            from ..config import settings
+            mode = (getattr(settings, "COMMONFORMS_MODE", "local") or "local").lower()
 
-            # Fallback: plain copy
+            if mode == "cloud":
+                if self._convert_via_cloud(input_path, output_path):
+                    return True
+                # Cloud unreachable — do NOT silently run torch on a thin client.
+                print("  ⚠️  cloud converter unavailable, copying PDF as-is")
+            else:
+                if self._convert_via_commonforms(input_path, output_path):
+                    return True
+
+            # Fallback: plain copy so the pipeline can still proceed (0 fields).
             writer = PdfWriter()
             writer.append(reader)
             with open(output_path, "wb") as fh:
@@ -66,6 +60,81 @@ class PDFService:
 
         except Exception as e:
             print(f"  ❌ Error converting PDF: {e}")
+            return False
+
+    # ------------------------------------------------------------------
+    # Flat -> fillable backends
+    # ------------------------------------------------------------------
+
+    def _convert_via_commonforms(self, input_path: Path, output_path: Path) -> bool:
+        """Local commonforms conversion, honoring the configured model/size.
+
+        Defaults to the small model (FFDNet-S) + fast ONNX path + a modest image
+        size so it stays within a few hundred MB. Still heavier than acroform —
+        thin clients should prefer COMMONFORMS_MODE=cloud.
+        """
+        from ..config import settings
+        try:
+            from commonforms import prepare_form  # type: ignore
+            prepare_form(
+                str(input_path),
+                str(output_path),
+                model_or_path=getattr(settings, "COMMONFORMS_MODEL", "FFDNet-S"),
+                confidence=getattr(settings, "COMMONFORMS_CONFIDENCE", 0.1),
+                use_signature_fields=True,
+                image_size=getattr(settings, "COMMONFORMS_IMAGE_SIZE", 1024),
+                fast=getattr(settings, "COMMONFORMS_FAST", True),
+            )
+            converted = PdfReader(str(output_path))
+            field_count = len(converted.get_fields() or {})
+            print(f"  🔄 PDF converted to fillable via commonforms ({field_count} fields)")
+            return True
+        except ImportError:
+            print("  ⚠️  commonforms not available, copying PDF as-is")
+        except Exception as cf_err:
+            print(f"  ⚠️  commonforms conversion failed ({cf_err}), copying as-is")
+        return False
+
+    def _convert_via_cloud(self, input_path: Path, output_path: Path) -> bool:
+        """Offload flat->fillable to the remote converter service (no torch here).
+
+        Sends ONLY the blank form (no patient values) to the converter and writes
+        back the returned fillable PDF. Returns False on any failure so the caller
+        can fall back to a plain copy.
+        """
+        from ..config import settings
+        url = (getattr(settings, "CONVERT_SERVICE_URL", "") or "").strip()
+        if not url:
+            print("  ⚠️  COMMONFORMS_MODE=cloud but CONVERT_SERVICE_URL is unset")
+            return False
+        try:
+            import httpx
+
+            headers = {}
+            key = (getattr(settings, "CONVERT_SERVICE_KEY", "") or "").strip()
+            if key:
+                headers["X-Convert-Key"] = key
+            timeout = float(getattr(settings, "CONVERT_SERVICE_TIMEOUT", 120.0))
+
+            with open(input_path, "rb") as fh:
+                files = {"file": (Path(input_path).name, fh, "application/pdf")}
+                resp = httpx.post(url, files=files, headers=headers, timeout=timeout)
+
+            if resp.status_code != 200:
+                print(f"  ⚠️  cloud converter HTTP {resp.status_code}: {resp.text[:200]}")
+                return False
+            ctype = resp.headers.get("content-type", "")
+            if "application/pdf" not in ctype and not resp.content[:5] == b"%PDF-":
+                print(f"  ⚠️  cloud converter returned non-PDF ({ctype})")
+                return False
+
+            with open(output_path, "wb") as out:
+                out.write(resp.content)
+            field_count = len(PdfReader(str(output_path)).get_fields() or {})
+            print(f"  ☁️  PDF converted via cloud converter ({field_count} fields)")
+            return True
+        except Exception as exc:
+            print(f"  ⚠️  cloud converter call failed ({exc})")
             return False
 
     def get_form_fields(self, pdf_path: Path) -> Dict[str, str]:

@@ -140,10 +140,24 @@ class Settings(BaseSettings):
     # Seconds to wait when probing the local server for the fail-open check.
     PA_LOCAL_PROBE_TIMEOUT: float = 1.5
     
-    # CommonForms Settings
+    # CommonForms Settings (flat PDF -> fillable field detection)
     COMMONFORMS_MODEL: str = "FFDNet-S"
     COMMONFORMS_CONFIDENCE: float = 0.1
     COMMONFORMS_IMAGE_SIZE: int = 1024
+    # Use the ONNX/"fast" path (lower memory, CPU-friendly).
+    COMMONFORMS_FAST: bool = True
+
+    # Where flat -> fillable conversion runs:
+    #   "local" — run commonforms/torch in-process (needs RAM; heavy on 8GB).
+    #   "cloud" — offload to a remote converter service (thin clients, no torch).
+    # Thin clients (laptop, Chrome extension, other apps) should use "cloud".
+    COMMONFORMS_MODE: str = "local"
+    # Remote converter endpoint, e.g. "https://convert.example.com/convert".
+    CONVERT_SERVICE_URL: str = ""
+    # Sent as the X-Convert-Key header to authenticate to the converter.
+    CONVERT_SERVICE_KEY: str = ""
+    # Seconds to wait for the remote converter before failing over.
+    CONVERT_SERVICE_TIMEOUT: float = 120.0
 
     # Template mapping cache (Layer 3)
     # DEPRECATED: this cache stored FILLED VALUES (PHI) on disk. It is now
