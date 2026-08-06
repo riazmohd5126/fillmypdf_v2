@@ -146,11 +146,30 @@ class TemplateListItem(BaseModel):
     pages: Optional[int] = None
     question_count: int = 0
     is_public: bool = True
+    # Optional readiness (from GET /templates/readiness or enriched clients)
+    map_ready: Optional[bool] = None
+    map_fingerprint: Optional[str] = None
+    map_signature: Optional[str] = None
 
 
 class TemplateListResponse(BaseModel):
     templates: List[TemplateListItem]
     total: int
+
+
+class TemplateReadinessItem(BaseModel):
+    """Guided-fill readiness for one template library entry."""
+    template_id: str
+    ready: bool = False
+    fingerprint: Optional[str] = None
+    signature: Optional[str] = None
+    form_label: Optional[str] = None
+
+
+class TemplateReadinessResponse(BaseModel):
+    items: List[TemplateReadinessItem]
+    ready_count: int = 0
+    total: int = 0
 
 
 class TemplateFillResponse(BaseModel):

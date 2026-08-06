@@ -130,6 +130,31 @@ class TemplateService:
     # Fill — single record
     # ------------------------------------------------------------------
 
+    def _merge_profiles(
+        self,
+        profile_id: Optional[str],
+        profile_ids: Optional[List[str]],
+        *,
+        owner_id: Optional[str] = None,
+        tier: str = "free",
+    ) -> dict:
+        base: dict = {}
+        ids = profile_ids or ([profile_id] if profile_id else [])
+        if not ids:
+            return base
+        try:
+            if len(ids) > 1:
+                base = self.profile_service.use_profiles(
+                    ids, owner_id=owner_id, tier=tier
+                )
+            else:
+                base = self.profile_service.use_profile(
+                    ids[0], owner_id=owner_id, tier=tier
+                )
+        except Exception:
+            pass
+        return base
+
     def fill(
         self,
         template_id: str,
@@ -142,49 +167,29 @@ class TemplateService:
         profile_ids: Optional[List[str]] = None,
         return_mappings: bool = False,
         preserve_input: bool = False,
+        owner_id: Optional[str] = None,
+        tier: str = "free",
     ) -> TemplateFillResponse:
         """
         Fill one record against the stored template PDF.
 
-        Returns a TemplateFillResponse; the filled PDF is written to
-        OUTPUT_DIR and the download_url field points to it.
-
         ``preserve_input=True`` bypasses ``InputAdapter`` and feeds ``user_data``
-        straight to the pipeline. Guided/CSV intake sends data already keyed by
-        canonical path (``patient.dob``) and may carry LIST values for repeating
-        table columns (drug history, labs) — the adapter would stringify those,
-        so they must pass through untouched for per-row distribution.
+        straight to the pipeline (Guided Fill / Guided Batch canonical keys).
         """
-        # 1. Merge optional profile data (multi-profile takes precedence)
-        base: dict = {}
-        ids = profile_ids or ([profile_id] if profile_id else [])
-        if len(ids) > 1:
-            try:
-                base = self.profile_service.use_profiles(ids)
-            except Exception:
-                pass
-        elif ids:
-            try:
-                base = self.profile_service.use_profile(ids[0])
-            except ValueError:
-                pass
-
-        # 2. Normalise input (unless the caller sends canonical-keyed data)
+        base = self._merge_profiles(
+            profile_id, profile_ids, owner_id=owner_id, tier=tier
+        )
         if preserve_input:
             ai_input = {**base, **user_data} if base else dict(user_data)
         else:
             ai_input = self.input_adapter.to_ai_input(user_data, base)
 
-        # 3. Ensure we have a fillable PDF (cached after first call)
         fillable_path = self._ensure_fillable(template_id)
-
-        # 4. Build output path
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         uid = uuid.uuid4().hex[:8]
         output_filename = f"{template_id}_{timestamp}_{uid}_filled.pdf"
         output_path = settings.OUTPUT_DIR / output_filename
 
-        # 5. Run AI pipeline
         vision = VisionService(
             api_key=ai_api_key,
             base_url=ai_base_url,
@@ -228,27 +233,73 @@ class TemplateService:
         profile_id: Optional[str] = None,
         profile_ids: Optional[List[str]] = None,
         on_record_done: Optional[Callable[[int, int, int], None]] = None,
+        *,
+        preserve_input: bool = False,
+        signature_mode: str = "none",
+        consent_given: bool = False,
+        signer_name: str = "",
+        signer_email: str = "",
+        owner_id: Optional[str] = None,
+        tier: str = "free",
     ) -> TemplateBatchResponse:
-        """Fill N records against the stored template and return a ZIP."""
-        base: dict = {}
-        ids = profile_ids or ([profile_id] if profile_id else [])
-        if len(ids) > 1:
-            try:
-                base = self.profile_service.use_profiles(ids)
-            except Exception:
-                pass
-        elif ids:
-            try:
-                base = self.profile_service.use_profile(ids[0])
-            except ValueError:
-                pass
+        """Fill N records against the stored template and return a ZIP.
 
+        ``preserve_input=True`` (Guided Batch): records use canonical / ``q:`` /
+        ``t:`` keys from the intake CSV template.
+
+        ``signature_mode``:
+          * ``none`` — no e-sign overlay
+          * ``typed`` — stamp typed names from ``t:<sig_field>`` columns (requires consent)
+        """
+        from ..services.canonical_map_cache import CanonicalMapCache
+        from ..services.esign_service import (
+            apply_signature_overlay,
+            enrich_signature_placements,
+            typed_name_to_png,
+        )
+        from ..services.form_spec_cache import FormSpecCache
+        from ..services.canonical_schema import NARRATIVE_COL_PREFIX
+
+        base = self._merge_profiles(
+            profile_id, profile_ids, owner_id=owner_id, tier=tier
+        )
         fillable_path = self._ensure_fillable(template_id)
         vision = VisionService(
             api_key=ai_api_key,
             base_url=ai_base_url,
             model=ai_model,
         )
+
+        sig_mode = (signature_mode or "none").strip().lower()
+        if sig_mode not in ("none", "typed"):
+            sig_mode = "none"
+        if sig_mode == "typed" and not consent_given:
+            raise ValueError(
+                "signature_mode=typed requires consent_given=true (ESIGN / UETA)"
+            )
+
+        # Signature placements from FormSpec (once per batch)
+        sig_rows: List[dict] = []
+        if sig_mode == "typed":
+            try:
+                fields_info = vision._get_fields_with_coords(str(fillable_path))
+                sig = CanonicalMapCache().signature(fields_info)
+                spec = FormSpecCache().get(sig)
+                raw_sigs = [
+                    {
+                        "field": s.field,
+                        "acro_field": s.acro_field,
+                        "label": s.label,
+                        "kind": getattr(s, "kind", None) or "signature",
+                    }
+                    for s in (spec.signatures if spec else [])
+                    if (getattr(s, "kind", None) or "signature") != "date"
+                ]
+                sig_rows = enrich_signature_placements(
+                    raw_sigs, fields_info, fillable_path
+                )
+            except Exception:
+                sig_rows = []
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         batch_id = f"tmpl_{uuid.uuid4().hex[:8]}"
@@ -261,8 +312,23 @@ class TemplateService:
 
         for idx, record in enumerate(records, 1):
             try:
-                ai_input = self.input_adapter.to_ai_input(record, base)
-                filename = self._filename_from(ai_input.get("flat", {}), idx)
+                if preserve_input:
+                    ai_input = {**base, **record} if base else dict(record)
+                    flat_for_name = ai_input
+                else:
+                    ai_input = self.input_adapter.to_ai_input(record, base)
+                    flat_for_name = ai_input.get("flat", {}) if isinstance(ai_input, dict) else {}
+                filename = self._filename_from(flat_for_name, idx)
+                # Prefer patient.* keys for guided filenames
+                if preserve_input:
+                    guided_flat = {
+                        "first_name": record.get("patient.first_name") or flat_for_name.get("patient.first_name"),
+                        "last_name": record.get("patient.last_name") or flat_for_name.get("patient.last_name"),
+                        "full_name": record.get("patient.full_name") or flat_for_name.get("patient.full_name"),
+                    }
+                    guided_flat = {k: v for k, v in guided_flat.items() if v}
+                    if guided_flat:
+                        filename = self._filename_from(guided_flat, idx)
                 output_path = batch_dir / filename
 
                 result = vision.autofill_pipeline(
@@ -271,6 +337,41 @@ class TemplateService:
                     user_data=ai_input,
                     dpi=dpi,
                 )
+                signed = 0
+                if result["success"] and sig_mode == "typed" and sig_rows:
+                    for s in sig_rows:
+                        place = s.get("placement") or {}
+                        if not place:
+                            continue
+                        acro = s.get("acro_field") or s.get("field") or ""
+                        text = (
+                            record.get(f"{NARRATIVE_COL_PREFIX}{acro}")
+                            or record.get(acro)
+                            or signer_name
+                            or ""
+                        )
+                        text = str(text).strip()
+                        if not text:
+                            continue
+                        try:
+                            png = typed_name_to_png(text)
+                            apply_signature_overlay(
+                                output_path,
+                                output_path,
+                                png_bytes=png,
+                                page_index=int(place.get("page_index") or 0),
+                                x_pct=float(place["x_pct"]),
+                                y_pct=float(place["y_pct"]),
+                                width_pct=float(place["width_pct"]),
+                                height_pct=float(place["height_pct"]),
+                                signer_name=signer_name or text,
+                                signer_email=signer_email or "",
+                                include_timestamp=True,
+                            )
+                            signed += 1
+                        except Exception:
+                            continue
+
                 if result["success"]:
                     successful += 1
                 else:
@@ -282,6 +383,8 @@ class TemplateService:
                     "fields_filled": result.get("fields_filled", 0),
                     "avg_confidence": result.get("avg_confidence"),
                     "cache_hit": result.get("cache_hit", False),
+                    "canonical_map_reviewed": result.get("canonical_map_reviewed", False),
+                    "signatures_stamped": signed,
                     "error": result.get("error"),
                 })
             except Exception as exc:
@@ -291,7 +394,6 @@ class TemplateService:
             if on_record_done is not None:
                 on_record_done(idx, successful, failed)
 
-        # Build ZIP
         zip_filename = f"{template_id}_{timestamp}_{batch_id}.zip"
         zip_path = settings.OUTPUT_DIR / zip_filename
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -303,9 +405,16 @@ class TemplateService:
             zf.writestr(
                 "batch_report.json",
                 json.dumps(
-                    {"batch_id": batch_id, "template_id": template_id,
-                     "total": len(records), "successful": successful,
-                     "failed": failed, "results": results},
+                    {
+                        "batch_id": batch_id,
+                        "template_id": template_id,
+                        "guided": preserve_input,
+                        "signature_mode": sig_mode,
+                        "total": len(records),
+                        "successful": successful,
+                        "failed": failed,
+                        "results": results,
+                    },
                     indent=2,
                 ),
             )

@@ -47,6 +47,8 @@ from ...models.template import (
     TemplateManifest,
     TemplateBatchResponse,
     TemplateFillResponse,
+    TemplateReadinessItem,
+    TemplateReadinessResponse,
     SignatureField,
     SignatureFieldsResponse,
     TemplateSignResponse,
@@ -137,6 +139,100 @@ async def list_templates(
 
 
 # ---------------------------------------------------------------------------
+# Guided-fill readiness (must be registered before /{template_id})
+# ---------------------------------------------------------------------------
+
+
+def _norm_map_key(text: str) -> str:
+    import re
+    return re.sub(r"[^a-z0-9]+", "", (text or "").lower())
+
+
+@router.get(
+    "/readiness",
+    response_model=TemplateReadinessResponse,
+    summary="Which templates have a locked map for Guided Fill",
+)
+async def templates_readiness():
+    """Return Ready / Needs mapping status for every template.
+
+    Matches templates to canonical maps by structure signature when cheap, and
+    falls back to normalizing ``form_label`` ↔ template id/name. Used by the
+    Template Library and Guided Fill pickers.
+    """
+    from ...services.canonical_map_cache import CanonicalMapCache
+    from ...services.vision_service import VisionService
+
+    svc = _get_service()
+    items = svc.list()
+    cache = CanonicalMapCache()
+    entries = cache.list_entries()
+
+    by_sig: dict = {}
+    by_label: dict = {}
+    for e in entries:
+        sig = (e.get("signature") or "").strip()
+        fp = e.get("fingerprint")
+        label = e.get("form_label") or ""
+        ready = bool(e.get("reviewed"))
+        row = {
+            "ready": ready,
+            "fingerprint": fp,
+            "signature": sig or None,
+            "form_label": label or None,
+        }
+        if sig:
+            # Prefer a reviewed entry when multiple exist for one signature.
+            prev = by_sig.get(sig)
+            if prev is None or (ready and not prev.get("ready")):
+                by_sig[sig] = row
+        nk = _norm_map_key(label)
+        if nk:
+            prev = by_label.get(nk)
+            if prev is None or (ready and not prev.get("ready")):
+                by_label[nk] = row
+
+    vs = VisionService("", "", "")
+    out: list[TemplateReadinessItem] = []
+    for t in items:
+        hit = by_label.get(_norm_map_key(t.id)) or by_label.get(_norm_map_key(t.name))
+        if hit is None:
+            # Compute structure signature for a precise match (fillable cache helps).
+            try:
+                fillable = svc._ensure_fillable(t.id)
+                fields = vs._get_fields_with_coords(str(fillable))
+                if fields:
+                    sig = cache.signature(fields)
+                    hit = by_sig.get(sig) or {
+                        "ready": False,
+                        "fingerprint": None,
+                        "signature": sig,
+                        "form_label": None,
+                    }
+            except Exception:
+                hit = None
+        if hit is None:
+            hit = {
+                "ready": False,
+                "fingerprint": None,
+                "signature": None,
+                "form_label": None,
+            }
+        out.append(
+            TemplateReadinessItem(
+                template_id=t.id,
+                ready=bool(hit.get("ready")),
+                fingerprint=hit.get("fingerprint"),
+                signature=hit.get("signature"),
+                form_label=hit.get("form_label"),
+            )
+        )
+
+    ready_count = sum(1 for r in out if r.ready)
+    return TemplateReadinessResponse(items=out, ready_count=ready_count, total=len(out))
+
+
+# ---------------------------------------------------------------------------
 # Get manifest
 # ---------------------------------------------------------------------------
 
@@ -205,7 +301,8 @@ async def get_template_schema(template_id: str):
     ``schema`` is empty — review + lock the mapping first for a trustworthy form.
     """
     from ...services.canonical_map_cache import CanonicalMapCache
-    from ...services.canonical_schema import derive_schema
+    from ...services.canonical_schema import derive_schema, intake_schema
+    from ...services.form_spec_cache import FormSpecCache
     from ...services.vision_service import VisionService
 
     try:
@@ -222,24 +319,105 @@ async def get_template_schema(template_id: str):
 
     if not fields_info:
         return {"template_id": template_id, "reviewed": False,
-                "message": "No fillable fields detected", "schema": {"fields": [], "groups": []}}
+                "message": "No fillable fields detected",
+                "schema": {"fields": [], "groups": []},
+                "intake": {"canonical": {"fields": [], "groups": []},
+                           "questions": [], "tables": [], "narratives": [],
+                           "extras": [], "signatures": [], "rules": {}}}
 
     cache = CanonicalMapCache()
     sig = cache.signature(fields_info)
     locked = cache.get_by_signature(sig)
 
     if locked is None:
+        draft = cache.find_by_signature(sig) or {}
         return {
             "template_id": template_id,
             "reviewed": False,
             "signature": sig,
+            "fingerprint": draft.get("fingerprint"),
             "message": "No reviewed/locked mapping for this form yet. "
                        "Review and lock it in Mapping Review first.",
             "schema": {"fields": [], "groups": []},
+            "intake": {"canonical": {"fields": [], "groups": []},
+                       "questions": [], "tables": [], "narratives": [],
+                       "extras": [], "signatures": [], "rules": {}},
         }
 
     mappings = locked.get("mappings", {})
+    form_spec = FormSpecCache().get(sig)
+
+    # Keep branches form-specific: prune choice rows from older canonical caches,
+    # and (re)attach unlock rules when the FormSpec still lacks them.
+    from ...services.field_classifier import prune_form_specific_mappings
+    from ...services.intake_rules import apply_intake_annotations, sync_field_kinds
+
+    cleaned_preview, n_drop = prune_form_specific_mappings(mappings, fields_info)
+    has_q_rule = bool(form_spec) and any(getattr(q, "rule", None) for q in form_spec.questions)
+    has_skip = bool(form_spec) and any(
+        o.skip_logic for q in form_spec.questions for o in q.options
+    )
+    from ...services.form_spec_refresh import (
+        needs_signatures_rebuild,
+        rebuild_form_spec_for_signatures,
+    )
+
+    needs_spec_rebuild = needs_signatures_rebuild(form_spec)
+    needs_refresh = form_spec is not None and (
+        needs_spec_rebuild
+        or n_drop > 0
+        or (has_skip and not has_q_rule)
+        or not getattr(form_spec, "tables", None)
+        or int(getattr(form_spec, "extras_version", 0) or 0) < 1
+    )
+    if needs_refresh:
+        try:
+            from ...config import settings as _settings
+
+            vs = VisionService(
+                (_settings.GEMINI_API_KEY or "").strip() or "-",
+                _settings.DEFAULT_AI_BASE_URL,
+                _settings.DEFAULT_AI_MODEL,
+            )
+            if needs_spec_rebuild:
+                rebuilt = rebuild_form_spec_for_signatures(
+                    sig,
+                    form_label=form_spec.form_label or template_id,
+                    fillable_path=str(fillable_path),
+                    fields_info=fields_info,
+                    entry=locked,
+                    widget_key=vs._widget_key,
+                )
+                if rebuilt is not None:
+                    form_spec = rebuilt
+                    locked = cache.get_by_signature(sig) or locked
+                    mappings = locked.get("mappings", mappings)
+                    print(f"  🔄  Rebuilt FormSpec for {template_id} "
+                          f"(signatures_version bump)")
+            label_data = vs.rich_label_data(
+                str(fillable_path), fields_info, allow_ai=False
+            )
+            mappings, form_spec = apply_intake_annotations(
+                cleaned_preview if n_drop else mappings,
+                fields_info, label_data, form_spec,
+                widget_key=vs._widget_key,
+            )
+            locked = dict(locked)
+            locked["mappings"] = mappings
+            locked = sync_field_kinds(locked, fields_info)
+            cache.save_full(locked.get("fingerprint") or sig, locked)
+            FormSpecCache().save(form_spec)
+        except Exception as exc:
+            print(f"  ⚠️  intake rule annotate skipped: {exc}")
+            mappings = cleaned_preview
+    elif n_drop > 0:
+        mappings = cleaned_preview
+        locked = sync_field_kinds(dict(locked), fields_info)
+        locked["mappings"] = mappings
+        cache.save_full(locked.get("fingerprint") or sig, locked)
+
     schema = derive_schema(mappings)
+    intake = intake_schema(mappings, form_spec)
 
     # Annotate fields that map to a multi-row table column so the guided form can
     # offer per-row inputs (and list values distribute one value per row).
@@ -262,6 +440,24 @@ async def get_template_schema(template_id: str):
     for g in schema.get("groups", []):
         for f in g.get("fields", []):
             _annotate(f)
+    for f in intake.get("canonical", {}).get("fields", []):
+        _annotate(f)
+    for g in intake.get("canonical", {}).get("groups", []):
+        for f in g.get("fields", []):
+            _annotate(f)
+
+    # Attach e-sign box placement (%) so Guided Fill can stamp signatures
+    # after fill without asking the user for coordinates.
+    try:
+        from ...services.esign_service import enrich_signature_placements
+
+        intake["signatures"] = enrich_signature_placements(
+            intake.get("signatures") or [],
+            fields_info,
+            fillable_path,
+        )
+    except Exception as exc:
+        print(f"  ⚠️  signature placement enrich skipped: {exc}")
 
     return {
         "template_id": template_id,
@@ -269,6 +465,7 @@ async def get_template_schema(template_id: str):
         "fingerprint": locked.get("fingerprint"),
         "signature": sig,
         "schema": schema,
+        "intake": intake,
     }
 
 
@@ -310,6 +507,7 @@ async def get_template_pdf(template_id: str):
 async def fill_template(
     template_id: str,
     background_tasks: BackgroundTasks,
+    api_key: dict = Depends(require_api_key),
     ai_api_key: Optional[str] = Form(
         None,
         description="AI provider API key (required for Gemini; omit when ai_provider='local')",
@@ -403,6 +601,8 @@ async def fill_template(
             profile_ids=parsed_ids,
             return_mappings=return_mappings,
             preserve_input=guided,
+            owner_id=api_key.get("id"),
+            tier=api_key.get("tier", "free"),
         )
     except Exception as exc:
         raise HTTPException(500, f"Fill failed: {exc}")
@@ -411,8 +611,183 @@ async def fill_template(
 
 
 # ---------------------------------------------------------------------------
-# Batch fill
+# Guided Batch — locked template + intake CSV
 # ---------------------------------------------------------------------------
+
+
+def _intake_for_template(template_id: str) -> tuple[dict, str, str]:
+    """Return (intake_schema, fingerprint, signature) for a locked template."""
+    from ...services.canonical_map_cache import CanonicalMapCache
+    from ...services.canonical_schema import intake_schema
+    from ...services.form_spec_cache import FormSpecCache
+    from ...services.vision_service import VisionService
+
+    svc = _get_service()
+    try:
+        svc.get(template_id)
+    except KeyError:
+        raise HTTPException(404, f"Template '{template_id}' not found")
+    fillable = svc._ensure_fillable(template_id)
+    fields = VisionService("", "", "")._get_fields_with_coords(str(fillable))
+    if not fields:
+        raise HTTPException(400, "No fillable fields on this template")
+    cache = CanonicalMapCache()
+    sig = cache.signature(fields)
+    locked = cache.get_by_signature(sig)
+    if locked is None:
+        raise HTTPException(
+            409,
+            "No locked mapping for this template. Lock it in Mapping Review first.",
+        )
+    spec = FormSpecCache().get(sig)
+    intake = intake_schema(locked.get("mappings") or {}, spec)
+    return intake, locked.get("fingerprint") or "", sig
+
+
+@router.get(
+    "/{template_id}/guided-csv",
+    summary="Download Guided Batch CSV template + column legend",
+)
+async def download_guided_csv_template(template_id: str):
+    """CSV header row for Guided Batch, plus JSON legend in the response body.
+
+    Returns JSON: ``{csv, headers, legend, fingerprint, signature}``.
+    Use the ``csv`` string as the first line of your spreadsheet (or download
+    as text/csv via Accept header).
+    """
+    from ...services.canonical_schema import intake_csv_headers, intake_csv_legend
+    import csv as _csv
+    import io as _io
+
+    intake, fp, sig = _intake_for_template(template_id)
+    headers = intake_csv_headers(intake)
+    legend = intake_csv_legend(intake)
+    buf = _io.StringIO()
+    w = _csv.writer(buf)
+    w.writerow(headers)
+    return {
+        "template_id": template_id,
+        "fingerprint": fp,
+        "signature": sig,
+        "headers": headers,
+        "legend": legend,
+        "csv": buf.getvalue(),
+        "notes": {
+            "canonical": "Catalog paths like patient.dob — prefill from profiles",
+            "q:": "Form-specific question answers (use option labels or export values)",
+            "t:": "Direct AcroForm writes: narratives, table cells, typed signatures",
+            "signature_mode": "Use t:<signature_field> columns with signature_mode=typed",
+        },
+    }
+
+
+@router.post(
+    "/{template_id}/batch-csv",
+    response_model=TemplateBatchResponse,
+    summary="Guided Batch: fill locked template from intake CSV",
+)
+async def guided_batch_csv(
+    template_id: str,
+    api_key: dict = Depends(require_api_key),
+    csv_file: UploadFile = File(..., description="CSV with intake headers from /guided-csv"),
+    profile_id: Optional[str] = Form(None, examples=[EX_PROFILE_ID]),
+    profile_ids: Optional[str] = Form(
+        None,
+        description="Comma-separated base profiles (provider/facility) merged into every row",
+    ),
+    signature_mode: str = Form(
+        default="none",
+        description="'none' or 'typed' (stamp t:<sig_field> / signer_name overlays)",
+    ),
+    consent_given: bool = Form(
+        default=False,
+        description="Required when signature_mode=typed (ESIGN / UETA consent)",
+    ),
+    signer_name: str = Form(default="", description="Fallback typed signer name"),
+    signer_email: str = Form(default="", description="Optional signer email for audit"),
+    dpi: int = Form(default=200, ge=150, le=300),
+    ai_api_key: Optional[str] = Form(None, examples=[EX_AI_API_KEY]),
+    ai_base_url: str = Form(default=EX_AI_BASE_URL, examples=[EX_AI_BASE_URL]),
+    ai_model: str = Form(default="gemini-2.5-flash", examples=[EX_AI_MODEL]),
+    ai_provider: Optional[str] = Form(None),
+):
+    """Fill many rows using the locked map (canonical / q: / t: columns).
+
+    Download the header row from ``GET .../guided-csv`` first. Provider
+    profiles can be attached once via ``profile_ids``; each CSV row supplies
+    the patient + clinical values.
+    """
+    import csv as _csv
+    import io as _io
+
+    # Ensure locked map exists
+    _intake_for_template(template_id)
+
+    raw = await csv_file.read()
+    try:
+        text = raw.decode("utf-8-sig", errors="replace")
+        reader = _csv.DictReader(_io.StringIO(text))
+        records = []
+        for row in reader:
+            clean = {
+                (k or "").strip(): (v or "").strip()
+                for k, v in row.items()
+                if k and (v or "").strip()
+            }
+            if clean:
+                records.append(clean)
+    except Exception as exc:
+        raise HTTPException(400, f"Could not parse CSV: {exc}")
+
+    if not records:
+        raise HTTPException(400, "CSV has no data rows")
+    if len(records) > 500:
+        raise HTTPException(400, "Maximum 500 rows per batch")
+
+    try:
+        tpl = _get_service().get(template_id)
+    except KeyError:
+        raise HTTPException(404, f"Template '{template_id}' not found")
+
+    parsed_ids = (
+        [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
+    )
+
+    try:
+        resolved_key, resolved_url, resolved_model = prepare_ai_config(
+            request_api_key=ai_api_key,
+            request_base_url=ai_base_url,
+            request_model=ai_model,
+            provider_hint=ai_provider,
+            category=tpl.category,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    try:
+        resp = _get_service().fill_batch(
+            template_id=template_id,
+            records=records,
+            ai_api_key=resolved_key,
+            ai_base_url=resolved_url,
+            ai_model=resolved_model,
+            dpi=dpi,
+            profile_id=profile_id,
+            profile_ids=parsed_ids,
+            preserve_input=True,
+            signature_mode=signature_mode,
+            consent_given=consent_given,
+            signer_name=signer_name,
+            signer_email=signer_email,
+            owner_id=api_key.get("id"),
+            tier=api_key.get("tier", "free"),
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, f"Guided batch failed: {exc}")
+
+    return resp
 
 
 @router.post(
@@ -423,6 +798,7 @@ async def fill_template(
 async def batch_fill_template(
     template_id: str,
     background_tasks: BackgroundTasks,
+    api_key: dict = Depends(require_api_key),
     ai_api_key: Optional[str] = Form(
         None,
         description="AI provider API key (required for Gemini; omit when ai_provider='local')",
@@ -501,6 +877,8 @@ async def batch_fill_template(
             dpi=dpi,
             profile_id=profile_id,
             profile_ids=parsed_ids,
+            owner_id=api_key.get("id"),
+            tier=api_key.get("tier", "free"),
         )
     except Exception as exc:
         raise HTTPException(500, f"Batch fill failed: {exc}")

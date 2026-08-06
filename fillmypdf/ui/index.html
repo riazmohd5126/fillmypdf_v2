@@ -15,20 +15,128 @@
   <!-- Nav -->
   <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
     <span class="text-xl font-bold text-indigo-700">FillMyPDF</span>
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-4">
       <span id="ai-provider-badge" class="hidden text-xs font-medium px-3 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-200" title="Active LLM provider"></span>
       <button onclick="showKeyModal()" class="text-sm text-gray-500 hover:text-indigo-600 flex items-center gap-1">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
         API Key
       </button>
+      <a href="/ui/billing.html" class="text-sm text-gray-500 hover:text-indigo-600">Billing</a>
+      <a href="/docs" target="_blank" class="text-sm text-gray-500 hover:text-indigo-600">Docs</a>
     </div>
   </nav>
 
   <main class="max-w-5xl mx-auto px-6 py-12">
     <h1 class="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-    <p class="text-gray-500 mb-10">AI-powered PDF filling, profiles, and e-signatures.</p>
+    <p class="text-gray-500 mb-8">Fill reviewed clinic forms, manage profiles, or run ad-hoc PDF batches.</p>
 
+    <!-- Primary: clinic workflow -->
+    <div class="mb-3 flex items-end justify-between gap-3">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-800 uppercase tracking-wide">Clinic fill</h2>
+        <p class="text-xs text-gray-400 mt-0.5">Locked mappings — deterministic fills for Ready templates.</p>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
+
+      <a href="/ui/form_fill.html" class="card bg-white rounded-xl border-2 border-indigo-200 p-6 shadow-sm hover:shadow-md block ring-1 ring-indigo-50">
+        <div class="w-11 h-11 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+        </div>
+        <h2 class="font-semibold text-gray-900 mb-1">Guided Fill</h2>
+        <p class="text-sm text-gray-500">Fill a reviewed PA form in a clean web UI. Locked mapping — no AI guessing.</p>
+      </a>
+
+      <a href="/ui/guided_batch.html" class="card bg-white rounded-xl border-2 border-indigo-200 p-6 shadow-sm hover:shadow-md block ring-1 ring-indigo-50">
+        <div class="w-11 h-11 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h10M4 18h10"/>
+          </svg>
+        </div>
+        <h2 class="font-semibold text-gray-900 mb-1">Guided Batch</h2>
+        <p class="text-sm text-gray-500">Same Ready forms, CSV in → ZIP of PDFs out. Profiles apply to every row.</p>
+      </a>
+
+      <a href="/ui/templates.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
+        <div class="w-11 h-11 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+          </svg>
+        </div>
+        <h2 class="font-semibold text-gray-900 mb-1">Template Library</h2>
+        <p class="text-sm text-gray-500">Browse Ready vs Needs-mapping forms; open Guided Fill or Mapping Review.</p>
+      </a>
+
+      <a href="/ui/profiles.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
+        <div class="w-11 h-11 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+        </div>
+        <h2 class="font-semibold text-gray-900 mb-1">Profiles</h2>
+        <p class="text-sm text-gray-500">Patients, providers, facilities, pharmacies, and encounter packs for autofill.</p>
+      </a>
+
+    </div>
+
+    <!-- Secondary: prep & power -->
+    <div class="mb-3">
+      <h2 class="text-sm font-semibold text-gray-800 uppercase tracking-wide">Prep &amp; power tools</h2>
+      <p class="text-xs text-gray-400 mt-0.5">New forms, ad-hoc batches, signing, and utilities.</p>
+    </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+
+      <a href="/ui/mapping_review.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
+        <div class="w-11 h-11 bg-amber-100 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+          </svg>
+        </div>
+        <h2 class="font-semibold text-gray-900 mb-1">Mapping Review</h2>
+        <p class="text-sm text-gray-500">Lock canonical field maps so Guided Fill stays trustworthy.</p>
+      </a>
+
+      <a href="/ui/make_fillable.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
+        <div class="w-11 h-11 bg-teal-100 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-teal-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+        </div>
+        <h2 class="font-semibold text-gray-900 mb-1">Make Fillable</h2>
+        <p class="text-sm text-gray-500">Convert a static PDF to AcroForm with CommonForms field detection.</p>
+      </a>
+
+      <a href="/ui/pdftools.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
+        <div class="w-11 h-11 bg-red-50 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+          </svg>
+        </div>
+        <h2 class="font-semibold text-gray-900 mb-1">PDF Tools</h2>
+        <p class="text-sm text-gray-500">Merge multiple PDFs or split one into pages and ranges.</p>
+      </a>
+
+      <a href="/ui/approvals.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
+        <div class="w-11 h-11 bg-amber-50 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+        <h2 class="font-semibold text-gray-900 mb-1">Approvals</h2>
+        <p class="text-sm text-gray-500">Send a filled PDF for review before it leaves the clinic.</p>
+      </a>
+
+      <a href="/ui/batch.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
+        <div class="w-11 h-11 bg-slate-100 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <h2 class="font-semibold text-gray-900 mb-1">Ad-hoc Batch</h2>
+        <p class="text-sm text-gray-500">Any PDF + spreadsheet — AI mapping. Use when the form isn’t Ready yet.</p>
+      </a>
 
       <a href="/ui/sign.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
         <div class="w-11 h-11 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
@@ -41,8 +149,8 @@
       </a>
 
       <a href="/ui/multisign.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="w-11 h-11 bg-violet-100 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
           </svg>
         </div>
@@ -50,54 +158,14 @@
         <p class="text-sm text-gray-500">Sequential signing sessions — multiple people sign one document in order.</p>
       </a>
 
-      <a href="/ui/profiles.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-          </svg>
-        </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Profiles</h2>
-        <p class="text-sm text-gray-500">Save personal or business data once — fill any form instantly.</p>
-      </a>
-
-      <a href="/ui/templates.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-          </svg>
-        </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Template Library</h2>
-        <p class="text-sm text-gray-500">Browse, search and fill pre-built form templates.</p>
-      </a>
-
       <a href="/ui/jobs.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
         <div class="w-11 h-11 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
           <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12v4m0 0l-2-2m2 2l2-2"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
           </svg>
         </div>
         <h2 class="font-semibold text-gray-900 mb-1">Fill History</h2>
         <p class="text-sm text-gray-500">Track async jobs, download results, and retry webhooks.</p>
-      </a>
-
-      <a href="/ui/batch.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-teal-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-          </svg>
-        </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Batch Fill</h2>
-        <p class="text-sm text-gray-500">Upload a PDF + CSV/Excel/JSON and fill hundreds of records at once.</p>
-      </a>
-
-      <a href="/ui/keys.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
-          </svg>
-        </div>
-        <h2 class="font-semibold text-gray-900 mb-1">API Keys</h2>
-        <p class="text-sm text-gray-500">Create, revoke, and manage access keys for the REST API.</p>
       </a>
 
       <a href="/ui/extract.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
@@ -108,6 +176,16 @@
         </div>
         <h2 class="font-semibold text-gray-900 mb-1">Extract Fields</h2>
         <p class="text-sm text-gray-500">Reverse a filled PDF — pull all field values out to JSON or CSV.</p>
+      </a>
+
+      <a href="/ui/keys.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
+        <div class="w-11 h-11 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+          </svg>
+        </div>
+        <h2 class="font-semibold text-gray-900 mb-1">API Keys</h2>
+        <p class="text-sm text-gray-500">Create, revoke, and manage access keys for the REST API.</p>
       </a>
 
     </div>
@@ -174,26 +252,6 @@
         <div id="recent-sessions" class="space-y-2"></div>
       </div>
 
-    </div>
-
-    <!-- Quick Actions -->
-    <div class="mt-8 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-      <h3 class="text-sm font-semibold text-gray-700 mb-3">Quick Actions</h3>
-      <div class="flex flex-wrap gap-2">
-        <a href="/ui/templates.html" class="text-xs bg-indigo-50 text-indigo-700 rounded-lg px-3 py-1.5 font-medium hover:bg-indigo-100">Fill a Template →</a>
-        <a href="/ui/sign.html" class="text-xs bg-purple-50 text-purple-700 rounded-lg px-3 py-1.5 font-medium hover:bg-purple-100">Sign a PDF →</a>
-        <a href="/ui/multisign.html" class="text-xs bg-blue-50 text-blue-700 rounded-lg px-3 py-1.5 font-medium hover:bg-blue-100">New Signing Session →</a>
-        <a href="/ui/batch.html" class="text-xs bg-green-50 text-green-700 rounded-lg px-3 py-1.5 font-medium hover:bg-green-100">Batch Fill →</a>
-        <a href="/ui/profiles.html" class="text-xs bg-orange-50 text-orange-700 rounded-lg px-3 py-1.5 font-medium hover:bg-orange-100">Manage Profiles →</a>
-        <a href="/ui/pdftools.html" class="text-xs bg-red-50 text-red-700 rounded-lg px-3 py-1.5 font-medium hover:bg-red-100">PDF Tools (Merge/Split) →</a>
-        <a href="/ui/pa_fill.html" class="text-xs bg-indigo-50 text-indigo-700 rounded-lg px-3 py-1.5 font-medium hover:bg-indigo-100">PA Autofill →</a>
-        <a href="/ui/form_fill.html" class="text-xs bg-indigo-50 text-indigo-700 rounded-lg px-3 py-1.5 font-medium hover:bg-indigo-100">Guided Fill →</a>
-        <a href="/ui/mapping_review.html" class="text-xs bg-indigo-50 text-indigo-700 rounded-lg px-3 py-1.5 font-medium hover:bg-indigo-100">Mapping Review →</a>
-        <a href="/ui/approvals.html" class="text-xs bg-amber-50 text-amber-700 rounded-lg px-3 py-1.5 font-medium hover:bg-amber-100">Request Approval →</a>
-        <a href="/ui/billing.html" class="text-xs bg-green-50 text-green-700 rounded-lg px-3 py-1.5 font-medium hover:bg-green-100">Billing & Plans →</a>
-        <a href="/ui/keys.html" class="text-xs bg-gray-100 text-gray-700 rounded-lg px-3 py-1.5 font-medium hover:bg-gray-200">API Keys →</a>
-        <a href="/docs" target="_blank" class="text-xs bg-gray-100 text-gray-700 rounded-lg px-3 py-1.5 font-medium hover:bg-gray-200">API Docs →</a>
-      </div>
     </div>
 
   </main>

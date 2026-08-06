@@ -109,6 +109,26 @@ class ProfileRepository:
                 continue
         
         return sorted(profiles, key=lambda p: p.get('created_at', ''), reverse=True)
+
+    def list_for_owner(self, owner_id: Optional[str]) -> List[Dict]:
+        """Profiles owned by a specific API key (for tier limits)."""
+        if not owner_id:
+            return []
+        return [
+            p for p in self.list_all()
+            if p.get("owner_id") == owner_id
+        ]
+
+    def list_visible(self, *, owner_id: Optional[str]) -> List[Dict]:
+        """Profiles the caller may read: own + org-shared libraries."""
+        out = []
+        for p in self.list_all():
+            prow = p.get("owner_id")
+            if prow and prow == owner_id:
+                out.append(p)
+            elif p.get("shared") and p.get("org_id") and prow:
+                out.append(p)
+        return sorted(out, key=lambda p: p.get("created_at", ""), reverse=True)
     
     def delete(self, profile_id: str) -> bool:
         """Delete profile"""

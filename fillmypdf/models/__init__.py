@@ -101,9 +101,21 @@ class ProfileCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     # Open string — any domain-specific type is accepted.
     # Well-known values: personal, business, spouse, dependent,
-    # patient, provider, prescriber, insured, agency, claimant, custom
+    # patient, provider, prescriber, requesting_provider, attending_provider,
+    # billing_provider, pharmacy, facility, encounter, insured, agency,
+    # claimant, custom
     profile_type: str = Field("personal", min_length=1, max_length=50)
     data: Dict[str, str] = Field(default_factory=dict)
+    # Optional org share flag (server still stamps owner_id from the API key).
+    shared: bool = Field(
+        False,
+        description="If true, other keys in the same org_id may read this profile",
+    )
+    org_id: Optional[str] = Field(
+        None,
+        max_length=80,
+        description="Optional organization id for shared practice libraries",
+    )
 
     @field_validator('name')
     @classmethod
@@ -123,6 +135,8 @@ class ProfileUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     profile_type: Optional[str] = Field(None, min_length=1, max_length=50)
     data: Optional[Dict[str, str]] = None
+    shared: Optional[bool] = None
+    org_id: Optional[str] = Field(None, max_length=80)
 
 
 class Profile(BaseModel):
@@ -134,7 +148,10 @@ class Profile(BaseModel):
             "example": {
                 "id": "prof_demo01",
                 "name": "Metro Cardiology Clinic",
-                "profile_type": "business",
+                "profile_type": "provider",
+                "owner_id": "key_abc123",
+                "org_id": "org_metro",
+                "shared": True,
                 "created_at": "2026-05-01T10:00:00",
                 "updated_at": "2026-05-09T11:45:22",
                 "usage_count": 14,
@@ -146,6 +163,13 @@ class Profile(BaseModel):
     id: str
     name: str
     profile_type: str
+    owner_id: Optional[str] = Field(
+        None, description="API key id that owns this profile"
+    )
+    org_id: Optional[str] = Field(
+        None, description="Optional organization for shared practice profiles"
+    )
+    shared: bool = False
     created_at: datetime
     updated_at: datetime
     usage_count: int = 0

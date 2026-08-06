@@ -186,6 +186,9 @@ class Settings(BaseSettings):
     # Allow the canonical mapper to fall back to the AI (blank-form labels only,
     # PHI-free) for fields resolve_label can't place. One call per form, cached.
     CANONICAL_AI_FALLBACK: bool = True
+    # Per-request timeout (seconds) for the canonical AI mapping call, so a slow
+    # or unreachable model endpoint fails fast instead of hanging draft-building.
+    CANONICAL_AI_TIMEOUT: float = 45.0
     # Critical canonical fields (member_id, dob, npi, drug…) are DEFERRED (left
     # blank + reported) unless the mapping confidence meets this bar.
     # Ladder: high=0.9, medium=0.7, low=0.4.

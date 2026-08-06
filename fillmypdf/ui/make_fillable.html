@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Make Fillable — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body{font-family:system-ui,-apple-system,sans-serif;}</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
+  <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+  </a>
+  <span class="font-semibold text-gray-800">Make Fillable</span>
+  <a href="/ui/pdftools.html" class="ml-auto text-xs text-indigo-600 hover:underline">PDF Tools →</a>
+</nav>
+
+<main class="max-w-2xl mx-auto px-4 py-10 space-y-6">
+
+  <div class="bg-indigo-600 rounded-2xl p-6 text-white">
+    <h1 class="text-2xl font-bold">Static → Fillable PDF</h1>
+    <p class="text-indigo-200 text-sm mt-1">
+      Upload a flat form. We detect text boxes and checkboxes (CommonForms) and
+      return an AcroForm PDF you can open in Preview, Adobe, or keep for Guided Fill.
+    </p>
+  </div>
+
+  <div id="no-key" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+    No API key set. Open the <a href="/ui/index.html" class="underline font-semibold">Dashboard</a> and set your API key first.
+  </div>
+  <div id="error-box" class="hidden bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700"></div>
+
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+    <div id="drop" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition">
+      <svg class="w-10 h-10 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+      <p id="drop-label" class="text-sm text-gray-500">Click or drag a PDF here</p>
+      <p class="text-[11px] text-gray-400 mt-1">Max 50 MB · conversion may take 10–60s on large forms</p>
+      <input id="file-input" type="file" accept=".pdf,application/pdf" class="hidden"/>
+    </div>
+
+    <div>
+      <label class="text-xs font-medium text-gray-600 mb-1 block">Output filename (optional)</label>
+      <input id="out-name" type="text" placeholder="my_form_fillable"
+        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+    </div>
+
+    <label class="flex items-start gap-2 cursor-pointer">
+      <input id="save-tpl" type="checkbox" class="mt-0.5 accent-indigo-600" onchange="toggleTplFields()"/>
+      <span class="text-sm text-gray-700">
+        Also save as Template Library entry
+        <span class="block text-[11px] text-gray-400">Requires an admin API key. Then you can open Guided Fill / Mapping Review.</span>
+      </span>
+    </label>
+
+    <div id="tpl-fields" class="hidden space-y-3 border border-gray-100 rounded-xl p-3 bg-gray-50">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-medium text-gray-600 mb-1 block">Template name</label>
+          <input id="tpl-name" type="text" placeholder="My converted form"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-gray-600 mb-1 block">Template ID (optional)</label>
+          <input id="tpl-id" type="text" placeholder="auto-generated"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-600 mb-1 block">Category</label>
+        <input id="tpl-cat" type="text" value="general" placeholder="general"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+      </div>
+    </div>
+
+    <button id="convert-btn" onclick="doConvert()"
+      class="w-full bg-indigo-600 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-indigo-700 disabled:opacity-50">
+      Convert to fillable
+    </button>
+
+    <p class="text-[11px] text-gray-400 leading-relaxed">
+      Field detection is best-effort on dense or scanned forms — always review the
+      output in a PDF reader. Already-fillable PDFs are returned unchanged.
+    </p>
+  </div>
+
+  <div id="result" class="hidden bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-3">
+    <p class="font-semibold text-gray-900" id="result-title">Conversion complete</p>
+    <p class="text-sm text-gray-600" id="result-msg"></p>
+    <div id="result-meta" class="flex flex-wrap gap-2 text-[11px]"></div>
+    <div id="result-warn" class="hidden text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"></div>
+    <div class="flex flex-wrap gap-2 pt-1">
+      <a id="dl-btn" href="#"
+        class="inline-flex items-center gap-1.5 bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700">
+        Download fillable PDF
+      </a>
+      <a id="guided-link" href="#" class="hidden inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg px-4 py-2 text-sm font-medium hover:bg-emerald-100">
+        Open Guided Fill →
+      </a>
+      <a id="tpl-link" href="/ui/templates.html" class="hidden inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-200">
+        Template Library →
+      </a>
+    </div>
+  </div>
+
+</main>
+
+<script>
+function getKey(){ return localStorage.getItem('fmp_api_key') || ''; }
+function showErr(m){
+  const e = document.getElementById('error-box');
+  e.textContent = m; e.classList.remove('hidden');
+}
+function clearErr(){ document.getElementById('error-box').classList.add('hidden'); }
+
+let selectedFile = null;
+
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file-input');
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('border-indigo-400','bg-indigo-50'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('border-indigo-400','bg-indigo-50'));
+drop.addEventListener('drop', e => {
+  e.preventDefault();
+  drop.classList.remove('border-indigo-400','bg-indigo-50');
+  const f = e.dataTransfer.files?.[0];
+  if(f) setFile(f);
+});
+fileInput.addEventListener('change', () => {
+  if(fileInput.files?.[0]) setFile(fileInput.files[0]);
+});
+
+function setFile(f){
+  if(!f.name.toLowerCase().endsWith('.pdf')){ showErr('Please choose a PDF file.'); return; }
+  selectedFile = f;
+  clearErr();
+  document.getElementById('drop-label').textContent = f.name + ' (' + Math.round(f.size/1024) + ' KB)';
+  if(!document.getElementById('out-name').value){
+    document.getElementById('out-name').value = f.name.replace(/\.pdf$/i,'') + '_fillable';
+  }
+  if(!document.getElementById('tpl-name').value){
+    document.getElementById('tpl-name').value = f.name.replace(/\.pdf$/i,'').replace(/[_-]+/g,' ');
+  }
+}
+
+function toggleTplFields(){
+  document.getElementById('tpl-fields').classList.toggle('hidden', !document.getElementById('save-tpl').checked);
+}
+
+async function downloadWithKey(url, filename){
+  const r = await fetch(url, { headers: { 'X-API-Key': getKey() } });
+  if(!r.ok) throw new Error('Download failed (HTTP ' + r.status + ')');
+  const blob = await r.blob();
+  const obj = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = obj; a.download = filename || 'fillable.pdf'; a.click();
+  URL.revokeObjectURL(obj);
+}
+
+async function doConvert(){
+  clearErr();
+  document.getElementById('result').classList.add('hidden');
+  if(!getKey()){ showErr('Set your API key on the Dashboard first.'); return; }
+  if(!selectedFile){ showErr('Choose a PDF first.'); return; }
+
+  const btn = document.getElementById('convert-btn');
+  btn.disabled = true;
+  btn.textContent = 'Converting… (this can take a minute)';
+
+  try {
+    const fd = new FormData();
+    fd.append('file', selectedFile, selectedFile.name);
+    const outName = document.getElementById('out-name').value.trim();
+    if(outName) fd.append('output_name', outName.replace(/\.pdf$/i,''));
+    const saveTpl = document.getElementById('save-tpl').checked;
+    fd.append('save_as_template', saveTpl ? 'true' : 'false');
+    if(saveTpl){
+      const tn = document.getElementById('tpl-name').value.trim();
+      const tid = document.getElementById('tpl-id').value.trim();
+      const cat = document.getElementById('tpl-cat').value.trim();
+      if(tn) fd.append('template_name', tn);
+      if(tid) fd.append('template_id', tid);
+      if(cat) fd.append('category', cat);
+    }
+
+    const r = await fetch('/api/v1/pdf/convert-fillable', {
+      method: 'POST',
+      headers: { 'X-API-Key': getKey() },
+      body: fd,
+    });
+    const data = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(data.detail || ('HTTP ' + r.status));
+
+    document.getElementById('result').classList.remove('hidden');
+    const statusLabel = {
+      already_fillable: 'Already fillable',
+      converted: 'Converted',
+      copied_as_is: 'Returned unchanged (no fields found)',
+    }[data.status] || data.status;
+    document.getElementById('result-title').textContent = statusLabel;
+    document.getElementById('result-msg').textContent = data.message || '';
+
+    const meta = document.getElementById('result-meta');
+    meta.innerHTML = [
+      ['Status', data.status],
+      ['Engine', data.engine],
+      ['Fields before', data.field_count_before],
+      ['Fields after', data.field_count_after],
+      ['Pages', data.page_count],
+    ].map(([k,v]) =>
+      `<span class="px-2 py-1 rounded-full bg-gray-100 text-gray-700">${k}: <strong>${v ?? '—'}</strong></span>`
+    ).join('');
+
+    const warn = document.getElementById('result-warn');
+    if(data.warning){
+      warn.textContent = data.warning;
+      warn.classList.remove('hidden');
+    } else {
+      warn.classList.add('hidden');
+    }
+
+    const dl = document.getElementById('dl-btn');
+    dl.onclick = (ev) => {
+      ev.preventDefault();
+      downloadWithKey(data.download_url, data.filename).catch(e => showErr(e.message));
+    };
+
+    const guided = document.getElementById('guided-link');
+    const tplLink = document.getElementById('tpl-link');
+    if(data.template && data.template.guided_fill_url){
+      guided.href = data.template.guided_fill_url;
+      guided.classList.remove('hidden');
+      tplLink.classList.remove('hidden');
+    } else {
+      guided.classList.add('hidden');
+      tplLink.classList.add('hidden');
+    }
+  } catch(e){
+    showErr(e.message || String(e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Convert to fillable';
+  }
+}
+
+if(!getKey()) document.getElementById('no-key').classList.remove('hidden');
+</script>
+</body>
+</html>

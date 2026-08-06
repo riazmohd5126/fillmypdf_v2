@@ -715,8 +715,13 @@ class VisionService:
                         # else, which would otherwise surface as bogus
                         # "checkbox" fields. Real checkboxes/radios are also
                         # /Btn but WITHOUT this flag, so they're unaffected.
-                        if "/Btn" in ft and (self._resolve_field_flags(annot) & 0x10000):
+                        field_flags = self._resolve_field_flags(annot)
+                        if "/Btn" in ft and (field_flags & 0x10000):
                             continue
+                        # /Ff bit 13 (0x1000) = multiline text. Authored as a
+                        # textarea, so it holds a free-text narrative rather
+                        # than an identity value the canonical catalog covers.
+                        multiline = bool("/Tx" in ft and (field_flags & 0x1000))
                         rect = annot.get("/Rect")
                         if rect:
                             x0 = float(rect[0])
@@ -759,6 +764,7 @@ class VisionService:
                             "y_bottom": round(field_bottom),
                             "export_value": export_value,
                             "tu": tu,
+                            "multiline": multiline,
                             # Mark this as a REAL AcroForm widget read straight
                             # from the PDF — so its /TU provably belongs to this
                             # exact box. The OpenCV/VLM engines re-detect boxes
@@ -3430,6 +3436,60 @@ class VisionService:
 
         return self._build_inspect_rows(fields_info, label_data)
 
+    def rich_label_data(
+        self,
+        pdf_path: str,
+        fields_info: list[dict],
+        *,
+        allow_ai: bool = True,
+    ) -> dict:
+        """Best available per-widget label record for a blank form.
+
+        Geometry alone resolves the printed caption but rarely the *question* a
+        checkbox belongs to; the full Gemini pass resolves ``group`` for the
+        great majority of them. Extract has always used the richer pass while
+        map-building used geometry only, so the canonical side saw strictly
+        worse data for the same form.
+
+        Cache-first, and the label cache is keyed by form structure — so a form
+        already run through extract costs nothing here.
+        """
+        try:
+            fp = self._label_cache.fingerprint(fields_info, model=self.model or "")
+            cached = self._label_cache.get(fp)
+            if cached is not None:
+                self._postprocess_label_data(fields_info, cached)
+                return cached
+        except Exception:
+            pass
+
+        can_call_ai = (
+            allow_ai
+            and settings.AI_LABEL_FALLBACK
+            and not settings.AI_LOCAL_ONLY
+            and bool(self.api_key)
+            and self.api_key != "-"
+            and bool(self.base_url)
+        )
+        if can_call_ai:
+            try:
+                _, label_data = self._inspect_gemini(pdf_path)
+                if label_data:
+                    return label_data
+            except Exception as exc:
+                print(f"  ⚠️  rich label pass failed ({exc}); using geometry")
+
+        # Geometry invents positional ids ("group_3") to mark boxes that share a
+        # printed row. Those are not questions, so apply the same normalization
+        # the Gemini paths get: it nulls the placeholders and confines `group` to
+        # checkbox widgets. Documented as idempotent, so safe on any label map.
+        label_data = self._extract_labels_for_fields(pdf_path, fields_info)
+        try:
+            self._postprocess_label_data(fields_info, label_data)
+        except Exception as exc:
+            print(f"  ⚠️  label post-processing failed ({exc}); using raw geometry")
+        return label_data
+
     # ------------------------------------------------------------------
     # Engine implementations (each returns (fields_info, label_data))
     # ------------------------------------------------------------------
@@ -4111,34 +4171,12 @@ class VisionService:
         self, fields_info: list[dict], label_data: dict
     ) -> dict:
         """Shared row builder for all engines."""
-        # Inline text-blank → checkbox linkage. A text field on the SAME row as
-        # a checkbox, sitting to its right (e.g. the date box in
-        # "☐ Continuation of therapy (date initiated: ___)"), is treated as that
-        # checkbox's conditional input. We pick the nearest checkbox to the left
-        # whose vertical span overlaps the text field and whose horizontal gap
-        # is small enough to be the same printed line item.
-        _GAP_MAX = 260  # px, at PDF-point scale
-        _checkboxes = [f for f in fields_info if "/Btn" in f.get("type", "")]
+        from .form_spec_builder import link_inline_blanks
+
+        _links = link_inline_blanks(fields_info)
 
         def _linked_checkbox(tf: dict) -> Optional[str]:
-            ty0, ty1 = tf["y"], tf.get("y_bottom", tf["y"])
-            best_name, best_gap = None, 1e9
-            for c in _checkboxes:
-                if c["page"] != tf["page"]:
-                    continue
-                cy0, cy1 = c["y"], c.get("y_bottom", c["y"])
-                # vertical overlap (same row)
-                if cy1 < ty0 or cy0 > ty1:
-                    continue
-                # checkbox must be to the LEFT of the text blank
-                if c["x1"] > tf["x0"] + 4:
-                    continue
-                gap = tf["x0"] - c["x1"]
-                if gap < 0 or gap > _GAP_MAX:
-                    continue
-                if gap < best_gap:
-                    best_gap, best_name = gap, c["name"]
-            return best_name
+            return _links.get(tf["name"])
 
         # Duplicate-label detection (a confidence signal): the same label under
         # the same section on 2+ NON-radio fields usually means a mis-mapping
@@ -4388,7 +4426,14 @@ class VisionService:
         Returns (values, confidence, report). ``report['deferred']`` lists the
         field names the caller must ALSO keep the general fork away from.
         """
-        from ..models.pa_canonical import BY_PATH, CRITICAL_FIELDS, resolve_label
+        from ..models.pa_canonical import (
+            BY_PATH,
+            CRITICAL_FIELDS,
+            acro_field_name,
+            map_key_export,
+            option_values_match,
+            resolve_label,
+        )
         from .pa_normalize import normalize
 
         # ── Normalize incoming shape (canonical bundle vs plain flat dict) ────
@@ -4420,8 +4465,20 @@ class VisionService:
                 # Preserve lists (multi-row table columns); stringify scalars.
                 canonical_values[path] = val if isinstance(val, (list, tuple)) else str(val)
 
+        # Checkbox answers and narratives are answered against THIS form's own
+        # questions rather than the catalog, so they resolve independently of
+        # whether any canonical path matched.
+        spec_values, spec_conf = self._form_spec_values(
+            fields_info, flat_data, canonical_values
+        )
+
         if not canonical_values:
-            return {}, {}, {"filled": 0, "deferred": [], "mapped_fields": 0}
+            return (
+                dict(spec_values),
+                dict(spec_conf),
+                {"filled": len(spec_values), "deferred": [], "mapped_fields": 0,
+                 "form_spec_filled": len(spec_values)},
+            )
 
         # ── Form side: field → canonical path (cached, PHI-free) ──────────────
         field_canon = self._canonical_service.map_fields(fields_info, field_labels)
@@ -4429,17 +4486,6 @@ class VisionService:
         type_by_name = {f.get("name"): str(f.get("type", "")) for f in fields_info}
         conf_rank = {"high": 0.9, "medium": 0.7, "low": 0.4}
         crit_min = settings.CANONICAL_CRITICAL_MIN_CONFIDENCE
-
-        # Group the form's fields by the canonical path they carry a value for.
-        path_fields: dict = defaultdict(list)
-        for name, m in field_canon.items():
-            if not isinstance(m, dict):
-                continue
-            path = m.get("canonical")
-            if not path or path == "other" or path not in canonical_values:
-                continue
-            conf = conf_rank.get(str(m.get("confidence", "medium")).lower(), 0.7)
-            path_fields[path].append((name, conf))
 
         values: Dict[str, str] = {}
         confidence: Dict[str, float] = {}
@@ -4460,6 +4506,47 @@ class VisionService:
             values[nm] = out
             confidence[nm] = conf
 
+        def _user_matches(path: str, opt: str, raw) -> bool:
+            if isinstance(raw, (list, tuple)):
+                return any(
+                    option_values_match(path, u, opt)
+                    for u in raw if u not in (None, "")
+                )
+            return option_values_match(path, raw, opt)
+
+        # ── Pass 1: option-valued widgets (checkbox/radio → path + value) ─────
+        # Only tick when the user's data for that path selects this option.
+        # Write the AcroForm export (from name::export) or a generic Yes for
+        # independent checkboxes — never the catalog choice code (PT≠/On).
+        option_keys: set = set()
+        for key, m in field_canon.items():
+            if not isinstance(m, dict):
+                continue
+            path = m.get("canonical")
+            opt = m.get("value")
+            if not path or path == "other" or opt in (None, ""):
+                continue
+            if path not in canonical_values:
+                continue
+            conf = conf_rank.get(str(m.get("confidence", "medium")).lower(), 0.7)
+            option_keys.add(key)
+            if not _user_matches(path, str(opt), canonical_values[path]):
+                continue
+            acro = acro_field_name(key)
+            write_val = map_key_export(key) or "Yes"
+            _write(acro, path, write_val, conf)
+
+        # ── Pass 2: ordinary fields (no option value) — path-grouped write ────
+        path_fields: dict = defaultdict(list)
+        for key, m in field_canon.items():
+            if key in option_keys or not isinstance(m, dict):
+                continue
+            path = m.get("canonical")
+            if not path or path == "other" or path not in canonical_values:
+                continue
+            conf = conf_rank.get(str(m.get("confidence", "medium")).lower(), 0.7)
+            path_fields[path].append((acro_field_name(key), conf))
+
         for path, nc in path_fields.items():
             raw = canonical_values[path]
 
@@ -4477,10 +4564,15 @@ class VisionService:
                 # No multi-row run (or empty list): fall back to the first value.
                 raw = items[0] if items else ""
 
-            # ── Scalar value → today's behavior (write to all; suppress dupes later).
+            # ── Scalar value → write to all non-option fields on this path.
             scalar = str(raw) if raw is not None else ""
             for nm, conf in nc:
                 _write(nm, path, scalar, conf)
+
+        # Form-specific answers last: a reviewer-approved question is a more
+        # direct statement of intent than a catalog inference on the same widget.
+        values.update(spec_values)
+        confidence.update(spec_conf)
 
         mapped_fields = sum(
             1 for mm in field_canon.values()
@@ -4490,7 +4582,134 @@ class VisionService:
             "filled": len(values),
             "deferred": deferred,
             "mapped_fields": mapped_fields,
+            "form_spec_filled": len(spec_values),
         }
+
+    def _form_spec_values(
+        self,
+        fields_info: list[dict],
+        flat_data: Dict[str, object],
+        canonical_values: Dict[str, object],
+    ) -> tuple[Dict[str, str], Dict[str, float]]:
+        """Resolve this form's own questions and narratives into widget values.
+
+        Answers are looked up by question id (``q:<id>``, matching the CSV
+        template header), then by the question's printed text. A question
+        carrying an opt-in ``canonical_hint`` also accepts the value already
+        collected for that catalog path, which is what lets a recurring
+        question prefill from a patient profile.
+        """
+        from ..models.pa_canonical import acro_field_name, map_key_export
+        from .form_spec_cache import FormSpecCache
+
+        try:
+            spec = FormSpecCache().get(
+                self._canonical_service._cache.signature(fields_info)
+            )
+        except Exception:
+            spec = None
+        if spec is None:
+            return {}, {}
+
+        def answer(*keys) -> object:
+            for k in keys:
+                if k and k in flat_data and flat_data[k] not in (None, "", []):
+                    return flat_data[k]
+            return None
+
+        values: Dict[str, str] = {}
+        confidence: Dict[str, float] = {}
+
+        for q in spec.questions:
+            ans = answer(f"q:{q.id}", q.id, q.question)
+            if ans is None and q.canonical_hint:
+                ans = canonical_values.get(q.canonical_hint)
+            if ans in (None, "", []):
+                continue
+            chosen = {
+                str(a).strip().lower()
+                for a in (ans if isinstance(ans, (list, tuple)) else [ans])
+                if a not in (None, "")
+            }
+            for o in q.options:
+                aliases = {o.label.strip().lower(), o.field.strip().lower()}
+                if o.export:
+                    aliases.add(o.export.strip().lower())
+                if not (chosen & (aliases - {""})):
+                    continue
+                acro = acro_field_name(o.field)
+                # Write the AcroForm on-state, never the printed option text.
+                values[acro] = map_key_export(o.field) or o.export or "Yes"
+                confidence[acro] = 0.95
+
+        for lt in spec.long_text:
+            ans = answer(f"t:{lt.field}", lt.field, lt.label)
+            if ans in (None, "", []):
+                continue
+            values[acro_field_name(lt.field)] = str(ans)
+            confidence[acro_field_name(lt.field)] = 0.95
+
+        # Form-specific tables: each cell keyed like narratives (``t:<acro>``).
+        for table in getattr(spec, "tables", None) or []:
+            for col in table.columns:
+                for field in col.fields:
+                    ans = answer(f"t:{field}", field)
+                    if ans in (None, "", []):
+                        continue
+                    values[acro_field_name(field)] = str(ans)
+                    confidence[acro_field_name(field)] = 0.95
+
+        # Typed signature lines (+ companion dates) — ``t:<field>`` → AcroForm.
+        for s in getattr(spec, "signatures", None) or []:
+            ans = answer(f"t:{s.field}", s.field, f"t:{s.acro_field}", s.acro_field)
+            if ans in (None, "", []):
+                # Optional catalog fallback for text signature blanks.
+                if getattr(s, "kind", "signature") == "date":
+                    ans = canonical_values.get("request.signature_date")
+                else:
+                    ans = canonical_values.get("request.signature")
+            if ans in (None, "", []):
+                continue
+            acro = acro_field_name(s.acro_field or s.field)
+            if acro:
+                values[acro] = str(ans)
+                confidence[acro] = 0.95
+
+        # Leftover extras (unmapped / other) — direct AcroForm write via ``t:``.
+        _truthy = {"yes", "y", "true", "on", "1", "checked"}
+        _falsy = {"", "no", "n", "false", "off", "0", "unchecked"}
+        for ex in getattr(spec, "extras", None) or []:
+            ans = answer(f"t:{ex.field}", ex.field, f"t:{ex.acro_field}", ex.acro_field)
+            if ans in (None, "", []):
+                continue
+            acro = acro_field_name(ex.acro_field or ex.field)
+            if not acro:
+                continue
+            if ex.kind == "checkbox":
+                chosen = {
+                    str(a).strip().lower()
+                    for a in (ans if isinstance(ans, (list, tuple)) else [ans])
+                    if a not in (None, "")
+                }
+                label_l = (ex.label or "").strip().lower()
+                if chosen <= _falsy:
+                    continue
+                if not (
+                    chosen & _truthy
+                    or (label_l and label_l in chosen)
+                    or bool(chosen - _falsy)
+                ):
+                    continue
+                values[acro] = (
+                    map_key_export(ex.field)
+                    or ex.export
+                    or "Yes"
+                )
+            else:
+                values[acro] = str(ans)
+            confidence[acro] = 0.95
+
+        return values, confidence
 
     # ------------------------------------------------------------------
     # Repeating-column detection (shared: fork distribution + schema hints)
@@ -4724,14 +4943,35 @@ class VisionService:
         distinguishable. AcroForm /TU tooltips are used as an authoritative
         fallback when geometry produced no label, then the raw field name.
         Iterates ALL fields so /TU-only fields still get labeled.
+
+        ``label_data`` is keyed by :meth:`_widget_key` (plain name, or
+        ``name\\x1fexport`` / ``name\\x1fTU`` for radio options and
+        /TU-scoped widgets). Lookup must use that same key — looking up by
+        plain name silently misses option labels (Male/Female → ``undefined_3``).
+
+        Output keys use :func:`map_field_key` so radio-group options become
+        ``name::export`` (one row per option, same as extract) while ordinary
+        widgets stay under their AcroForm name. Fill strips ``::export`` when
+        writing.
         """
+        from ..models.pa_canonical import map_field_key
+
         tu_by_name = {f["name"]: (f.get("tu") or "").strip() for f in fields_info}
 
-        def _ai_label(name: str) -> str:
-            entry = label_data.get(name, {})
+        def _ai_label(f: dict) -> str:
+            name = f["name"]
+            wkey = VisionService._widget_key(f)
+            # Prefer the widget-scoped entry (radio export / TU); fall back to
+            # plain name for older callers that keyed label_data by name only.
+            entry = label_data.get(wkey) or label_data.get(name) or {}
             lbl = (entry.get("label") or "").strip()
             if not lbl:
                 lbl = tu_by_name.get(name, "")     # authoritative AcroForm tooltip
+            if not lbl:
+                # Radio option: the export value itself is a better label than
+                # a cryptic shared field name ("Male" beats "undefined_3").
+                if f.get("_radio_group") and f.get("export_value"):
+                    lbl = str(f["export_value"]).strip()
             if not lbl:
                 lbl = name
             parts = []
@@ -4744,7 +4984,7 @@ class VisionService:
             parts.append(lbl)
             return " / ".join(parts)
 
-        return {f["name"]: _ai_label(f["name"]) for f in fields_info}
+        return {map_field_key(f): _ai_label(f) for f in fields_info if f.get("name")}
 
     # ------------------------------------------------------------------
     # Public pipeline

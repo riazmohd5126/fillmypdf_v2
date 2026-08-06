@@ -132,6 +132,7 @@ async def batch_fill_json(
     profile_id: Optional[str] = Form(None, description="Single profile ID (legacy)", examples=[EX_PROFILE_ID]),
     profile_ids: Optional[str] = Form(None, description="Comma-separated profile IDs to merge (takes precedence over profile_id)"),
     background_tasks: BackgroundTasks = None,
+    api_key: dict = Depends(require_api_key),
 ):
     """
     Batch fill: Same PDF template + JSON array of data.
@@ -197,6 +198,8 @@ async def batch_fill_json(
             dpi=dpi,
             profile_id=profile_id,
             profile_ids=parsed_ids,
+            owner_id=api_key.get("id"),
+            tier=api_key.get("tier", "free"),
         )
         
         # Schedule cleanup
@@ -253,6 +256,7 @@ async def batch_fill_csv(
     profile_id: Optional[str] = Form(None, description="Single profile ID (legacy)", examples=[EX_PROFILE_ID]),
     profile_ids: Optional[str] = Form(None, description="Comma-separated profile IDs to merge (takes precedence over profile_id)"),
     background_tasks: BackgroundTasks = None,
+    api_key: dict = Depends(require_api_key),
 ):
     """
     CSV Batch: Upload PDF template + CSV → Get ZIP with filled PDFs.
@@ -305,6 +309,8 @@ async def batch_fill_csv(
             dpi=dpi,
             profile_id=profile_id,
             profile_ids=parsed_ids,
+            owner_id=api_key.get("id"),
+            tier=api_key.get("tier", "free"),
         )
         
         # Schedule cleanup
@@ -373,6 +379,7 @@ async def batch_fill_xlsx(
     profile_id: Optional[str] = Form(None, description="Single profile ID (legacy)", examples=[EX_PROFILE_ID]),
     profile_ids: Optional[str] = Form(None, description="Comma-separated profile IDs to merge (takes precedence over profile_id)"),
     background_tasks: BackgroundTasks = None,
+    api_key: dict = Depends(require_api_key),
 ):
     """
     Same as CSV batch — first worksheet: row 1 = column names, subsequent rows =
@@ -417,6 +424,8 @@ async def batch_fill_xlsx(
             dpi=dpi,
             profile_id=profile_id,
             profile_ids=parsed_ids,
+            owner_id=api_key.get("id"),
+            tier=api_key.get("tier", "free"),
         )
         if background_tasks:
             background_tasks.add_task(_unlink_if_exists, template_path)

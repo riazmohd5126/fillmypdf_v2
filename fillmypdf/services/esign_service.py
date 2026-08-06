@@ -15,7 +15,7 @@ import hashlib
 import io
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, List, Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader, PdfWriter
@@ -25,6 +25,107 @@ from reportlab.pdfgen import canvas
 
 class ESignValidationError(ValueError):
     pass
+
+
+def page_sizes_pts(pdf_path: Path | str) -> Dict[int, Tuple[float, float]]:
+    """``{page_index: (width_pts, height_pts)}`` from the PDF MediaBox."""
+    reader = PdfReader(str(pdf_path))
+    out: Dict[int, Tuple[float, float]] = {}
+    for i, page in enumerate(reader.pages):
+        mb = page.mediabox
+        out[i] = (float(mb.width), float(mb.height))
+    return out
+
+
+def placement_from_acro_field(
+    field: dict,
+    page_w: float,
+    page_h: float,
+    *,
+    min_height_pct: float = 4.0,
+) -> Optional[dict]:
+    """Convert a ``_get_fields_with_coords`` widget (top-origin) to e-sign %.
+
+    E-sign percentages use PDF bottom-left origin (same as ``/signatures/apply``).
+
+    Thin AcroForm signature lines (~1–2% tall) are bumped to ``min_height_pct``.
+    Growth is **downward** from the widget top so the stamp stays on the blank
+    and does not cover the printed label above (TDI Section IV, etc.).
+    """
+    if page_w <= 0 or page_h <= 0:
+        return None
+    try:
+        x0 = float(field.get("x0") if field.get("x0") is not None else field.get("x") or 0)
+        x1 = float(field.get("x1") if field.get("x1") is not None else x0)
+        y_top = float(field.get("y") or 0)
+        y_bottom = float(field.get("y_bottom") if field.get("y_bottom") is not None else y_top)
+    except (TypeError, ValueError):
+        return None
+    if x1 < x0:
+        x0, x1 = x1, x0
+    if y_bottom < y_top:
+        y_top, y_bottom = y_bottom, y_top
+
+    # Top-origin → PDF bottom-left (pdf_y0 = widget bottom, pdf_y1 = widget top)
+    pdf_y0 = page_h - y_bottom
+    pdf_y1 = page_h - y_top
+    x_pct = round((x0 / page_w) * 100, 2)
+    width_pct = round(((x1 - x0) / page_w) * 100, 2)
+    height_pct = round(((pdf_y1 - pdf_y0) / page_h) * 100, 2)
+    if width_pct < 0.5:
+        return None
+
+    if height_pct < min_height_pct:
+        height_pct = min_height_pct
+        # Keep widget TOP; lower the box bottom (grow down the page).
+        top_pct = (pdf_y1 / page_h) * 100.0
+        y_pct = round(top_pct - height_pct, 2)
+        if y_pct < 0:
+            y_pct = 0.0
+            height_pct = min(height_pct, round(100.0 - y_pct, 2))
+            # Last resort: if the page bottom clips the box, nudge up slightly.
+            if y_pct + height_pct < top_pct:
+                height_pct = round(min(min_height_pct, top_pct), 2)
+                y_pct = round(max(0.0, top_pct - height_pct), 2)
+    else:
+        y_pct = round((pdf_y0 / page_h) * 100, 2)
+
+    if y_pct + height_pct > 100:
+        height_pct = max(0.5, round(100.0 - y_pct, 2))
+    if x_pct + width_pct > 100:
+        width_pct = max(0.5, round(100.0 - x_pct, 2))
+    return {
+        "page_index": int(field.get("page") or 0),
+        "x_pct": x_pct,
+        "y_pct": y_pct,
+        "width_pct": width_pct,
+        "height_pct": height_pct,
+    }
+
+
+def enrich_signature_placements(
+    signatures: List[dict],
+    fields_info: List[dict],
+    pdf_path: Path | str,
+) -> List[dict]:
+    """Attach e-sign placement to intake signature dicts from AcroForm geometry."""
+    if not signatures:
+        return signatures
+    sizes = page_sizes_pts(pdf_path)
+    by_name = {f.get("name"): f for f in fields_info if f.get("name")}
+    out: List[dict] = []
+    for s in signatures:
+        row = dict(s)
+        acro = row.get("acro_field") or row.get("field")
+        f = by_name.get(acro)
+        if f is not None:
+            page = int(f.get("page") or 0)
+            pw, ph = sizes.get(page, (0.0, 0.0))
+            place = placement_from_acro_field(f, pw, ph)
+            if place:
+                row["placement"] = place
+        out.append(row)
+    return out
 
 
 def _bbox_pts(
@@ -122,9 +223,10 @@ def _build_overlay_pdf(
     scale = min(box_w / float(tw), max(1.0, img_box_h) / float(th))
     draw_w = tw * scale
     draw_h = th * scale
-    # Centre the image horizontally; push it up above the timestamp line
-    inset_x = x + max(0.0, (box_w - draw_w) / 2.0)
-    inset_y = y + timestamp_line_h + max(0.0, (img_box_h - draw_h) / 2.0)
+    # Left-align and baseline the ink just above the timestamp — PA signature
+    # lines are wide; centering floated short names mid-line and looked wrong.
+    inset_x = x + 2.0
+    inset_y = y + timestamp_line_h
 
     c.drawImage(ir, inset_x, inset_y, width=draw_w, height=draw_h, mask="auto")
 

@@ -32,6 +32,7 @@
     and set an <b>admin</b> API key first (stored as <code>fmp_api_key</code>).
   </div>
   <div id="error-box" class="hidden bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700"></div>
+  <div id="info-box" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800"></div>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -58,6 +59,25 @@
           <h2 class="font-semibold text-gray-800 text-sm uppercase tracking-wide">Saved maps</h2>
           <button onclick="loadList()" class="text-xs text-indigo-600 hover:underline">Refresh</button>
         </div>
+        <div class="flex items-center gap-1 text-[11px]">
+          <button onclick="setFilter('all')"    id="flt-all"    class="filter-btn">All</button>
+          <button onclick="setFilter('draft')"  id="flt-draft"  class="filter-btn">Draft</button>
+          <button onclick="setFilter('locked')" id="flt-locked" class="filter-btn">Locked</button>
+          <span id="list-count" class="ml-auto text-gray-400"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="flex items-center gap-1 text-[11px] text-gray-500">
+            <input type="checkbox" id="chk-all" onchange="toggleAll(this)"/> select all
+          </label>
+          <button onclick="lockSelected()" id="lock-sel-btn"
+            class="ml-auto bg-emerald-600 text-white rounded px-2 py-1 text-[11px] font-semibold hover:bg-emerald-700 disabled:opacity-40" disabled>
+            Lock selected
+          </button>
+          <button onclick="aiSuggestSelected()" id="ai-sel-btn"
+            class="bg-purple-600 text-white rounded px-2 py-1 text-[11px] font-semibold hover:bg-purple-700 disabled:opacity-40" disabled>
+            AI suggest
+          </button>
+        </div>
         <div id="map-list" class="space-y-2 text-sm">
           <div class="text-gray-400 text-xs">Loading…</div>
         </div>
@@ -78,6 +98,10 @@
           </div>
           <span id="ed-lock-badge" class="text-xs px-2 py-0.5 rounded-full"></span>
           <div class="ml-auto flex gap-2">
+            <button onclick="aiSuggestCurrent()" id="ai-btn"
+              class="bg-purple-50 text-purple-700 border border-purple-200 rounded-lg px-3 py-2 font-semibold text-xs hover:bg-purple-100 transition">
+              AI suggest tail
+            </button>
             <button onclick="saveEdits()" id="save-btn"
               class="bg-gray-100 text-gray-700 rounded-lg px-3 py-2 font-semibold text-xs hover:bg-gray-200 transition">
               Save changes
@@ -86,22 +110,62 @@
               class="bg-emerald-600 text-white rounded-lg px-3 py-2 font-semibold text-xs hover:bg-emerald-700 transition">
               Lock (approve)
             </button>
+            <a id="guided-fill-cta" href="/ui/form_fill.html"
+              class="hidden bg-indigo-600 text-white rounded-lg px-3 py-2 font-semibold text-xs hover:bg-indigo-700 transition">
+              Open Guided Fill →
+            </a>
           </div>
         </div>
         <div class="p-3 text-xs text-gray-500" id="ed-stats"></div>
-        <div class="overflow-x-auto max-h-[60vh] border-t border-gray-100">
+
+        <div class="flex gap-1 px-3 border-t border-gray-100 pt-2">
+          <button onclick="setTab('canonical')" id="tab-btn-canonical" class="tab-btn">Canonical fields</button>
+          <button onclick="setTab('questions')" id="tab-btn-questions" class="tab-btn">Questions &amp; checkboxes</button>
+          <button onclick="setTab('signatures')" id="tab-btn-signatures" class="tab-btn">Signatures</button>
+        </div>
+
+        <div id="tab-canonical" class="overflow-x-auto max-h-[60vh] border-t border-gray-100">
           <table class="w-full text-xs">
             <thead class="bg-gray-50 sticky top-0">
               <tr>
                 <th class="text-left px-3 py-2 text-gray-500 font-medium">Field</th>
                 <th class="text-left px-3 py-2 text-gray-500 font-medium">Label (printed)</th>
                 <th class="text-left px-3 py-2 text-gray-500 font-medium">Canonical path</th>
+                <th class="text-left px-3 py-2 text-gray-500 font-medium">Value</th>
                 <th class="text-left px-3 py-2 text-gray-500 font-medium">Conf</th>
                 <th class="text-left px-3 py-2 text-gray-500 font-medium">Source</th>
               </tr>
             </thead>
             <tbody id="ed-body"></tbody>
           </table>
+        </div>
+
+        <div id="tab-questions" class="hidden overflow-y-auto max-h-[60vh] border-t border-gray-100 p-3 space-y-3">
+          <p class="text-[11px] text-gray-400">
+            These stay in the form’s own wording (not the shared catalog).
+            Yes/No <b>branching</b>, <b>tables</b> (with PDF column headers), and gated blanks
+            (How Long) live here — not on the Canonical tab. If <b>Question / header</b> matches
+            the only option, tick 2+ cards and <b>Merge selected</b>, or <b>Auto-fix solos</b>.
+            Guided Fill uses <b>dropdown</b> or <b>checkboxes</b> from the Webform control.
+          </p>
+          <div class="flex flex-wrap gap-2 items-center">
+            <button onclick="mergeSelectedQuestions()" id="merge-q-btn"
+              class="bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg px-3 py-1.5 font-semibold text-xs hover:bg-indigo-100 transition disabled:opacity-40"
+              disabled>Merge selected</button>
+            <button onclick="reclusterQuestions()" id="recluster-btn"
+              class="bg-gray-100 text-gray-700 rounded-lg px-3 py-1.5 font-semibold text-xs hover:bg-gray-200 transition">
+              Auto-fix solos
+            </button>
+            <span id="merge-hint" class="text-[10px] text-gray-400"></span>
+          </div>
+          <div id="ed-questions" class="space-y-3"></div>
+          <div id="ed-tables" class="space-y-2"></div>
+          <div id="ed-gated" class="space-y-2"></div>
+          <div id="ed-narratives" class="space-y-2"></div>
+        </div>
+
+        <div id="tab-signatures" class="hidden overflow-y-auto max-h-[60vh] border-t border-gray-100 p-3">
+          <div id="ed-signatures" class="space-y-2"></div>
         </div>
       </div>
     </div>
@@ -111,10 +175,19 @@
 <style>
   .label { display:block; font-size:0.7rem; color:#6b7280; margin-bottom:2px; font-weight:500 }
   .inp   { width:100%; border:1px solid #d1d5db; border-radius:0.5rem; padding:6px 10px;
-           font-size:0.82rem; outline:none; background:white }
+           font-size:0.82rem; outline:none; background:white; box-sizing:border-box }
+  .inp.flex-1 { width:auto; min-width:0; flex:1 1 auto }  /* don't fight flex siblings */
   .inp:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.15) }
-  .cell-sel { width:100%; border:1px solid #e5e7eb; border-radius:0.375rem; padding:3px 6px; font-size:0.72rem; background:white }
+  .cell-sel { width:100%; border:1px solid #e5e7eb; border-radius:0.375rem; padding:3px 6px; font-size:0.72rem; background:white; box-sizing:border-box }
   .cell-sel.changed { border-color:#f59e0b; background:#fffbeb }
+  .filter-btn { border:1px solid #e5e7eb; border-radius:0.375rem; padding:2px 8px; color:#6b7280; background:white }
+  .filter-btn.active { border-color:#6366f1; background:#eef2ff; color:#4338ca; font-weight:600 }
+  .tab-btn { font-size:0.72rem; padding:5px 12px; border-radius:0.5rem 0.5rem 0 0; color:#6b7280;
+             border:1px solid transparent; border-bottom:none; background:transparent }
+  .tab-btn.active { color:#4338ca; background:#eef2ff; border-color:#c7d2fe; font-weight:600 }
+  .q-card { border:1px solid #e5e7eb; border-radius:0.6rem; padding:10px 12px; background:#fff }
+  .q-opt  { font-size:0.72rem; color:#374151; padding:2px 8px; border:1px solid #e5e7eb;
+            border-radius:999px; background:#f9fafb; display:inline-block; margin:2px 3px 0 0 }
 </style>
 
 <script>
@@ -122,11 +195,15 @@ function getKey(){ return localStorage.getItem('fmp_api_key') || ''; }
 function headers(extra){ return Object.assign({ 'X-API-Key': getKey() }, extra||{}); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function showErr(m){ const e=document.getElementById('error-box'); e.textContent=m; e.classList.remove('hidden'); }
-function clearErr(){ document.getElementById('error-box').classList.add('hidden'); }
+function clearErr(){ document.getElementById('error-box').classList.add('hidden'); document.getElementById('info-box').classList.add('hidden'); }
+function showInfo(m){ const e=document.getElementById('info-box'); e.textContent=m; e.classList.remove('hidden'); }
 
-let CATALOG = [];        // [{path,type,required}]
+let CATALOG = [];        // [{path,type,required,choices?}]
 let current = null;      // current detail payload
-let pendingEdits = {};   // {field: canonical}
+let pendingEdits = {};   // {field: {canonical, value}}
+let allMaps = [];        // last fetched list
+let filter = 'all';      // all | draft | locked
+let selected = new Set();// selected fingerprints for bulk actions
 
 async function api(path, opts){
   const r = await fetch(path, Object.assign({ headers: headers(opts && opts.json ? {'Content-Type':'application/json'} : undefined) }, opts||{}));
@@ -155,19 +232,151 @@ async function loadList(){
   el.innerHTML = '<div class="text-gray-400 text-xs">Loading…</div>';
   try {
     const d = await api('/api/v1/mappings');
-    const maps = d.mappings || [];
-    if(!maps.length){ el.innerHTML = '<p class="text-gray-400 text-xs">No maps yet. Build a draft above.</p>'; return; }
-    el.innerHTML = maps.map(m=>`
-      <button onclick="openMap('${m.fingerprint}')"
-        class="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 transition border border-gray-100">
-        <div class="flex items-center gap-2">
-          <span class="font-medium text-gray-800 truncate">${esc(m.form_label || m.fingerprint.slice(0,10)+'…')}</span>
-          ${m.reviewed ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">LOCKED</span>'
-                       : '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">draft</span>'}
-        </div>
-        <div class="text-[11px] text-gray-400 mt-0.5">${m.mapped_count}/${m.field_count} mapped · sig ${esc(m.signature||'?')}</div>
-      </button>`).join('');
+    allMaps = d.mappings || [];
+    // Drop any selections that no longer exist.
+    const fps = new Set(allMaps.map(m=>m.fingerprint));
+    selected.forEach(fp=>{ if(!fps.has(fp)) selected.delete(fp); });
+    renderList();
   } catch(e){ el.innerHTML=''; showErr(e.message); }
+}
+
+function setFilter(f){
+  filter = f;
+  ['all','draft','locked'].forEach(x=>{
+    document.getElementById('flt-'+x).classList.toggle('active', x===f);
+  });
+  renderList();
+}
+
+function visibleMaps(){
+  if(filter==='draft')  return allMaps.filter(m=>!m.reviewed);
+  if(filter==='locked') return allMaps.filter(m=>m.reviewed);
+  return allMaps;
+}
+
+function coverageLine(m){
+  const total = (m.total_fields!=null?m.total_fields:m.field_count) || 0;
+  const mapped = m.mapped_count || 0;
+  const pct = total ? Math.round(mapped*100/total) : 0;
+  const crit = m.critical_unmapped || 0;
+  const critHtml = crit>0
+    ? `<span class="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-700" title="critical canonical fields not yet covered by this form">${crit} crit missing</span>`
+    : '<span class="text-[10px] px-1 py-0.5 rounded bg-green-100 text-green-700">critical ok</span>';
+  return `<div class="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1 flex-wrap">
+      <span>${mapped}/${total} mapped (${pct}%)</span> ${critHtml}
+    </div>`;
+}
+
+function renderList(){
+  const el = document.getElementById('map-list');
+  const maps = visibleMaps();
+  document.getElementById('list-count').textContent = `${maps.length} shown`;
+  if(!maps.length){ el.innerHTML = '<p class="text-gray-400 text-xs">No maps here. Build a draft or change the filter.</p>'; syncSelectAll(); updateBulkButtons(); return; }
+  el.innerHTML = maps.map(m=>{
+    const fp = m.fingerprint;
+    const checked = selected.has(fp) ? ' checked' : '';
+    const name = esc(m.form_label || (fp.slice(0,10)+'…'));
+    const badge = m.reviewed
+      ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">LOCKED</span>'
+      : '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">draft</span>';
+    return `<div class="flex items-start gap-2 px-2 py-2 rounded-lg border border-gray-100 hover:bg-indigo-50/40">
+      <input type="checkbox" class="mt-1 row-chk" data-fp="${fp}"${checked} onchange="onRowCheck(this)"/>
+      <button onclick="openMap('${fp}')" class="flex-1 text-left min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="font-medium text-gray-800 truncate">${name}</span> ${badge}
+        </div>
+        ${coverageLine(m)}
+      </button>
+      <button onclick="aiSuggestOne('${fp}', event)" title="AI-map this form's unmapped tail"
+        class="shrink-0 text-[10px] px-1.5 py-1 rounded bg-purple-50 text-purple-700 hover:bg-purple-100">AI</button>
+    </div>`;
+  }).join('');
+  syncSelectAll();
+  updateBulkButtons();
+}
+
+function onRowCheck(el){
+  const fp = el.getAttribute('data-fp');
+  if(el.checked) selected.add(fp); else selected.delete(fp);
+  syncSelectAll();
+  updateBulkButtons();
+}
+
+function toggleAll(el){
+  const v = visibleMaps();
+  if(el.checked) v.forEach(m=>selected.add(m.fingerprint));
+  else v.forEach(m=>selected.delete(m.fingerprint));
+  renderList();
+}
+
+function syncSelectAll(){
+  const v = visibleMaps();
+  const all = v.length>0 && v.every(m=>selected.has(m.fingerprint));
+  const chk = document.getElementById('chk-all');
+  if(chk) chk.checked = all;
+}
+
+function updateBulkButtons(){
+  const n = selected.size;
+  const lb = document.getElementById('lock-sel-btn');
+  const ab = document.getElementById('ai-sel-btn');
+  lb.disabled = !n; ab.disabled = !n;
+  lb.textContent = n ? `Lock selected (${n})` : 'Lock selected';
+  ab.textContent = n ? `AI suggest (${n})` : 'AI suggest';
+}
+
+async function lockSelected(){
+  if(!selected.size) return;
+  clearErr();
+  const fps = [...selected];
+  const lb = document.getElementById('lock-sel-btn'); lb.disabled=true; lb.textContent='Locking…';
+  try {
+    const d = await api('/api/v1/mappings/lock-batch', {
+      method:'POST', json:true, body: JSON.stringify({ fingerprints: fps })
+    });
+    selected.clear();
+    await loadList();
+    showInfo(`Locked ${d.locked} of ${fps.length} selected map(s).`);
+  } catch(e){ showErr(e.message); }
+  finally { lb.disabled=false; updateBulkButtons(); }
+}
+
+async function aiSuggestSelected(){
+  if(!selected.size) return;
+  clearErr();
+  const fps = [...selected];
+  const ab = document.getElementById('ai-sel-btn'); ab.disabled=true;
+  let added = 0, done = 0;
+  try {
+    for(const fp of fps){
+      ab.textContent = `AI… ${++done}/${fps.length}`;
+      const d = await api('/api/v1/mappings/'+encodeURIComponent(fp)+'/ai-suggest', { method:'POST' });
+      added += (d.ai_suggest && d.ai_suggest.added) || 0;
+    }
+    await loadList();
+    showInfo(`AI suggested ${added} new mapping(s) across ${fps.length} form(s). Review, then lock.`);
+  } catch(e){ showErr(e.message); }
+  finally { ab.disabled=false; updateBulkButtons(); }
+}
+
+async function aiSuggestOne(fp, ev){
+  if(ev) ev.stopPropagation();
+  clearErr();
+  try {
+    const d = await api('/api/v1/mappings/'+encodeURIComponent(fp)+'/ai-suggest', { method:'POST' });
+    await loadList();
+    if(current && current.fingerprint===fp) renderDetail(d);
+    const n = (d.ai_suggest && d.ai_suggest.added) || 0;
+    showInfo(n ? `AI added ${n} mapping(s) to this form. Review & lock.` : 'No new AI mappings found for the unmapped tail.');
+  } catch(e){ showErr(e.message); }
+}
+
+async function aiSuggestCurrent(){
+  if(!current) return;
+  const btn = document.getElementById('ai-btn');
+  btn.disabled=true; btn.textContent='AI…';
+  try { await aiSuggestOne(current.fingerprint); }
+  finally { btn.disabled=false; btn.textContent='AI suggest tail'; }
 }
 
 // ---- build a draft ----
@@ -210,6 +419,29 @@ function optionsHtml(selected){
   return html;
 }
 
+function choicesFor(path){
+  const c = CATALOG.find(x => x.path === path);
+  return (c && c.choices) ? c.choices : [];
+}
+
+function valueOptionsHtml(path, selected){
+  const choices = choicesFor(path);
+  let html = `<option value="">—</option>`;
+  if(!choices.length){
+    // Free-text value for non-enum (rare); keep current if set.
+    if(selected) html += `<option value="${esc(selected)}" selected>${esc(selected)}</option>`;
+    return html;
+  }
+  for(const ch of choices){
+    const sel = (String(ch.value) === String(selected)) ? ' selected' : '';
+    html += `<option value="${esc(ch.value)}"${sel}>${esc(ch.value)} — ${esc(ch.label)}</option>`;
+  }
+  if(selected && !choices.some(ch => String(ch.value) === String(selected))){
+    html += `<option value="${esc(selected)}" selected>${esc(selected)} (custom)</option>`;
+  }
+  return html;
+}
+
 function confBadge(c){
   const map = { high:'bg-green-100 text-green-700', medium:'bg-amber-100 text-amber-700', low:'bg-red-100 text-red-700' };
   if(!c) return '<span class="text-gray-300">—</span>';
@@ -222,6 +454,18 @@ function srcBadge(s){
   return `<span class="text-[10px] px-1.5 py-0.5 rounded-full ${map[s]||'bg-gray-100 text-gray-600'}">${esc(s)}</span>`;
 }
 
+function rowState(field){
+  // Merge pending edits over the loaded row.
+  const base = (current && current.rows || []).find(r => r.field === field) || {};
+  const pend = pendingEdits[field];
+  if(!pend) return { canonical: base.canonical || '', value: base.value || '' };
+  if(typeof pend === 'string') return { canonical: pend, value: base.value || '' };
+  return {
+    canonical: pend.canonical != null ? pend.canonical : (base.canonical || ''),
+    value: pend.value != null ? pend.value : (base.value || ''),
+  };
+}
+
 function renderDetail(d){
   current = d; pendingEdits = {};
   document.getElementById('editor-empty').classList.add('hidden');
@@ -229,39 +473,392 @@ function renderDetail(d){
   document.getElementById('ed-title').textContent = d.form_label || d.fingerprint;
   document.getElementById('ed-sub').textContent = `fp ${d.fingerprint.slice(0,12)}… · sig ${d.signature||'?'}`;
   updateLockUI(d.reviewed);
+  const spec = d.form_spec || null;
+  const nOpts = spec ? (spec.questions||[]).reduce((a,q)=>a+(q.options||[]).length, 0) : 0;
+  const nTables = spec ? (spec.tables||[]).length : 0;
   document.getElementById('ed-stats').textContent =
-    `${d.mapped_count}/${d.field_count} fields mapped to a canonical path`;
-  document.getElementById('ed-body').innerHTML = d.rows.map(r=>`
+    `${d.mapped_count}/${d.field_count} canonical fields mapped` +
+    (spec ? ` · ${(spec.questions||[]).length} questions (${nOpts} options)` +
+            (nTables ? ` · ${nTables} tables` : '') +
+            ` · ${(spec.long_text||[]).length} narratives` +
+            ` · ${(spec.signatures||[]).length} signatures` : ' · no form spec built');
+  renderQuestions(spec);
+  renderSignatures(spec);
+  setTab('canonical');
+  // Canonical tab: plain catalog paths only — no unlock / skip / linked badges.
+  document.getElementById('ed-body').innerHTML = d.rows.map(r=>{
+    const isBtn = (r.field_type||'').includes('/Btn') || String(r.field||'').includes('::');
+    const hasChoices = choicesFor(r.canonical||'').length > 0;
+    const showVal = isBtn || hasChoices || r.value;
+    return `
     <tr class="border-t border-gray-50 ${r.canonical?'':'bg-gray-50/40'}">
       <td class="px-3 py-1.5 font-mono text-gray-500 align-top">${esc(r.field)}</td>
       <td class="px-3 py-1.5 text-gray-700 align-top max-w-xs">${esc(r.label)}</td>
       <td class="px-3 py-1.5 align-top">
-        <select class="cell-sel" data-field="${esc(r.field)}" onchange="onEdit(this)">${optionsHtml(r.canonical)}</select>
+        <select class="cell-sel path-sel" data-field="${esc(r.field)}" onchange="onPathEdit(this)">${optionsHtml(r.canonical)}</select>
+      </td>
+      <td class="px-3 py-1.5 align-top">
+        ${showVal
+          ? `<select class="cell-sel val-sel" data-field="${esc(r.field)}" onchange="onValueEdit(this)">${valueOptionsHtml(r.canonical, r.value)}</select>`
+          : `<span class="text-gray-300">—</span>`}
       </td>
       <td class="px-3 py-1.5 align-top">${confBadge(r.confidence)}</td>
       <td class="px-3 py-1.5 align-top">${srcBadge(r.source)}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
+}
+
+function setTab(name){
+  ['canonical','questions','signatures'].forEach(t=>{
+    document.getElementById('tab-'+t).classList.toggle('hidden', t!==name);
+    document.getElementById('tab-btn-'+t).classList.toggle('active', t===name);
+  });
+}
+
+function hintOptionsHtml(selected){
+  let html = `<option value="">— no prefill —</option>`;
+  for(const c of (CATALOG||[])){
+    if(c.path === 'other') continue;
+    html += `<option value="${esc(c.path)}"${c.path===selected?' selected':''}>${esc(c.path)}</option>`;
+  }
+  return html;
+}
+
+function ruleText(rule){
+  if(!rule) return '';
+  let body = '';
+  if(rule.any && rule.any.length){
+    body = 'path reaches this item';
+  } else if(rule.all && rule.all.length){
+    body = rule.all.map(c => {
+      const what = c.equals ? `=${esc(c.equals)}` : 'set';
+      return `<span class="font-mono">${esc(c.field)}</span> ${what}`;
+    }).join(' + ');
+  } else if(rule.field){
+    const what = rule.equals ? `= ${esc(rule.equals)}` : 'is checked';
+    body = `<span class="font-mono">${esc(rule.field)}</span> ${what}`;
+  } else {
+    return '';
+  }
+  return `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700">
+            unlocks when ${body}</span>`;
+}
+
+function renderFormTables(spec){
+  const box = document.getElementById('ed-tables');
+  if(!box) return;
+  const tables = (spec && spec.tables) || [];
+  if(!tables.length){
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = `
+    <p class="text-[11px] text-gray-500 font-medium mt-4">Tables (form-specific — not in canonical map)</p>
+    <p class="text-[10px] text-gray-400 mb-2">
+      Headers come from the PDF extract (<span class="font-mono">column</span>). Multi-row grids
+      stay per-form; Guided Fill unlocks them with the skip path above.
+    </p>` +
+    tables.map(t=>{
+      const cols = t.columns || [];
+      const rows = t.row_count || Math.max(0, ...cols.map(c => (c.fields||[]).length));
+      const head = cols.map(c=>`<th class="px-2 py-1 text-left font-medium text-gray-600 border-b border-gray-100">${esc(c.header)}</th>`).join('');
+      const body = Array.from({length: rows}, (_, ri)=>`
+        <tr>${cols.map(c=>{
+          const field = (c.fields||[])[ri] || '';
+          return `<td class="px-2 py-1 font-mono text-[10px] text-gray-400 border-b border-gray-50">${esc(field)||'—'}</td>`;
+        }).join('')}</tr>`).join('');
+      return `<div class="q-card overflow-x-auto">
+        <div class="flex flex-wrap items-center gap-2 mb-2">
+          <p class="text-xs text-gray-700 font-medium">${esc(t.title || t.id)}</p>
+          ${t.page ? `<span class="text-[10px] text-gray-400">p${t.page}</span>` : ''}
+          <span class="text-[10px] text-gray-400">${rows} rows · ${cols.length} cols</span>
+          ${ruleText(t.rule)}
+        </div>
+        <table class="w-full text-[11px]"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+      </div>`;
+    }).join('');
+}
+
+function renderGatedFields(){
+  const box = document.getElementById('ed-gated');
+  if(!box) return;
+  const tableFields = new Set();
+  ((current && current.form_spec && current.form_spec.tables) || []).forEach(t=>{
+    (t.columns||[]).forEach(c => (c.fields||[]).forEach(f => tableFields.add(f)));
+  });
+  // Inline blanks like How Long — not table cells (those have their own section).
+  const gated = ((current && current.gated_rows) || []).filter(r => !tableFields.has(r.field));
+  if(!gated.length){
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = `
+    <p class="text-[11px] text-gray-500 font-medium mt-4">Gated fields (unlock with questions above)</p>
+    <p class="text-[10px] text-gray-400 mb-2">
+      Inline blanks tied to Yes/No (e.g. How Long). Catalog path is on the Canonical tab.
+    </p>` +
+    gated.map(r=>`
+      <div class="q-card">
+        <p class="text-xs text-gray-700">${esc(r.label || r.field)}</p>
+        <div class="mt-1 flex flex-wrap gap-2 text-[10px] text-gray-400">
+          <span class="font-mono">${esc(r.field)}</span>
+          ${r.canonical ? `<span>→ <span class="font-mono text-indigo-600">${esc(r.canonical)}</span></span>` : ''}
+          ${r.linked_field ? `<span class="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700">linked → ${esc(r.linked_field)}</span>` : ''}
+          ${r.rule ? ruleText(r.rule) : (r.conditional ? `<span class="px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">${esc(r.conditional)}</span>` : '')}
+        </div>
+      </div>`).join('');
+}
+
+function renderQuestions(spec){
+  const qBox = document.getElementById('ed-questions');
+  const nBox = document.getElementById('ed-narratives');
+  if(!spec){
+    qBox.innerHTML = `<p class="text-xs text-gray-400">No form spec yet — rebuild this form to extract its questions.</p>`;
+    nBox.innerHTML = '';
+    renderFormTables(null);
+    renderGatedFields();
+    return;
+  }
+  const soloDup = (q) => {
+    const opts = q.options || [];
+    return opts.length === 1 &&
+      String(opts[0].label||'').trim().toLowerCase() === String(q.question||'').trim().toLowerCase();
+  };
+  qBox.innerHTML = (spec.questions||[]).map(q=>`
+    <div class="q-card ${soloDup(q) ? 'ring-1 ring-amber-200 bg-amber-50/30' : ''}">
+      <div class="flex items-center gap-2 mb-1">
+        <input type="checkbox" class="q-merge-chk accent-indigo-600" data-qid="${esc(q.id)}"
+               onchange="syncMergeBtn()"/>
+        <span class="text-[10px] text-gray-400">select to merge</span>
+        ${soloDup(q) ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800">no header found — Q = option</span>' : ''}
+      </div>
+      <label class="label">Question / header</label>
+      <div class="flex items-start gap-2">
+        <input class="inp flex-1" value="${esc(q.question)}" data-qid="${esc(q.id)}"
+               placeholder="Printed question above the checkboxes"
+               onchange="saveQuestion(this)"/>
+        <div class="w-28 shrink-0">
+          <label class="label">Webform</label>
+          <select class="cell-sel" style="width:100%" data-qid="${esc(q.id)}" onchange="saveQuestionInput(this)">
+            <option value="radio"${q.input==='radio'?' selected':''}>dropdown</option>
+            <option value="checkbox"${q.input==='checkbox'?' selected':''}>checkboxes</option>
+          </select>
+        </div>
+      </div>
+      <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-gray-400">
+        ${q.section ? `<span>${esc(q.section)}</span>` : ''}
+        ${q.page ? `<span>· p${q.page}</span>` : ''}
+        ${q.skip_logic ? `<span class="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">${esc(q.skip_logic)}</span>` : ''}
+        ${ruleText(q.rule)}
+        ${(!q.rule && q.conditional) ? `<span class="px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">${esc(q.conditional)}</span>` : ''}
+      </div>
+      <p class="label mt-2 mb-0.5">Options / branches (form-specific — not in canonical map)</p>
+      <div class="space-y-1">${(q.options||[]).map(o=>`
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="q-opt">${esc(o.label)}</span>
+          ${o.skip_logic ? `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800">${esc(o.skip_logic)}</span>` : ''}
+        </div>`).join('') || '<span class="text-gray-300 text-xs">—</span>'}</div>
+      <details class="mt-2">
+        <summary class="text-[10px] text-gray-400 cursor-pointer select-none">Advanced · optional prefill from patient profile</summary>
+        <div class="mt-1.5 flex items-center gap-2">
+          <select class="cell-sel w-64" data-qid="${esc(q.id)}" onchange="saveQuestionHint(this)">
+            ${hintOptionsHtml(q.canonical_hint||'')}
+          </select>
+        </div>
+      </details>
+    </div>`).join('') || `<p class="text-xs text-gray-400">No checkbox questions on this form.</p>`;
+
+  nBox.innerHTML = (spec.long_text||[]).length ? `
+    <p class="text-[11px] text-gray-500 font-medium mt-4">Free-text narratives</p>` +
+    (spec.long_text||[]).map(t=>`
+      <div class="q-card">
+        <p class="text-xs text-gray-700">${esc(t.label)}</p>
+        <div class="mt-1 flex flex-wrap gap-2 text-[10px] text-gray-400">
+          <span class="font-mono">${esc(t.field)}</span>
+          ${t.page ? `<span>· p${t.page}</span>` : ''}
+          ${ruleText(t.rule)}
+          ${t.skip_logic ? `<span class="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">${esc(t.skip_logic)}</span>` : ''}
+        </div>
+      </div>`).join('') : '';
+  renderFormTables(spec);
+  renderGatedFields();
+}
+
+function renderSignatures(spec){
+  const box = document.getElementById('ed-signatures');
+  const sigs = (spec && spec.signatures) || [];
+  if(!sigs.length){
+    box.innerHTML = `<p class="text-xs text-gray-400">No signature fields on this form.</p>`;
+    return;
+  }
+  const roles = ['', 'prescriber', 'patient', 'representative', 'pharmacist', 'witness'];
+  box.innerHTML = sigs.map(s=>{
+    const kind = s.kind || 'signature';
+    const kindBadge = kind === 'date'
+      ? `<span class="text-[9px] px-1 py-0.5 rounded bg-indigo-50 text-indigo-700">date</span>`
+      : `<span class="text-[9px] px-1 py-0.5 rounded bg-slate-100 text-slate-600">signature</span>`;
+    const roleSel = kind === 'date' ? '' : `
+      <select class="cell-sel w-44" data-field="${esc(s.field)}" onchange="saveSignatureRole(this)">
+        ${roles.map(r=>`<option value="${r}"${(s.role||'')===r?' selected':''}>${r||'— unassigned —'}</option>`).join('')}
+      </select>`;
+    return `
+    <div class="q-card flex items-center gap-3">
+      <div class="flex-1">
+        <p class="text-xs text-gray-700">${esc(s.label)} ${kindBadge}</p>
+        <p class="text-[10px] text-gray-400 font-mono">${esc(s.field)}${s.page?` · p${s.page}`:''}</p>
+      </div>
+      ${roleSel}
+    </div>`;
+  }).join('');
+}
+
+async function patchSpec(path, body){
+  if(!current) return;
+  clearErr();
+  try{
+    const spec = await api(`/api/v1/mappings/${encodeURIComponent(current.fingerprint)}/form-spec${path}`,
+      { method:'PATCH', headers: headers({'Content-Type':'application/json'}), body: JSON.stringify(body) });
+    current.form_spec = spec;
+    renderQuestions(spec); renderSignatures(spec);
+    showInfo('Saved.');
+  }catch(e){ showErr(e.message); }
+}
+function saveQuestion(el){ patchSpec(`/questions/${encodeURIComponent(el.getAttribute('data-qid'))}`, { question: el.value }); }
+function saveQuestionInput(el){ patchSpec(`/questions/${encodeURIComponent(el.getAttribute('data-qid'))}`, { input: el.value }); }
+function saveQuestionHint(el){ patchSpec(`/questions/${encodeURIComponent(el.getAttribute('data-qid'))}`, { canonical_hint: el.value }); }
+function saveSignatureRole(el){ patchSpec(`/signatures/${encodeURIComponent(el.getAttribute('data-field'))}`, { role: el.value }); }
+
+function selectedQuestionIds(){
+  return [...document.querySelectorAll('.q-merge-chk:checked')].map(el => el.getAttribute('data-qid'));
+}
+function syncMergeBtn(){
+  const n = selectedQuestionIds().length;
+  const btn = document.getElementById('merge-q-btn');
+  const hint = document.getElementById('merge-hint');
+  if(btn){ btn.disabled = n < 2; btn.textContent = n >= 2 ? `Merge selected (${n})` : 'Merge selected'; }
+  if(hint){
+    hint.textContent = n >= 2
+      ? 'Will become one question; you’ll be asked for the header text.'
+      : (n === 1 ? 'Select one more card to merge.' : '');
+  }
+}
+async function mergeSelectedQuestions(){
+  if(!current) return;
+  const ids = selectedQuestionIds();
+  if(ids.length < 2) return;
+  const title = prompt(
+    'Shared question / header for the merged options\n(e.g. "Type of therapy" or "Sex").\nLeave blank to auto-guess.',
+    ''
+  );
+  if(title === null) return; // cancelled
+  clearErr();
+  const btn = document.getElementById('merge-q-btn');
+  if(btn) btn.disabled = true;
+  try{
+    const body = { question_ids: ids };
+    if(title.trim()) body.question = title.trim();
+    // Prefer dropdown when merging alternatives like New/Continuation or Sex.
+    body.input = 'radio';
+    const spec = await api(
+      `/api/v1/mappings/${encodeURIComponent(current.fingerprint)}/form-spec/questions/merge`,
+      { method:'POST', headers: headers({'Content-Type':'application/json'}), body: JSON.stringify(body) }
+    );
+    current.form_spec = spec;
+    renderQuestions(spec); renderSignatures(spec); syncMergeBtn();
+    showInfo(`Merged ${ids.length} cards into one question.`);
+  }catch(e){ showErr(e.message); }
+  finally { syncMergeBtn(); }
+}
+async function reclusterQuestions(){
+  if(!current) return;
+  clearErr();
+  const btn = document.getElementById('recluster-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Fixing…'; }
+  try{
+    const before = ((current.form_spec||{}).questions||[]).length;
+    const spec = await api(
+      `/api/v1/mappings/${encodeURIComponent(current.fingerprint)}/form-spec/recluster`,
+      { method:'POST' }
+    );
+    current.form_spec = spec;
+    renderQuestions(spec); renderSignatures(spec); syncMergeBtn();
+    const after = (spec.questions||[]).length;
+    showInfo(after < before
+      ? `Auto-fixed: ${before} → ${after} questions (merged header-less solos).`
+      : 'No adjacent header-less solos to merge.');
+  }catch(e){ showErr(e.message); }
+  finally {
+    if(btn){ btn.disabled = false; btn.textContent = 'Auto-fix solos'; }
+  }
 }
 
 function updateLockUI(reviewed){
   const badge = document.getElementById('ed-lock-badge');
   const btn = document.getElementById('lock-btn');
+  const cta = document.getElementById('guided-fill-cta');
   if(reviewed){
     badge.className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
     badge.textContent = 'LOCKED (reviewed)';
     btn.textContent = 'Unlock';
     btn.className = 'bg-gray-200 text-gray-700 rounded-lg px-3 py-2 font-semibold text-xs hover:bg-gray-300 transition';
+    if(cta){
+      cta.classList.remove('hidden');
+      const label = (current && current.form_label) || '';
+      const guessId = String(label).trim().replace(/\s+/g, '_');
+      cta.href = guessId
+        ? '/ui/form_fill.html?template_id='+encodeURIComponent(guessId)
+        : '/ui/form_fill.html';
+      // Refine href via readiness index (fingerprint → template_id).
+      if(current && current.fingerprint){
+        api('/api/v1/templates/readiness').then(ready=>{
+          const hit = (ready.items||[]).find(r => r.fingerprint === current.fingerprint);
+          if(hit && hit.template_id){
+            cta.href = '/ui/form_fill.html?template_id='+encodeURIComponent(hit.template_id);
+          }
+        }).catch(()=>{});
+      }
+    }
   } else {
     badge.className = 'text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700';
     badge.textContent = 'DRAFT';
     btn.textContent = 'Lock (approve)';
     btn.className = 'bg-emerald-600 text-white rounded-lg px-3 py-2 font-semibold text-xs hover:bg-emerald-700 transition';
+    if(cta) cta.classList.add('hidden');
   }
 }
 
-function onEdit(sel){
+function onPathEdit(sel){
   const field = sel.getAttribute('data-field');
-  pendingEdits[field] = sel.value;
+  const st = rowState(field);
+  const canonical = sel.value;
+  // Clear value when path changes unless it still belongs to the new path's choices.
+  let value = st.value || '';
+  const choices = choicesFor(canonical);
+  if(choices.length && !choices.some(c => String(c.value) === String(value))) value = '';
+  if(!canonical) { pendingEdits[field] = ''; }
+  else { pendingEdits[field] = { canonical, value: value || null }; }
+  sel.classList.add('changed');
+  // Refresh the value dropdown in this row.
+  const row = sel.closest('tr');
+  const valSel = row && row.querySelector('.val-sel');
+  if(valSel){
+    valSel.innerHTML = valueOptionsHtml(canonical, value);
+    valSel.classList.add('changed');
+  } else if(choices.length || (field||'').includes('::') || (field||'').includes('/Btn')){
+    // Path gained choices — re-render whole detail would lose other pendings; inject cell.
+    const cells = row && row.querySelectorAll('td');
+    if(cells && cells[3]){
+      cells[3].innerHTML = `<select class="cell-sel val-sel changed" data-field="${esc(field)}" onchange="onValueEdit(this)">${valueOptionsHtml(canonical, value)}</select>`;
+    }
+  }
+}
+
+function onValueEdit(sel){
+  const field = sel.getAttribute('data-field');
+  const st = rowState(field);
+  const canonical = st.canonical || '';
+  if(!canonical){ showErr('Pick a canonical path before setting a value.'); return; }
+  pendingEdits[field] = { canonical, value: sel.value || null };
   sel.classList.add('changed');
 }
 
@@ -298,15 +895,22 @@ async function toggleLock(){
     const d = await api('/api/v1/mappings/'+encodeURIComponent(current.fingerprint)+'/'+action, { method:'POST' });
     renderDetail(d);
     await loadList();
+    if(action === 'lock' && d.reviewed){
+      showInfo('Map locked. You can open Guided Fill for this form now.');
+    }
   } catch(e){ showErr(e.message); btn.disabled=false; }
   finally { btn.disabled=false; }
 }
 
 // ---- init ----
 if(!getKey()) document.getElementById('no-key').classList.remove('hidden');
+setFilter('all');
 loadCatalog();
 loadForms();
-loadList();
+loadList().then(()=>{
+  const fp = new URLSearchParams(location.search).get('fp');
+  if(fp) openMap(fp);
+});
 </script>
 </body>
 </html>

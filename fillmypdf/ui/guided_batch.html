@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Guided Batch — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+
+<nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
+  <a href="/ui/index.html" class="text-indigo-600 text-sm hover:underline">← Dashboard</a>
+  <span class="text-gray-300">|</span>
+  <span class="font-semibold text-gray-800">Guided Batch</span>
+  <a href="/ui/form_fill.html" class="ml-auto text-xs text-indigo-600 hover:underline">Guided Fill →</a>
+</nav>
+
+<main class="max-w-3xl mx-auto px-4 py-10 space-y-6">
+
+  <div class="bg-indigo-600 rounded-2xl p-6 text-white">
+    <h1 class="text-2xl font-bold">Guided Batch Fill</h1>
+    <p class="text-indigo-200 text-sm mt-1">
+      Same locked map as Guided Fill — download the CSV template, fill one row per patient,
+      upload, and get a ZIP of PDFs. Attach Provider/Facility profiles once for every row.
+    </p>
+  </div>
+
+  <div id="no-key" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+    No API key set. Open the <a href="/ui/index.html" class="underline font-semibold">Dashboard</a> first.
+  </div>
+  <div id="error-box" class="hidden bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700"></div>
+  <div id="info-box" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800"></div>
+
+  <form id="batch-form" onsubmit="runBatch(event)" class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Ready template <span class="text-red-500">*</span></label>
+      <select id="template-id" required class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+        onchange="onTemplateChange()">
+        <option value="">Loading…</option>
+      </select>
+      <p class="text-xs text-gray-400 mt-1">Only forms with a locked mapping appear here.</p>
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      <button type="button" onclick="downloadCsv()" id="csv-btn" disabled
+        class="bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg px-3 py-2 text-xs font-semibold hover:bg-indigo-100 disabled:opacity-40">
+        1. Download CSV template
+      </button>
+      <button type="button" onclick="toggleLegend()" id="legend-btn" disabled
+        class="bg-gray-50 text-gray-700 border border-gray-200 rounded-lg px-3 py-2 text-xs font-semibold hover:bg-gray-100 disabled:opacity-40">
+        Column legend
+      </button>
+    </div>
+
+    <div id="legend-box" class="hidden border border-gray-200 rounded-xl overflow-hidden">
+      <div class="bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600">Column legend</div>
+      <div class="max-h-64 overflow-y-auto text-xs">
+        <table class="w-full">
+          <thead class="sticky top-0 bg-white border-b">
+            <tr>
+              <th class="text-left px-3 py-1.5 text-gray-500">Column</th>
+              <th class="text-left px-3 py-1.5 text-gray-500">Kind</th>
+              <th class="text-left px-3 py-1.5 text-gray-500">Label / notes</th>
+            </tr>
+          </thead>
+          <tbody id="legend-body"></tbody>
+        </table>
+      </div>
+      <p class="px-3 py-2 text-[11px] text-gray-500 border-t bg-slate-50">
+        <b>canonical</b> = catalog paths (patient.dob) ·
+        <b>q:</b> = form questions ·
+        <b>t:</b> = narratives, table cells, typed signatures
+      </p>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">2. Upload filled CSV <span class="text-red-500">*</span></label>
+      <input id="csv-file" type="file" accept=".csv" required
+        class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2"/>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Base Provider profile</label>
+        <select id="pick-provider" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+          <option value="">— none —</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Base Facility / Pharmacy</label>
+        <select id="pick-facility" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+          <option value="">— none —</option>
+        </select>
+      </div>
+    </div>
+    <p class="text-[11px] text-gray-400 -mt-2">Merged into every row; CSV patient columns override.</p>
+
+    <div class="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
+      <p class="text-xs font-semibold text-gray-700">Signature policy</p>
+      <div class="flex flex-wrap gap-4 text-xs text-gray-700">
+        <label class="inline-flex items-center gap-1.5 cursor-pointer">
+          <input type="radio" name="sig-mode" value="none" checked class="accent-indigo-600"/> None (no stamp)
+        </label>
+        <label class="inline-flex items-center gap-1.5 cursor-pointer">
+          <input type="radio" name="sig-mode" value="typed" class="accent-indigo-600"/> Typed from CSV (<code>t:</code> sig columns)
+        </label>
+      </div>
+      <div id="sig-extra" class="hidden space-y-2">
+        <label class="inline-flex items-start gap-2 text-xs text-gray-800 cursor-pointer">
+          <input id="consent" type="checkbox" class="mt-0.5 accent-indigo-600"/>
+          <span>I consent to apply electronic signatures from the CSV / signer name (ESIGN / UETA).</span>
+        </label>
+        <div class="grid grid-cols-2 gap-2">
+          <input id="signer-name" type="text" placeholder="Fallback signer name" class="border border-gray-300 rounded-lg px-3 py-2 text-xs"/>
+          <input id="signer-email" type="email" placeholder="Signer email (optional)" class="border border-gray-300 rounded-lg px-3 py-2 text-xs"/>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" id="run-btn"
+      class="w-full bg-indigo-600 text-white rounded-xl py-3 font-semibold text-sm hover:bg-indigo-700 transition">
+      3. Run Guided Batch
+    </button>
+  </form>
+
+  <div id="success" class="hidden bg-green-50 border border-green-200 rounded-2xl p-5">
+    <p class="font-semibold text-green-800 mb-1" id="success-msg">Batch complete</p>
+    <p class="text-xs text-green-700 mb-3" id="success-detail"></p>
+    <a id="dl-btn" href="#" class="inline-flex bg-green-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-green-700">Download ZIP</a>
+  </div>
+
+</main>
+
+<script>
+function getKey(){ return localStorage.getItem('fmp_api_key') || ''; }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function showErr(m){ const e=document.getElementById('error-box'); e.textContent=m; e.classList.remove('hidden'); document.getElementById('info-box').classList.add('hidden'); }
+function clearErr(){ document.getElementById('error-box').classList.add('hidden'); }
+function showInfo(m){ const e=document.getElementById('info-box'); e.textContent=m; e.classList.remove('hidden'); }
+
+let legendCache = null;
+
+document.querySelectorAll('input[name="sig-mode"]').forEach(r=>{
+  r.addEventListener('change', ()=>{
+    document.getElementById('sig-extra').classList.toggle('hidden', r.value !== 'typed' || !document.querySelector('input[name="sig-mode"][value="typed"]').checked);
+    const typed = document.querySelector('input[name="sig-mode"][value="typed"]').checked;
+    document.getElementById('sig-extra').classList.toggle('hidden', !typed);
+  });
+});
+
+async function api(path, opts){
+  const r = await fetch(path, Object.assign({ headers: { 'X-API-Key': getKey() } }, opts||{}));
+  if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${r.status}`); }
+  return r.json();
+}
+
+async function init(){
+  if(!getKey()){ document.getElementById('no-key').classList.remove('hidden'); return; }
+  try {
+    const [ready, profiles] = await Promise.all([
+      api('/api/v1/templates/readiness'),
+      api('/api/v1/profiles/').catch(()=>[]),
+    ]);
+    const readyItems = (ready.items || []).filter(x => x.ready);
+    const sel = document.getElementById('template-id');
+    if(!readyItems.length){
+      sel.innerHTML = '<option value="">No Ready templates — lock maps first</option>';
+      return;
+    }
+    // Need names — join with template list
+    const tpl = await api('/api/v1/templates');
+    const byId = {};
+    (tpl.templates || []).forEach(t => { byId[t.id] = t; });
+    sel.innerHTML = '<option value="">— pick a form —</option>' +
+      readyItems.map(r => {
+        const name = (byId[r.template_id] && byId[r.template_id].name) || r.template_id;
+        return `<option value="${esc(r.template_id)}">${esc(name)}</option>`;
+      }).join('');
+
+    const plist = Array.isArray(profiles) ? profiles : [];
+    const fill = (id, types) => {
+      const el = document.getElementById(id);
+      const opts = plist.filter(p => types.includes(p.profile_type));
+      el.innerHTML = '<option value="">— none —</option>' +
+        opts.map(p => `<option value="${esc(p.id)}">${esc(p.name)} (${esc(p.profile_type)})</option>`).join('');
+    };
+    fill('pick-provider', ['provider','prescriber','requesting_provider','attending_provider','billing_provider','business']);
+    fill('pick-facility', ['facility','pharmacy']);
+
+    const tid = new URLSearchParams(location.search).get('template_id');
+    if(tid){ sel.value = tid; onTemplateChange(); }
+  } catch(e){ showErr(e.message); }
+}
+
+function onTemplateChange(){
+  const tid = document.getElementById('template-id').value;
+  document.getElementById('csv-btn').disabled = !tid;
+  document.getElementById('legend-btn').disabled = !tid;
+  legendCache = null;
+  document.getElementById('legend-box').classList.add('hidden');
+}
+
+async function downloadCsv(){
+  clearErr();
+  const tid = document.getElementById('template-id').value;
+  if(!tid) return;
+  try {
+    const d = await api('/api/v1/templates/'+encodeURIComponent(tid)+'/guided-csv');
+    legendCache = d;
+    const blob = new Blob([d.csv || ''], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = tid + '_guided_batch.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    // Also offer legend.json
+    const lb = new Blob([JSON.stringify({ headers: d.headers, legend: d.legend, notes: d.notes }, null, 2)], { type: 'application/json' });
+    const a2 = document.createElement('a');
+    a2.href = URL.createObjectURL(lb);
+    a2.download = tid + '_column_legend.json';
+    a2.click();
+    URL.revokeObjectURL(a2.href);
+    showInfo('Downloaded CSV template + column legend. Fill one row per patient, then upload.');
+  } catch(e){ showErr(e.message); }
+}
+
+function toggleLegend(){
+  const box = document.getElementById('legend-box');
+  if(!legendCache){
+    const tid = document.getElementById('template-id').value;
+    if(!tid) return;
+    api('/api/v1/templates/'+encodeURIComponent(tid)+'/guided-csv').then(d=>{
+      legendCache = d; renderLegend(); box.classList.remove('hidden');
+    }).catch(e=>showErr(e.message));
+    return;
+  }
+  if(box.classList.contains('hidden')){ renderLegend(); box.classList.remove('hidden'); }
+  else box.classList.add('hidden');
+}
+
+function renderLegend(){
+  const body = document.getElementById('legend-body');
+  const rows = (legendCache && legendCache.legend) || [];
+  body.innerHTML = rows.map(r => `
+    <tr class="border-t border-gray-100">
+      <td class="px-3 py-1 font-mono text-[11px] text-indigo-800">${esc(r.column)}</td>
+      <td class="px-3 py-1 text-gray-500">${esc(r.kind)}</td>
+      <td class="px-3 py-1 text-gray-700">${esc(r.label)}${r.notes ? ' <span class="text-gray-400">— '+esc(r.notes)+'</span>' : ''}</td>
+    </tr>`).join('') || '<tr><td class="px-3 py-2 text-gray-400" colspan="3">No columns</td></tr>';
+}
+
+async function runBatch(ev){
+  ev.preventDefault();
+  clearErr();
+  document.getElementById('success').classList.add('hidden');
+  const tid = document.getElementById('template-id').value;
+  const file = document.getElementById('csv-file').files[0];
+  if(!tid || !file){ showErr('Pick a template and CSV file.'); return; }
+  const mode = document.querySelector('input[name="sig-mode"]:checked').value;
+  if(mode === 'typed' && !document.getElementById('consent').checked){
+    showErr('Typed signature mode requires ESIGN consent.'); return;
+  }
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true; btn.textContent = 'Running…';
+  const fd = new FormData();
+  fd.append('csv_file', file);
+  fd.append('signature_mode', mode);
+  fd.append('consent_given', mode === 'typed' ? 'true' : 'false');
+  fd.append('signer_name', document.getElementById('signer-name').value.trim());
+  fd.append('signer_email', document.getElementById('signer-email').value.trim());
+  const ids = [
+    document.getElementById('pick-provider').value,
+    document.getElementById('pick-facility').value,
+  ].filter(Boolean);
+  if(ids.length === 1) fd.append('profile_id', ids[0]);
+  else if(ids.length > 1) fd.append('profile_ids', ids.join(','));
+
+  try {
+    const r = await fetch('/api/v1/templates/'+encodeURIComponent(tid)+'/batch-csv', {
+      method: 'POST', headers: { 'X-API-Key': getKey() }, body: fd,
+    });
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+    document.getElementById('success').classList.remove('hidden');
+    document.getElementById('success-msg').textContent =
+      `Batch ${d.batch_id || ''} — ${d.successful}/${d.total_records} filled`;
+    document.getElementById('success-detail').textContent =
+      `Failed: ${d.failed || 0} · Success rate: ${d.success_rate || 0}%`;
+    const dl = document.getElementById('dl-btn');
+    dl.href = d.download_url;
+    dl.onclick = async (e) => {
+      e.preventDefault();
+      const resp = await fetch(d.download_url, { headers: { 'X-API-Key': getKey() } });
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url;
+      a.download = tid + '_guided_batch.zip'; a.click();
+      URL.revokeObjectURL(url);
+    };
+  } catch(e){ showErr(e.message); }
+  finally { btn.disabled = false; btn.textContent = '3. Run Guided Batch'; }
+}
+
+init();
+</script>
+</body>
+</html>

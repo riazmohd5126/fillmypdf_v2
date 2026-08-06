@@ -12,7 +12,8 @@
   <a href="/ui/index.html" class="text-indigo-600 text-sm hover:underline">← Dashboard</a>
   <span class="text-gray-300">|</span>
   <span class="font-semibold text-gray-800">Guided Fill</span>
-  <a href="/ui/mapping_review.html" class="ml-auto text-xs text-indigo-600 hover:underline">Mapping Review →</a>
+  <a href="/ui/guided_batch.html" class="ml-auto text-xs text-indigo-600 hover:underline">Guided Batch →</a>
+  <a href="/ui/mapping_review.html" class="text-xs text-indigo-600 hover:underline">Mapping Review →</a>
 </nav>
 
 <main class="max-w-6xl mx-auto px-4 py-8 space-y-6">
@@ -40,7 +41,13 @@
           <h2 class="font-semibold text-gray-800 text-sm uppercase tracking-wide">Choose a Form</h2>
           <button onclick="loadTemplates()" class="text-xs text-indigo-600 hover:underline">Refresh</button>
         </div>
-        <div id="tpl-list" class="space-y-2 text-sm">
+        <div class="flex gap-1 text-[11px]">
+          <button id="flt-ready" onclick="setListFilter('ready')" class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium">Ready</button>
+          <button id="flt-all" onclick="setListFilter('all')" class="px-2 py-1 rounded-full bg-gray-100 text-gray-600">All</button>
+          <button id="flt-needs" onclick="setListFilter('needs')" class="px-2 py-1 rounded-full bg-gray-100 text-gray-600">Needs mapping</button>
+        </div>
+        <p id="tpl-count" class="text-[11px] text-gray-400"></p>
+        <div id="tpl-list" class="space-y-2 text-sm max-h-[70vh] overflow-y-auto">
           <div class="text-gray-400 text-xs">Loading…</div>
         </div>
       </div>
@@ -52,10 +59,13 @@
         Select a form on the left to begin.
       </div>
 
-      <div id="not-reviewed" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-6 text-sm text-amber-800">
+      <div id="not-reviewed" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-6 text-sm text-amber-800 space-y-3">
         <p class="font-semibold mb-1">This form isn't reviewed yet.</p>
-        <p>Guided Fill only offers forms whose canonical mapping has been reviewed &amp; locked, so the fill is trustworthy.
-           Go to <a href="/ui/mapping_review.html" class="underline font-semibold">Mapping Review</a>, build/lock this form's map, then come back.</p>
+        <p>Guided Fill needs a locked canonical map so the fill is trustworthy.</p>
+        <a id="not-reviewed-link" href="/ui/mapping_review.html"
+          class="inline-flex items-center gap-1 bg-amber-600 text-white rounded-lg px-3 py-2 text-xs font-semibold hover:bg-amber-700">
+          Open Mapping Review →
+        </a>
       </div>
 
       <div id="form-card" class="hidden bg-white rounded-2xl border border-gray-200 shadow-sm">
@@ -77,6 +87,61 @@
           </div>
         </div>
 
+        <div id="profile-bar" class="px-5 pt-4 space-y-2 border-b border-gray-50 pb-3">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Clinic autofill</p>
+            <div class="flex flex-wrap gap-1.5 justify-end">
+              <button type="button" onclick="reApplySelectedProfiles({fromButton:true})"
+                class="text-[11px] bg-indigo-50 text-indigo-700 rounded-lg px-2 py-1 hover:bg-indigo-100"
+                title="Re-apply Patient → Provider → Facility → Pharmacy → Encounter">Apply all</button>
+              <button type="button" onclick="saveFormRecipe()"
+                class="text-[11px] bg-gray-100 text-gray-700 rounded-lg px-2 py-1 hover:bg-gray-200"
+                title="Save questions + clinical answers for this form (no patient PHI)">Save recipe</button>
+              <button type="button" onclick="applyFormRecipe()"
+                class="text-[11px] bg-gray-100 text-gray-700 rounded-lg px-2 py-1 hover:bg-gray-200"
+                title="Restore last saved recipe for this form">Use recipe</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div class="flex gap-2 items-center">
+              <label class="text-[11px] text-gray-500 w-16 shrink-0">Patient</label>
+              <select id="pick-patient" class="inp flex-1 text-xs"
+                onchange="onProfileSelect('pick-patient')"></select>
+            </div>
+            <div class="flex gap-2 items-center">
+              <label class="text-[11px] text-gray-500 w-16 shrink-0">Provider</label>
+              <select id="pick-provider" class="inp flex-1 text-xs"
+                onchange="onProfileSelect('pick-provider')"></select>
+            </div>
+            <div class="flex gap-2 items-center">
+              <label class="text-[11px] text-gray-500 w-16 shrink-0">Facility</label>
+              <select id="pick-facility" class="inp flex-1 text-xs"
+                onchange="onProfileSelect('pick-facility')"></select>
+            </div>
+            <div class="flex gap-2 items-center">
+              <label class="text-[11px] text-gray-500 w-16 shrink-0">Pharmacy</label>
+              <select id="pick-pharmacy" class="inp flex-1 text-xs"
+                onchange="onProfileSelect('pick-pharmacy')"></select>
+            </div>
+            <div class="flex gap-2 items-center sm:col-span-2">
+              <label class="text-[11px] text-gray-500 w-16 shrink-0">Encounter</label>
+              <select id="pick-encounter" class="inp flex-1 text-xs"
+                onchange="onProfileSelect('pick-encounter')"></select>
+              <button type="button" onclick="toggleEncounterImport()"
+                class="text-[11px] bg-gray-100 text-gray-700 rounded-lg px-2 py-1.5 hover:bg-gray-200 shrink-0"
+                title="Paste JSON or CSV row">Import</button>
+            </div>
+          </div>
+          <div id="encounter-import-box" class="hidden space-y-1.5">
+            <textarea id="encounter-import" rows="3" class="inp text-xs font-mono"
+              placeholder='JSON: {"drug_name":"Linzess","strength":"290 mcg","diagnosis_code":"K58.9"}&#10;or CSV header+row: drug_name,strength,diagnosis_code'></textarea>
+            <button type="button" onclick="importEncounterRow()"
+              class="text-[11px] bg-indigo-600 text-white rounded-lg px-2.5 py-1.5 hover:bg-indigo-700">Apply import</button>
+          </div>
+          <p id="profile-status" class="hidden text-[11px] text-emerald-700"></p>
+          <p id="coverage-status" class="hidden text-[11px] text-slate-600"></p>
+        </div>
+
         <div class="p-5 space-y-5" id="form-body"></div>
 
         <div class="p-5 border-t border-gray-100 space-y-3">
@@ -84,13 +149,31 @@
             <label class="text-xs text-gray-500 w-28">Gemini key (opt.)</label>
             <input id="ai-key" type="password" placeholder="only needed if unmapped tail" class="inp flex-1"/>
           </div>
+          <div id="esign-consent-box" class="hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 space-y-2">
+            <p class="text-[11px] text-slate-600 leading-relaxed">
+              By checking below you agree to sign this document electronically (ESIGN / UETA).
+              Your signature image will be stamped on the filled PDF with an audit record.
+            </p>
+            <label class="inline-flex items-start gap-2 text-xs text-gray-800 cursor-pointer">
+              <input id="esign-consent" type="checkbox" class="mt-0.5 accent-indigo-600"/>
+              <span>I consent to sign electronically and intend this as my signature.</span>
+            </label>
+            <div class="grid grid-cols-2 gap-2">
+              <input id="esign-signer-name" type="text" class="inp" placeholder="Signer name (optional)"/>
+              <input id="esign-signer-email" type="email" class="inp" placeholder="Signer email (optional)"/>
+            </div>
+          </div>
           <div id="fill-success" class="hidden bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm">
-            <p class="font-medium text-green-800 mb-2">PDF filled successfully!</p>
+            <p class="font-medium text-green-800 mb-2" id="fill-success-msg">PDF filled successfully!</p>
             <div id="locked-badge" class="hidden items-center gap-1.5 bg-emerald-100 text-emerald-800 rounded-full px-2.5 py-1 text-xs font-medium mb-2 w-max">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
               Reviewed mapping used (locked, no AI)
             </div>
-            <a id="dl-btn" href="#" class="inline-flex items-center gap-2 bg-green-600 text-white rounded-lg px-3 py-2 text-sm font-medium hover:bg-green-700">Download PDF</a>
+            <div class="flex flex-wrap gap-2">
+              <a id="dl-btn" href="#" class="inline-flex items-center gap-2 bg-green-600 text-white rounded-lg px-3 py-2 text-sm font-medium hover:bg-green-700">Download PDF</a>
+              <a id="cert-btn" href="#" class="hidden inline-flex items-center gap-2 bg-slate-700 text-white rounded-lg px-3 py-2 text-sm font-medium hover:bg-slate-800">Download certificate</a>
+              <a href="/ui/approvals.html" class="inline-flex items-center gap-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg px-3 py-2 text-sm font-medium hover:bg-amber-100">Request approval →</a>
+            </div>
           </div>
           <button onclick="fillForm()" id="fill-btn"
             class="w-full bg-indigo-600 text-white rounded-xl py-3 font-semibold text-sm hover:bg-indigo-700 transition">
@@ -106,6 +189,12 @@
   .label { display:block; font-size:0.7rem; color:#6b7280; margin-bottom:2px; font-weight:500 }
   .inp   { width:100%; border:1px solid #d1d5db; border-radius:0.5rem; padding:6px 10px; font-size:0.82rem; outline:none; background:white; font-family:inherit; resize:vertical }
   .inp:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.15) }
+  .q-check { display:flex; flex-wrap:wrap; gap:6px 14px; padding:6px 0 }
+  .q-check label { display:inline-flex; align-items:center; gap:6px; font-size:0.8rem; color:#374151; cursor:pointer }
+  .q-check input { accent-color:#4f46e5 }
+  .sig-pad { border:1px solid #d1d5db; border-radius:0.5rem; background:#fff; touch-action:none; width:100%; max-width:100%; height:96px }
+  .sig-tab { font-size:0.7rem; padding:4px 10px; border-radius:999px; border:1px solid #e5e7eb; background:#fff; color:#4b5563 }
+  .sig-tab.active { background:#eef2ff; border-color:#c7d2fe; color:#4338ca; font-weight:600 }
 </style>
 
 <script>
@@ -114,7 +203,11 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 function showErr(m){ const e=document.getElementById('error-box'); e.textContent=m; e.classList.remove('hidden'); }
 function clearErr(){ document.getElementById('error-box').classList.add('hidden'); }
 
-let current = null;   // {template_id, fingerprint, schema}
+let current = null;   // {template_id, fingerprint, schema, intake, name}
+let allTemplates = [];
+let readinessById = {};  // template_id -> {ready, fingerprint, signature}
+let listFilter = 'ready';
+let pendingReviewFp = null;
 
 async function api(path, opts){
   const r = await fetch(path, Object.assign({ headers: { 'X-API-Key': getKey() } }, opts||{}));
@@ -122,49 +215,826 @@ async function api(path, opts){
   return r.json();
 }
 
+function setListFilter(mode){
+  listFilter = mode;
+  ['ready','all','needs'].forEach(m=>{
+    const el = document.getElementById('flt-'+m);
+    if(!el) return;
+    const on = m === mode;
+    el.className = on
+      ? (m==='ready' ? 'px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium'
+        : m==='needs' ? 'px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-medium'
+        : 'px-2 py-1 rounded-full bg-indigo-100 text-indigo-800 font-medium')
+      : 'px-2 py-1 rounded-full bg-gray-100 text-gray-600';
+  });
+  renderTemplateList();
+}
+
+function renderTemplateList(){
+  const el = document.getElementById('tpl-list');
+  let list = allTemplates.slice();
+  if(listFilter === 'ready') list = list.filter(t => readinessById[t.id]?.ready);
+  else if(listFilter === 'needs') list = list.filter(t => !readinessById[t.id]?.ready);
+  // Ready forms first within "all"
+  if(listFilter === 'all'){
+    list.sort((a,b)=> Number(!!readinessById[b.id]?.ready) - Number(!!readinessById[a.id]?.ready)
+      || String(a.name||a.id).localeCompare(String(b.name||b.id)));
+  }
+  const readyN = allTemplates.filter(t => readinessById[t.id]?.ready).length;
+  document.getElementById('tpl-count').textContent =
+    `${list.length} shown · ${readyN} ready for Guided Fill`;
+  if(!list.length){
+    el.innerHTML = listFilter === 'ready'
+      ? '<p class="text-gray-400 text-xs">No locked forms yet. Switch to <button onclick="setListFilter(\'needs\')" class="underline text-indigo-600">Needs mapping</button> or lock maps in Mapping Review.</p>'
+      : '<p class="text-gray-400 text-xs">No templates. Add one in the Templates screen.</p>';
+    return;
+  }
+  el.innerHTML = list.map(t=>{
+    const ready = !!readinessById[t.id]?.ready;
+    const badge = ready
+      ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Ready</span>'
+      : '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Needs mapping</span>';
+    return `<button onclick="openTemplate('${esc(t.id)}','${esc(t.name||t.id)}')"
+        class="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 transition border border-gray-100">
+        <div class="flex items-center justify-between gap-2">
+          <div class="font-medium text-gray-800 truncate">${esc(t.name||t.id)}</div>
+          ${badge}
+        </div>
+        <div class="text-[11px] text-gray-400">${esc(t.category||'')}</div>
+      </button>`;
+  }).join('');
+}
+
 async function loadTemplates(){
   clearErr();
   const el = document.getElementById('tpl-list');
   el.innerHTML = '<div class="text-gray-400 text-xs">Loading…</div>';
   try {
-    const d = await api('/api/v1/templates');
+    const [d, ready] = await Promise.all([
+      api('/api/v1/templates'),
+      api('/api/v1/templates/readiness').catch(()=>({ items: [] })),
+    ]);
     const items = d.templates || d.items || d || [];
-    const list = Array.isArray(items) ? items : (items.templates || []);
-    if(!list.length){ el.innerHTML = '<p class="text-gray-400 text-xs">No templates. Add one in the Templates screen.</p>'; return; }
-    el.innerHTML = list.map(t=>`
-      <button onclick="openTemplate('${esc(t.id)}','${esc(t.name||t.id)}')"
-        class="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 transition border border-gray-100">
-        <div class="font-medium text-gray-800 truncate">${esc(t.name||t.id)}</div>
-        <div class="text-[11px] text-gray-400">${esc(t.category||'')} ${t.field_count?('· '+t.field_count+' fields'):''}</div>
-      </button>`).join('');
+    allTemplates = Array.isArray(items) ? items : (items.templates || []);
+    readinessById = {};
+    (ready.items || []).forEach(r => {
+      readinessById[r.template_id] = r;
+    });
+    setListFilter(listFilter);
+    await loadProfilePickers();
+    // Deep link: ?template_id=
+    const params = new URLSearchParams(location.search);
+    const tid = params.get('template_id');
+    if(tid){
+      const t = allTemplates.find(x => x.id === tid);
+      openTemplate(tid, t ? (t.name || tid) : tid);
+    }
   } catch(e){ el.innerHTML=''; showErr(e.message); }
 }
 
+const PICKER_ROLE = {
+  'pick-patient': 'patient',
+  'pick-provider': 'provider',
+  'pick-facility': 'facility',
+  'pick-pharmacy': 'pharmacy',
+  'pick-encounter': 'encounter',
+};
+const APPLY_ORDER = ['pick-patient','pick-provider','pick-facility','pick-pharmacy','pick-encounter'];
+
+async function loadProfilePickers(){
+  try {
+    const profiles = await api('/api/v1/profiles/');
+    const list = Array.isArray(profiles) ? profiles : [];
+    const fill = (selId, types) => {
+      const sel = document.getElementById(selId);
+      if(!sel) return;
+      const prev = sel.value;
+      const opts = list.filter(p => !types.length || types.includes(p.profile_type));
+      sel.innerHTML = '<option value="">— none —</option>' +
+        opts.map(p => `<option value="${esc(p.id)}">${esc(p.name)} (${esc(p.profile_type)})</option>`).join('');
+      if(prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+    };
+    fill('pick-patient', ['patient','personal','insured']);
+    fill('pick-provider', ['provider','prescriber','requesting_provider','attending_provider','billing_provider']);
+    fill('pick-facility', ['facility','business']);
+    fill('pick-pharmacy', ['pharmacy']);
+    fill('pick-encounter', ['encounter']);
+  } catch { /* optional */ }
+}
+
+/** Flat profile keys → Guided Fill canonical paths (role-neutral base). */
+const PROFILE_TO_CANON = {
+  patient_first_name:'patient.first_name', patient_last_name:'patient.last_name',
+  patient_dob:'patient.dob', patient_gender:'patient.sex', patient_sex:'patient.sex',
+  patient_address:'patient.address_line1', patient_city:'patient.city',
+  patient_state:'patient.state', patient_zip:'patient.zip', patient_phone:'patient.phone',
+  patient_email:'patient.email', patient_full_name:'patient.full_name',
+  member_id:'insurance.member_id', group_number:'insurance.group_number',
+  insurance_plan:'insurance.payer_name', payer_name:'insurance.payer_name',
+  subscriber_name:'insurance.subscriber_name',
+  provider_first_name:'prescriber.first_name', provider_last_name:'prescriber.last_name',
+  provider_full_name:'prescriber.full_name',
+  npi:'prescriber.npi', specialty:'prescriber.specialty', practice_name:'facility.name',
+  provider_address:'prescriber.address_line1', provider_city:'prescriber.city',
+  provider_state:'prescriber.state', provider_zip:'prescriber.zip',
+  provider_phone:'prescriber.phone', provider_fax:'prescriber.fax', dea_number:'prescriber.dea',
+  provider_tax_id:'prescriber.tax_id',
+  first_name:'patient.first_name', last_name:'patient.last_name', dob:'patient.dob',
+  email:'patient.email', phone:'patient.phone', address:'patient.address_line1',
+  city:'patient.city', state:'patient.state', zip:'patient.zip',
+  company_name:'facility.name', employer_name:'facility.name',
+  employer_address:'facility.address_line1', ein:'facility.tax_id',
+  facility_name:'facility.name', facility_npi:'facility.npi',
+  facility_phone:'facility.phone', facility_fax:'facility.fax',
+  facility_address:'facility.address_line1', facility_city:'facility.city',
+  facility_state:'facility.state', facility_zip:'facility.zip', facility_tax_id:'facility.tax_id',
+  pharmacy_name:'pharmacy.name', pharmacy_npi:'pharmacy.npi',
+  pharmacy_phone:'pharmacy.phone', pharmacy_fax:'pharmacy.fax',
+  pharmacy_address:'pharmacy.address_line1', pharmacy_city:'pharmacy.city',
+  pharmacy_state:'pharmacy.state', pharmacy_zip:'pharmacy.zip',
+  pharmacy_store_number:'pharmacy.store_number',
+  // Encounter / PA case pack
+  drug_name:'medication.drug_name', strength:'medication.strength', sig:'medication.sig',
+  quantity:'medication.quantity', days_supply:'medication.days_supply',
+  dosage_form:'medication.dosage_form', hcpcs_jcode:'medication.hcpcs_jcode',
+  ndc:'medication.ndc', frequency:'medication.frequency',
+  diagnosis_code:'clinical.primary_diagnosis_code',
+  diagnosis_description:'clinical.primary_diagnosis_description',
+  clinical_rationale:'clinical.clinical_rationale',
+  previous_auth_number:'request.previous_auth_number',
+  requested_duration:'request.requested_duration',
+  request_type:'request.request_type', date_of_request:'request.date_of_request',
+  // namespaced merges from multi-profile use
+  patient_patient_first_name:'patient.first_name', provider_npi:'prescriber.npi',
+  provider_provider_phone:'prescriber.phone', provider_specialty:'prescriber.specialty',
+};
+
+/** When applying from a role picker, remap ambiguous keys (npi, phone, …). */
+const ROLE_KEY_OVERRIDES = {
+  facility: {
+    npi:'facility.npi', phone:'facility.phone', fax:'facility.fax',
+    address:'facility.address_line1', city:'facility.city', state:'facility.state', zip:'facility.zip',
+    practice_name:'facility.name', company_name:'facility.name',
+    provider_phone:'facility.phone', provider_fax:'facility.fax',
+    provider_address:'facility.address_line1', provider_city:'facility.city',
+    provider_state:'facility.state', provider_zip:'facility.zip',
+    provider_tax_id:'facility.tax_id',
+  },
+  pharmacy: {
+    npi:'pharmacy.npi', phone:'pharmacy.phone', fax:'pharmacy.fax',
+    address:'pharmacy.address_line1', city:'pharmacy.city', state:'pharmacy.state', zip:'pharmacy.zip',
+    practice_name:'pharmacy.name', company_name:'pharmacy.name',
+    pharmacy_name:'pharmacy.name',
+  },
+  encounter: {
+    // keep diagnosis_code etc. from base map; no person remaps
+  },
+};
+
+/** Mirror role-specific aliases so one provider profile fills TDI/UHC/etc. */
+const ROLE_MIRROR_PREFIXES = [
+  ['prescriber', 'requesting_provider'],
+  ['prescriber', 'attending_provider'],
+  ['prescriber', 'billing_provider'],
+];
+
+function normalizeSex(v){
+  const s = String(v || '').trim().toLowerCase();
+  if(!s) return v;
+  if(s === 'm' || s === 'male' || s === 'man') return 'M';
+  if(s === 'f' || s === 'female' || s === 'woman') return 'F';
+  if(s === 'u' || s === 'unknown' || s === 'other' || s === 'x' || s === 'non-binary') return 'U';
+  return v;
+}
+
+function showProfileStatus(msg, isErr){
+  const el = document.getElementById('profile-status');
+  if(!el) return;
+  if(!msg){ el.classList.add('hidden'); el.textContent = ''; return; }
+  el.textContent = msg;
+  el.classList.toggle('text-emerald-700', !isErr);
+  el.classList.toggle('text-amber-700', !!isErr);
+  el.classList.remove('hidden');
+}
+
+function showCoverageStatus(msg){
+  const el = document.getElementById('coverage-status');
+  if(!el) return;
+  if(!msg){ el.classList.add('hidden'); el.textContent = ''; return; }
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function composeNames(mapped){
+  const pf = mapped['patient.first_name'], pl = mapped['patient.last_name'];
+  if((pf || pl) && !mapped['patient.full_name'])
+    mapped['patient.full_name'] = [pf, pl].filter(Boolean).join(' ');
+  const prf = mapped['prescriber.first_name'], prl = mapped['prescriber.last_name'];
+  if((prf || prl) && !mapped['prescriber.full_name'])
+    mapped['prescriber.full_name'] = [prf, prl].filter(Boolean).join(' ');
+}
+
+function expandRoleAliases(mapped, role){
+  if(role === 'provider' || !role){
+    const keys = Object.keys(mapped);
+    ROLE_MIRROR_PREFIXES.forEach(([from, to])=>{
+      keys.forEach(k=>{
+        if(!k.startsWith(from + '.')) return;
+        const alt = to + k.slice(from.length);
+        if(mapped[alt] === undefined || mapped[alt] === '') mapped[alt] = mapped[k];
+      });
+    });
+    if(mapped['requesting_provider.full_name'] && !mapped['prescriber.contact_name'])
+      mapped['prescriber.contact_name'] = mapped['requesting_provider.full_name'];
+    if(mapped['prescriber.full_name'] && !mapped['prescriber.contact_name'])
+      mapped['prescriber.contact_name'] = mapped['prescriber.full_name'];
+  }
+  if(mapped['patient.full_name'] && !mapped['insurance.subscriber_name'])
+    mapped['insurance.subscriber_name'] = mapped['patient.full_name'];
+  if(mapped['facility.name'] && !mapped['prescriber.practice_name'])
+    mapped['prescriber.practice_name'] = mapped['facility.name'];
+}
+
+function flatToCanonMap(flat, role){
+  const mapped = {};
+  const overrides = ROLE_KEY_OVERRIDES[role] || {};
+  Object.keys(flat || {}).forEach(k=>{
+    const raw = flat[k];
+    if(raw === undefined || raw === null || raw === '') return;
+    // Already-canonical keys (from import / recipe)
+    if(k.includes('.') || k.startsWith('q:') || k.startsWith('t:')){
+      mapped[k] = raw;
+      return;
+    }
+    const canon = overrides[k] || PROFILE_TO_CANON[k];
+    if(!canon) return;
+    let v = raw;
+    if(canon === 'patient.sex') v = normalizeSex(v);
+    mapped[canon] = v;
+  });
+  composeNames(mapped);
+  expandRoleAliases(mapped, role);
+  return mapped;
+}
+
+function applyFormValues(map){
+  let applied = 0;
+  document.querySelectorAll('[data-canon]').forEach(el=>{
+    const key = el.getAttribute('data-canon');
+    const v = map[key];
+    if(v===undefined || v===null || v==='') return;
+    if(el.disabled) return;
+    el.value = Array.isArray(v) ? v.join('\n') : String(v);
+    applied++;
+  });
+  document.querySelectorAll('[data-qid]').forEach(el=>{
+    const qid = el.getAttribute('data-qid');
+    const v = map['q:'+qid];
+    if(v===undefined || v===null || v==='') return;
+    if(el.disabled) return;
+    if(el.type === 'checkbox'){
+      const vals = Array.isArray(v) ? v.map(String) : [String(v)];
+      el.checked = vals.includes(el.value);
+      if(el.checked) applied++;
+    } else {
+      el.value = Array.isArray(v) ? v[0] : String(v);
+      applied++;
+    }
+  });
+  document.querySelectorAll('[data-narrative]').forEach(el=>{
+    const field = el.getAttribute('data-narrative');
+    const v = map['t:'+field];
+    if(v===undefined || v===null || v==='') return;
+    if(el.disabled) return;
+    if(el.type === 'checkbox'){ el.checked = true; applied++; }
+    else { el.value = String(v); applied++; }
+  });
+  applyIntakeLocks();
+  return { applied };
+}
+
+function applyCanonValues(map){
+  return applyFormValues(map);
+}
+
+function coverageReport(){
+  const buckets = { patient:0, insurance:0, provider:0, facility:0, pharmacy:0, medication:0, clinical:0, request:0, questions:0, other:0 };
+  const emptyBuckets = { ...buckets };
+  let filled = 0, empty = 0, locked = 0;
+
+  function bucketFor(key){
+    if(key.startsWith('q:') || key.startsWith('t:')) return 'questions';
+    const p = key.split('.')[0];
+    if(p === 'prescriber' || p === 'requesting_provider' || p === 'attending_provider' || p === 'billing_provider') return 'provider';
+    if(buckets[p] !== undefined) return p;
+    return 'other';
+  }
+
+  const seenQ = new Set();
+  document.querySelectorAll('#form-body [data-canon]').forEach(el=>{
+    const key = el.getAttribute('data-canon');
+    const b = bucketFor(key);
+    if(el.disabled){ locked++; return; }
+    const v = (el.value || '').trim();
+    if(v){ filled++; buckets[b]++; }
+    else { empty++; emptyBuckets[b]++; }
+  });
+  document.querySelectorAll('#form-body [data-qid]').forEach(el=>{
+    const qid = el.getAttribute('data-qid');
+    if(!qid || seenQ.has(qid)) return;
+    seenQ.add(qid);
+    const group = [...document.querySelectorAll('#form-body [data-qid]')]
+      .filter(g => g.getAttribute('data-qid') === qid);
+    if(group.every(g => g.disabled)){ locked++; return; }
+    const has = group.some(g => g.type === 'checkbox' ? g.checked : (g.value||'').trim());
+    if(has){ filled++; buckets.questions++; }
+    else { empty++; emptyBuckets.questions++; }
+  });
+  document.querySelectorAll('#form-body [data-narrative]').forEach(el=>{
+    if(el.disabled){ locked++; return; }
+    const v = el.type === 'checkbox' ? el.checked : (el.value||'').trim();
+    if(v){ filled++; buckets.questions++; }
+    else { empty++; emptyBuckets.questions++; }
+  });
+
+  const remainParts = Object.entries(emptyBuckets)
+    .filter(([,n]) => n > 0)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0, 4)
+    .map(([k,n]) => `${n} ${k}`);
+  return { filled, empty, locked, remainParts };
+}
+
+function updateCoverageStatus(){
+  const formOpen = !!document.querySelector('#form-body [data-canon], #form-body [data-qid]');
+  if(!formOpen){ showCoverageStatus(''); return; }
+  const { filled, empty, locked, remainParts } = coverageReport();
+  let msg = `Coverage: ${filled} filled · ${empty} still empty`;
+  if(locked) msg += ` · ${locked} locked`;
+  if(remainParts.length) msg += ` (need: ${remainParts.join(', ')})`;
+  showCoverageStatus(msg);
+}
+
+async function onProfileSelect(pickerId){
+  const id = document.getElementById(pickerId)?.value;
+  if(!id){ updateCoverageStatus(); return; }
+  await applyProfile(pickerId, { quiet: false });
+  updateCoverageStatus();
+}
+
+async function reApplySelectedProfiles(opts){
+  opts = opts || {};
+  const any = APPLY_ORDER.some(id => document.getElementById(id)?.value);
+  if(!any){
+    // Still try recipe when opening a form with prior answers
+    const recipeApplied = applyFormRecipe({ quiet: true });
+    if(recipeApplied > 0 && !opts.quiet){
+      showProfileStatus(`Applied recipe (${recipeApplied} fields).`);
+    } else if(!opts.quiet && opts.fromButton){
+      showProfileStatus('Select at least one profile or encounter pack.', true);
+    }
+    updateCoverageStatus();
+    return;
+  }
+  let total = 0;
+  const names = [];
+  for(const pickerId of APPLY_ORDER){
+    if(!document.getElementById(pickerId)?.value) continue;
+    const r = await applyProfile(pickerId, { quiet: true });
+    if(r){ total += r.applied || 0; if(r.name) names.push(r.name); }
+  }
+  // Also apply saved recipe for questions if present
+  const recipeApplied = applyFormRecipe({ quiet: true });
+  if(recipeApplied > 0) names.push('recipe');
+  total += recipeApplied;
+  if(total > 0){
+    showProfileStatus(`Applied ${total} field${total===1?'':'s'} from ${names.join(' → ')}.`);
+  } else if(opts.fromButton){
+    showProfileStatus('Nothing applied — open a Ready form or check profile data.', true);
+  }
+  updateCoverageStatus();
+}
+
+async function applyProfile(pickerId, opts){
+  opts = opts || {};
+  const sel = document.getElementById(pickerId);
+  const id = sel?.value;
+  if(!id){
+    if(opts.force) showErr('Pick a profile first.');
+    return null;
+  }
+  clearErr();
+  const label = sel.options[sel.selectedIndex]?.text || 'profile';
+  const shortName = label.split(' (')[0];
+  const role = PICKER_ROLE[pickerId] || '';
+  try {
+    const d = await api('/api/v1/profiles/'+encodeURIComponent(id)+'/fill-data');
+    const mapped = flatToCanonMap(d.data || {}, role);
+    const formOpen = !!document.querySelector('#form-body [data-canon], #form-body [data-qid]');
+    if(!formOpen){
+      if(!opts.quiet){
+        showProfileStatus(
+          `Selected ${shortName} — open a form to auto-fill fields.`,
+          true
+        );
+      }
+      return { applied: 0, presentOnForm: 0, name: shortName, deferred: true };
+    }
+    const { applied } = applyFormValues(mapped);
+    if(!opts.quiet){
+      if(applied > 0){
+        showProfileStatus(`Applied ${applied} field${applied===1?'':'s'} from ${shortName}.`);
+      } else {
+        showProfileStatus(
+          `No overlapping fields for ${shortName} on this form.`,
+          true
+        );
+      }
+      updateCoverageStatus();
+    }
+    return { applied, name: shortName };
+  } catch(e){
+    showErr(e.message);
+    showProfileStatus('Could not load profile: ' + e.message, true);
+    return null;
+  }
+}
+
+function toggleEncounterImport(){
+  const box = document.getElementById('encounter-import-box');
+  if(box) box.classList.toggle('hidden');
+}
+
+function parseEncounterImport(raw){
+  const text = (raw || '').trim();
+  if(!text) return null;
+  if(text.startsWith('{')){
+    const obj = JSON.parse(text);
+    if(typeof obj !== 'object' || Array.isArray(obj)) throw new Error('JSON must be an object');
+    return obj;
+  }
+  // CSV: header + one data row (or single headerless key=value lines)
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if(lines.length >= 2 && lines[0].includes(',')){
+    const headers = lines[0].split(',').map(s => s.trim());
+    const vals = lines[1].split(',').map(s => s.trim());
+    const obj = {};
+    headers.forEach((h,i)=>{ if(h && vals[i] != null && vals[i] !== '') obj[h] = vals[i]; });
+    return obj;
+  }
+  throw new Error('Paste a JSON object or CSV with a header row + one data row.');
+}
+
+function importEncounterRow(){
+  clearErr();
+  try {
+    const flat = parseEncounterImport(document.getElementById('encounter-import')?.value);
+    if(!flat){ showErr('Paste encounter JSON or CSV first.'); return; }
+    const mapped = flatToCanonMap(flat, 'encounter');
+    const formOpen = !!document.querySelector('#form-body [data-canon]');
+    if(!formOpen){
+      showProfileStatus('Open a form first, then import the encounter row.', true);
+      return;
+    }
+    const { applied } = applyFormValues(mapped);
+    showProfileStatus(`Applied ${applied} field${applied===1?'':'s'} from encounter import.`);
+    updateCoverageStatus();
+  } catch(e){ showErr(e.message); }
+}
+
+function recipeStorageKey(){
+  if(!current) return null;
+  return 'fmp_recipe_' + (current.fingerprint || current.template_id);
+}
+
+/** Save non-PHI form answers (questions, narratives, med/clinical/request) for this template. */
+function saveFormRecipe(opts){
+  opts = opts || {};
+  if(!current){ if(!opts.quiet) showErr('Open a form first.'); return 0; }
+  const body = collect();
+  const recipe = {};
+  const keepPrefixes = ['medication.','clinical.','request.','q:','t:'];
+  Object.entries(body).forEach(([k,v])=>{
+    if(keepPrefixes.some(p => k.startsWith(p))) recipe[k] = v;
+  });
+  const n = Object.keys(recipe).length;
+  if(!n){
+    if(!opts.quiet) showProfileStatus('Nothing to save — fill medication/clinical/questions first.', true);
+    return 0;
+  }
+  try {
+    localStorage.setItem(recipeStorageKey(), JSON.stringify({
+      saved_at: new Date().toISOString(),
+      template_id: current.template_id,
+      fingerprint: current.fingerprint,
+      data: recipe,
+    }));
+    if(!opts.quiet){
+      showProfileStatus(`Saved recipe (${n} answers) for this form. Patient/provider data was not stored.`);
+    }
+    return n;
+  } catch(e){
+    if(!opts.quiet) showErr('Could not save recipe: ' + e.message);
+    return 0;
+  }
+}
+
+function applyFormRecipe(opts){
+  opts = opts || {};
+  const key = recipeStorageKey();
+  if(!key) return 0;
+  let raw;
+  try { raw = localStorage.getItem(key); } catch { return 0; }
+  if(!raw){
+    if(!opts.quiet) showProfileStatus('No saved recipe for this form yet.', true);
+    return 0;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    const data = parsed.data || parsed;
+    const { applied } = applyFormValues(data);
+    if(!opts.quiet){
+      showProfileStatus(`Applied recipe (${applied} fields).`);
+      updateCoverageStatus();
+    }
+    return applied;
+  } catch {
+    if(!opts.quiet) showProfileStatus('Saved recipe is invalid.', true);
+    return 0;
+  }
+}
+
 const TYPE_INPUT = { date:'date', number:'number', member_id:'text', npi:'text', ndc:'text', phone:'tel', email:'email', zip:'text' };
+
+/** data-* attrs for a VisibilityRule — control stays visible, locked until match. */
+function ruleAttrs(rule){
+  if(!rule) return '';
+  // URI-encode so JSON quotes don't break the HTML attribute.
+  return ` data-rule="${encodeURIComponent(JSON.stringify(rule))}"`;
+}
+
+function ruleHint(rule){
+  if(!rule) return '';
+  let when = '';
+  if(rule.any && rule.any.length){
+    when = 'the form path reaches this item';
+  } else if(rule.all && rule.all.length){
+    when = rule.all.map(c => (c.equals ? `${c.equals}` : 'answered')).join(' + ');
+  } else if(rule.field){
+    when = rule.equals ? `“${esc(rule.equals)}”` : 'an option';
+  } else {
+    return '';
+  }
+  return ` <span class="text-[9px] align-middle px-1 py-0.5 rounded bg-slate-100 text-slate-600">unlocks when ${when}</span>`;
+}
 
 function fieldControl(f){
   const req = f.required ? ' <span class="text-red-500">*</span>' : '';
   const crit = f.critical ? ' <span class="text-[9px] align-middle px-1 py-0.5 rounded bg-red-100 text-red-700">critical</span>' : '';
   const id = 'f_' + f.canonical.replace(/[^a-z0-9]/gi,'_');
   const rows = f.rows || 1;
+  const ra = ruleAttrs(f.rule);
+  const locked = f.rule ? ' disabled' : '';
   let control, spanClass = '', hint = '';
   if(rows > 1){
     // Multi-row table column: one value per line, distributed top→bottom.
     spanClass = ' class="col-span-2"';
     hint = ` <span class="text-[9px] align-middle px-1 py-0.5 rounded bg-indigo-100 text-indigo-700">${rows} rows · one per line</span>`;
-    control = `<textarea id="${id}" data-canon="${esc(f.canonical)}" data-rows="1" rows="${Math.min(rows,6)}" class="inp" placeholder="One value per line (up to ${rows} rows)"></textarea>`;
-  } else if(f.canonical === 'patient.sex'){
-    control = `<select id="${id}" data-canon="${esc(f.canonical)}" class="inp"><option value="">—</option><option>M</option><option>F</option><option>X</option></select>`;
+    control = `<textarea id="${id}" data-canon="${esc(f.canonical)}" data-rows="1" rows="${Math.min(rows,6)}" class="inp"${ra}${locked} placeholder="One value per line (up to ${rows} rows)"></textarea>`;
+  } else if(Array.isArray(f.options) && f.options.length){
+    // Enum with catalog-defined allowed values → dropdown.
+    const opts = f.options.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+    control = `<select id="${id}" data-canon="${esc(f.canonical)}" class="inp"${ra}${locked}><option value="">—</option>${opts}</select>`;
   } else if(f.type === 'checkbox'){
-    control = `<select id="${id}" data-canon="${esc(f.canonical)}" class="inp"><option value="">—</option><option>Yes</option><option>No</option></select>`;
+    control = `<select id="${id}" data-canon="${esc(f.canonical)}" class="inp"${ra}${locked}><option value="">—</option><option>Yes</option><option>No</option></select>`;
   } else {
     const t = TYPE_INPUT[f.type] || 'text';
-    control = `<input id="${id}" data-canon="${esc(f.canonical)}" type="${t}" class="inp"/>`;
+    control = `<input id="${id}" data-canon="${esc(f.canonical)}" type="${t}" class="inp"${ra}${locked}/>`;
   }
   return `<div${spanClass}>
-      <label class="label" for="${id}">${esc(f.label)}${req}${crit}${hint}</label>
+      <label class="label" for="${id}">${esc(f.label)}${req}${crit}${hint}${ruleHint(f.rule)}</label>
       ${control}
     </div>`;
+}
+
+/** Form-specific question: single → dropdown; multi → checkbox list. */
+function questionControl(q){
+  const id = 'q_' + String(q.id||'').replace(/[^a-z0-9]/gi,'_');
+  const opts = q.options || [];
+  const multi = (q.input || 'checkbox') === 'checkbox' && opts.length > 1;
+  // One option that equals the question text → treat as a simple Yes tick.
+  const soloYes = opts.length === 1 &&
+    String(opts[0].label||'').trim().toLowerCase() === String(q.question||'').trim().toLowerCase();
+  const ra = ruleAttrs(q.rule);
+  const locked = q.rule ? ' disabled' : '';
+
+  let control;
+  if(soloYes){
+    control = `<label class="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+      <input type="checkbox" data-qid="${esc(q.id)}" value="${esc(opts[0].label)}" class="accent-indigo-600"${ra}${locked}/>
+      <span>Yes / checked</span>
+    </label>`;
+  } else if(multi){
+    control = `<div class="q-check">${opts.map((o,i)=>`
+      <label>
+        <input type="checkbox" name="${id}" data-qid="${esc(q.id)}" value="${esc(o.label)}" class="accent-indigo-600"${ra}${locked}/>
+        <span>${esc(o.label)}</span>
+      </label>`).join('')}</div>`;
+  } else {
+    // single-select (radio) or short option lists → dropdown
+    const options = opts.map(o=>`<option value="${esc(o.label)}">${esc(o.label)}</option>`).join('');
+    control = `<select id="${id}" data-qid="${esc(q.id)}" class="inp"${ra}${locked}><option value="">— select —</option>${options}</select>`;
+  }
+  const page = q.page ? ` <span class="text-[10px] text-gray-400">p${q.page}</span>` : '';
+  const skip = q.skip_logic
+    ? ` <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">${esc(q.skip_logic)}</span>`
+    : '';
+  return `<div class="col-span-2 border border-gray-100 rounded-lg p-3 bg-gray-50/40">
+      <label class="label" for="${id}">${esc(q.question)}${page}${skip}${ruleHint(q.rule)}</label>
+      ${control}
+    </div>`;
+}
+
+function narrativeControl(n){
+  const id = 't_' + String(n.field||'').replace(/[^a-z0-9]/gi,'_');
+  // Narratives may carry a rule via intake.rules[field] — resolved in renderForm.
+  const rule = n.rule || null;
+  const ra = ruleAttrs(rule);
+  const locked = rule ? ' disabled' : '';
+  return `<div class="col-span-2">
+      <label class="label" for="${id}">${esc(n.label)}${ruleHint(rule)}</label>
+      <textarea id="${id}" data-narrative="${esc(n.field)}" rows="3" class="inp"${ra}${locked}></textarea>
+    </div>`;
+}
+
+/** Leftover unmapped/other widget — form-specific, submits as t:<field>. */
+function extraControl(ex){
+  const field = ex.field || ex.acro_field || '';
+  const id = 'x_' + String(field).replace(/[^a-z0-9]/gi,'_');
+  const kind = ex.kind || 'text';
+  const page = ex.page ? ` <span class="text-[10px] text-gray-400">p${ex.page}</span>` : '';
+  const badge = ` <span class="text-[9px] align-middle px-1 py-0.5 rounded bg-amber-50 text-amber-700">form-only</span>`;
+  let control;
+  if(kind === 'checkbox'){
+    const val = ex.label || 'Yes';
+    control = `<label class="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+      <input type="checkbox" data-narrative="${esc(field)}" data-extra-kind="checkbox" value="${esc(val)}" class="accent-indigo-600"/>
+      <span>${esc(ex.label || 'Checked')}</span>
+    </label>`;
+    return `<div>
+      <label class="label" for="${id}">${esc(ex.label || field)}${page}${badge}</label>
+      ${control}
+    </div>`;
+  }
+  if(kind === 'longtext'){
+    control = `<textarea id="${id}" data-narrative="${esc(field)}" rows="3" class="inp"></textarea>`;
+    return `<div class="col-span-2">
+      <label class="label" for="${id}">${esc(ex.label || field)}${page}${badge}</label>
+      ${control}
+    </div>`;
+  }
+  control = `<input id="${id}" data-narrative="${esc(field)}" type="text" class="inp"/>`;
+  return `<div>
+      <label class="label" for="${id}">${esc(ex.label || field)}${page}${badge}</label>
+      ${control}
+    </div>`;
+}
+
+/** Companion date → normal field. Signature → type/draw pad (e-sign after fill). */
+function signatureControl(s){
+  const field = s.field || s.acro_field || '';
+  const id = 'sig_' + String(field).replace(/[^a-z0-9]/gi,'_');
+  const kind = s.kind || 'signature';
+  const role = s.role ? ` <span class="text-[9px] align-middle px-1 py-0.5 rounded bg-slate-100 text-slate-600">${esc(s.role)}</span>` : '';
+  const page = s.page ? ` <span class="text-[10px] text-gray-400">p${s.page}</span>` : '';
+  if(kind === 'date'){
+    return `<div>
+      <label class="label" for="${id}">${esc(s.label || field)}${role}${page}</label>
+      <input id="${id}" data-narrative="${esc(field)}" type="date" class="inp"/>
+    </div>`;
+  }
+  const place = s.placement || {};
+  const placeAttr = encodeURIComponent(JSON.stringify(place));
+  const canSign = place.page_index != null && place.x_pct != null;
+  return `<div class="col-span-2 border border-gray-100 rounded-xl p-3 bg-gray-50/50 space-y-2" data-sig-card="${esc(field)}">
+      <div class="flex items-center justify-between gap-2">
+        <label class="label mb-0">${esc(s.label || field)}${role}${page}
+          ${canSign ? '<span class="text-[9px] align-middle px-1 py-0.5 rounded bg-indigo-50 text-indigo-700">e-sign</span>'
+                    : '<span class="text-[9px] align-middle px-1 py-0.5 rounded bg-amber-50 text-amber-700">no placement</span>'}
+        </label>
+        <div class="flex gap-1">
+          <button type="button" class="sig-tab active" data-sig-tab="type" data-sig-for="${esc(id)}">Type</button>
+          <button type="button" class="sig-tab" data-sig-tab="draw" data-sig-for="${esc(id)}">Draw</button>
+        </div>
+      </div>
+      <div id="${id}_type_wrap">
+        <input id="${id}_text" type="text" class="inp" placeholder="Type full name to sign"
+          data-sig-field="${esc(field)}" data-sig-mode="type" data-sig-placement="${placeAttr}"/>
+      </div>
+      <div id="${id}_draw_wrap" class="hidden">
+        <canvas id="${id}_canvas" class="sig-pad" width="480" height="120"
+          data-sig-field="${esc(field)}" data-sig-mode="draw" data-sig-placement="${placeAttr}"></canvas>
+        <button type="button" class="text-[11px] text-indigo-600 hover:underline mt-1" data-sig-clear="${esc(id)}">Clear drawing</button>
+      </div>
+    </div>`;
+}
+
+/** Form-specific multi-row table; cells submit as t:<acroField>. */
+function tableControl(t){
+  const cols = t.columns || [];
+  const rows = t.row_count || Math.max(0, ...cols.map(c => (c.fields||[]).length));
+  const ra = ruleAttrs(t.rule);
+  const locked = t.rule ? ' disabled' : '';
+  const head = cols.map(c=>`<th class="px-2 py-1.5 text-left text-[11px] font-semibold text-gray-600 border-b border-gray-200">${esc(c.header)}</th>`).join('');
+  const body = Array.from({length: rows}, (_, ri)=>`
+    <tr>${cols.map(c=>{
+      const field = (c.fields||[])[ri] || '';
+      if(!field) return `<td class="px-2 py-1"></td>`;
+      const id = 'tbl_' + field.replace(/[^a-z0-9]/gi,'_');
+      return `<td class="px-2 py-1">
+        <input id="${id}" data-narrative="${esc(field)}" type="text" class="inp text-sm"${ra}${locked}/>
+      </td>`;
+    }).join('')}</tr>`).join('');
+  return `<div class="col-span-2 border border-gray-100 rounded-lg p-3 bg-gray-50/40 overflow-x-auto">
+      <div class="label mb-2">${esc(t.title || 'Table')}${ruleHint(t.rule)}</div>
+      <table class="w-full min-w-[28rem]"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+    </div>`;
+}
+
+/** Current answer for a form-spec question id (dropdown / checkbox / multi). */
+function questionValue(qid){
+  const picked = [];
+  document.querySelectorAll('[data-qid]').forEach(el=>{
+    if(el.getAttribute('data-qid') !== qid) return;
+    if(el.type === 'checkbox'){ if(el.checked) picked.push((el.value||'').trim()); }
+    else { const v = (el.value||'').trim(); if(v) picked.push(v); }
+  });
+  return picked;
+}
+
+function clauseMatches(clause){
+  if(!clause || !clause.field) return false;
+  const equals = (clause.equals || '').trim().toLowerCase();
+  const vals = questionValue(clause.field).map(v => v.toLowerCase());
+  if(!vals.length) return false;
+  if(!equals) return true;
+  return vals.some(v => v === equals || v.startsWith(equals));
+}
+
+function evalRule(rule){
+  if(!rule) return true;
+  if(Array.isArray(rule.any) && rule.any.length){
+    return rule.any.some(evalRule);
+  }
+  if(Array.isArray(rule.all) && rule.all.length){
+    return rule.all.every(clauseMatches);
+  }
+  if(rule.field){
+    return clauseMatches(rule);
+  }
+  return true;
+}
+
+function ruleMatches(el){
+  const raw = el.getAttribute('data-rule');
+  if(!raw){
+    // Backward compat with older data-rule-field markup.
+    const ctrl = el.getAttribute('data-rule-field');
+    if(!ctrl) return true;
+    return clauseMatches({
+      field: ctrl,
+      equals: el.getAttribute('data-rule-equals'),
+    });
+  }
+  try { return evalRule(JSON.parse(decodeURIComponent(raw))); }
+  catch(_){ return true; }
+}
+
+/** Show dependents locked until the controlling path (usually Yes) is selected. */
+function applyIntakeLocks(){
+  // Iterate controlling questions first so clearing a parent also clears children.
+  const gated = [...document.querySelectorAll('[data-rule]')];
+  gated.forEach(el=>{
+    const ok = ruleMatches(el);
+    el.disabled = !ok;
+    el.classList.toggle('opacity-60', !ok);
+    el.classList.toggle('bg-gray-50', !ok);
+    if(!ok){
+      if(el.type === 'checkbox') el.checked = false;
+      else el.value = '';
+    }
+  });
+  // Second pass: dependents of questions that just locked may need re-eval.
+  gated.forEach(el=>{
+    const ok = ruleMatches(el);
+    el.disabled = !ok;
+    el.classList.toggle('opacity-60', !ok);
+    el.classList.toggle('bg-gray-50', !ok);
+    if(!ok){
+      if(el.type === 'checkbox') el.checked = false;
+      else el.value = '';
+    }
+  });
 }
 
 async function openTemplate(id, name){
@@ -173,34 +1043,248 @@ async function openTemplate(id, name){
   document.getElementById('form-card').classList.add('hidden');
   document.getElementById('not-reviewed').classList.add('hidden');
   document.getElementById('fill-success').classList.add('hidden');
+  // Keep URL shareable
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set('template_id', id);
+    history.replaceState(null, '', u.toString());
+  } catch {}
   try {
     const d = await api('/api/v1/templates/'+encodeURIComponent(id)+'/schema');
     if(!d.reviewed){
+      pendingReviewFp = d.fingerprint || readinessById[id]?.fingerprint || null;
+      const link = document.getElementById('not-reviewed-link');
+      link.href = pendingReviewFp
+        ? '/ui/mapping_review.html?fp='+encodeURIComponent(pendingReviewFp)
+        : '/ui/mapping_review.html';
       document.getElementById('not-reviewed').classList.remove('hidden');
       return;
     }
-    current = { template_id: id, fingerprint: d.fingerprint, schema: d.schema, name };
+    current = {
+      template_id: id,
+      fingerprint: d.fingerprint,
+      schema: d.schema,
+      intake: d.intake || { questions: [], narratives: [], canonical: d.schema },
+      name,
+    };
     renderForm(d, name);
   } catch(e){ showErr(e.message); }
 }
 
 function renderForm(d, name){
   document.getElementById('form-title').textContent = name;
-  const total = (d.schema.fields||[]).length;
-  document.getElementById('form-sub').textContent = `${total} canonical fields · deterministic fill`;
-  document.getElementById('form-body').innerHTML = (d.schema.groups||[]).map(g=>`
+  const intake = d.intake || {};
+  const canon = intake.canonical || d.schema || {};
+  const questions = (intake.questions || []).map(q=>{
+    const rule = q.rule || (intake.rules && intake.rules[q.id]) || null;
+    return rule ? Object.assign({}, q, { rule }) : q;
+  });
+  const narratives = (intake.narratives || []).map(n=>{
+    // Attach executable rule from the flat rules map when present.
+    const rule = n.rule || (intake.rules && intake.rules[n.field]) || null;
+    return rule ? Object.assign({}, n, { rule }) : n;
+  });
+  const tables = (intake.tables || []).map(t=>{
+    const rule = t.rule || (intake.rules && intake.rules[t.id]) || null;
+    return rule ? Object.assign({}, t, { rule }) : t;
+  });
+  const extras = intake.extras || [];
+  const signatures = intake.signatures || [];
+  // Canonical fields may already carry .rule from derive_schema; also merge rules map.
+  (canon.fields || []).forEach(f=>{
+    if(!f.rule && intake.rules && intake.rules[f.canonical]) f.rule = intake.rules[f.canonical];
+  });
+  (canon.groups || []).forEach(g=>{
+    (g.fields || []).forEach(f=>{
+      if(!f.rule && intake.rules && intake.rules[f.canonical]) f.rule = intake.rules[f.canonical];
+    });
+  });
+  const nCanon = (canon.fields || []).length;
+  document.getElementById('form-sub').textContent =
+    `${nCanon} identity fields · ${questions.length} questions` +
+    (tables.length ? ` · ${tables.length} tables` : '') +
+    ` · ${narratives.length} narratives` +
+    (signatures.length ? ` · ${signatures.length} signatures` : '') +
+    (extras.length ? ` · ${extras.length} additional` : '');
+
+  const canonHtml = (canon.groups||[]).map(g=>`
     <div>
       <h3 class="font-semibold text-gray-700 text-sm mb-2">${esc(g.title)}</h3>
       <div class="grid grid-cols-2 gap-3">
         ${g.fields.map(fieldControl).join('')}
       </div>
     </div>`).join('');
+
+  // Group questions by section for readability; fall back to one block.
+  const bySection = {};
+  const sectionOrder = [];
+  questions.forEach(q=>{
+    const sec = q.section || 'Form questions';
+    if(!bySection[sec]){ bySection[sec] = []; sectionOrder.push(sec); }
+    bySection[sec].push(q);
+  });
+  const questionsHtml = sectionOrder.map(sec=>`
+    <div>
+      <h3 class="font-semibold text-gray-700 text-sm mb-2">${esc(sec)}</h3>
+      <div class="grid grid-cols-2 gap-3">
+        ${bySection[sec].map(questionControl).join('')}
+      </div>
+    </div>`).join('');
+
+  const tablesHtml = tables.length ? `
+    <div>
+      <h3 class="font-semibold text-gray-700 text-sm mb-2">Tables</h3>
+      <div class="grid grid-cols-2 gap-3">
+        ${tables.map(tableControl).join('')}
+      </div>
+    </div>` : '';
+
+  const narrativesHtml = narratives.length ? `
+    <div>
+      <h3 class="font-semibold text-gray-700 text-sm mb-2">Free-text / comments</h3>
+      <div class="grid grid-cols-2 gap-3">
+        ${narratives.map(narrativeControl).join('')}
+      </div>
+    </div>` : '';
+
+  // Leftover unmapped/other fields — form-specific Additional section.
+  const extrasBySec = {};
+  const extrasSecOrder = [];
+  extras.forEach(ex=>{
+    const sec = ex.section || 'Additional fields';
+    if(!extrasBySec[sec]){ extrasBySec[sec] = []; extrasSecOrder.push(sec); }
+    extrasBySec[sec].push(ex);
+  });
+  const extrasHtml = extrasSecOrder.map(sec=>`
+    <div>
+      <h3 class="font-semibold text-gray-700 text-sm mb-2">${esc(sec)} <span class="text-[10px] font-normal text-amber-700">(form-only)</span></h3>
+      <div class="grid grid-cols-2 gap-3">
+        ${extrasBySec[sec].map(extraControl).join('')}
+      </div>
+    </div>`).join('');
+
+  const signable = signatures.filter(s => (s.kind || 'signature') !== 'date');
+  const signaturesHtml = signatures.length ? `
+    <div>
+      <h3 class="font-semibold text-gray-700 text-sm mb-2">Signatures</h3>
+      <p class="text-[11px] text-gray-500 mb-2">Type or draw each signature. Dates fill with the form; signatures are stamped with e-sign after fill.</p>
+      <div class="grid grid-cols-2 gap-3">
+        ${signatures.map(signatureControl).join('')}
+      </div>
+    </div>` : '';
+
+  document.getElementById('form-body').innerHTML =
+    canonHtml + questionsHtml + tablesHtml + narrativesHtml + signaturesHtml + extrasHtml ||
+    '<p class="text-sm text-gray-400">No fields on this form.</p>';
   document.getElementById('form-card').classList.remove('hidden');
+
+  const consentBox = document.getElementById('esign-consent-box');
+  consentBox.classList.toggle('hidden', !signable.length);
+  const fillBtn = document.getElementById('fill-btn');
+  fillBtn.textContent = signable.length ? 'Fill & Sign PDF' : 'Fill & Download PDF';
+
+  // Unlock dependents when the controlling question (usually Yes) is answered.
+  const body = document.getElementById('form-body');
+  body.querySelectorAll('[data-qid]').forEach(el=>{
+    el.addEventListener('change', applyIntakeLocks);
+  });
+  applyIntakeLocks();
+  wireSignaturePads();
+  // If profiles were already selected (or selected before the form opened), fill now.
+  reApplySelectedProfiles({ quiet: true });
+}
+
+function wireSignaturePads(){
+  document.querySelectorAll('[data-sig-tab]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-sig-for');
+      const mode = btn.getAttribute('data-sig-tab');
+      const card = btn.closest('[data-sig-card]');
+      if(!card) return;
+      card.querySelectorAll('.sig-tab').forEach(b=>b.classList.toggle('active', b===btn));
+      const typeWrap = document.getElementById(id+'_type_wrap');
+      const drawWrap = document.getElementById(id+'_draw_wrap');
+      if(typeWrap) typeWrap.classList.toggle('hidden', mode !== 'type');
+      if(drawWrap) drawWrap.classList.toggle('hidden', mode !== 'draw');
+    });
+  });
+  document.querySelectorAll('[data-sig-clear]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-sig-clear');
+      const canvas = document.getElementById(id+'_canvas');
+      if(!canvas) return;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+  });
+  document.querySelectorAll('canvas.sig-pad').forEach(canvas=>{
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = '#0a2864';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    let drawing = false, lastX = 0, lastY = 0;
+    function pos(e){
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const src = e.touches ? e.touches[0] : e;
+      return [(src.clientX - rect.left) * scaleX, (src.clientY - rect.top) * scaleY];
+    }
+    canvas.addEventListener('pointerdown', e=>{ drawing=true; [lastX,lastY]=pos(e); e.preventDefault(); });
+    canvas.addEventListener('pointermove', e=>{
+      if(!drawing) return;
+      const [x,y]=pos(e);
+      ctx.beginPath(); ctx.moveTo(lastX,lastY); ctx.lineTo(x,y); ctx.stroke();
+      [lastX,lastY]=[x,y]; e.preventDefault();
+    });
+    canvas.addEventListener('pointerup', ()=> drawing=false);
+    canvas.addEventListener('pointerleave', ()=> drawing=false);
+  });
+}
+
+function isCanvasEmpty(canvas){
+  const d = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+  for(let i=3;i<d.length;i+=4) if(d[i] > 0) return false;
+  return true;
+}
+
+async function collectPreparedSignatures(){
+  const prepared = [];
+  const cards = document.querySelectorAll('[data-sig-card]');
+  for(const card of cards){
+    const field = card.getAttribute('data-sig-card');
+    const activeTab = card.querySelector('.sig-tab.active');
+    const mode = activeTab ? activeTab.getAttribute('data-sig-tab') : 'type';
+    const id = 'sig_' + String(field).replace(/[^a-z0-9]/gi,'_');
+    let placement = null;
+    try{
+      const el = mode === 'draw'
+        ? document.getElementById(id+'_canvas')
+        : document.getElementById(id+'_text');
+      placement = JSON.parse(decodeURIComponent(el.getAttribute('data-sig-placement')||'%7B%7D'));
+    }catch(_){ placement = null; }
+    if(!placement || placement.page_index == null || placement.x_pct == null){
+      continue;
+    }
+    if(mode === 'type'){
+      const txt = (document.getElementById(id+'_text')?.value || '').trim();
+      if(!txt) continue;
+      prepared.push({ field, mode:'type', text: txt, placement });
+    } else {
+      const canvas = document.getElementById(id+'_canvas');
+      if(!canvas || isCanvasEmpty(canvas)) continue;
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      prepared.push({ field, mode:'draw', png: blob, placement });
+    }
+  }
+  return prepared;
 }
 
 function collect(){
   const body = {};
   document.querySelectorAll('[data-canon]').forEach(el=>{
+    if(el.disabled) return; // locked dependent — do not submit
     const canon = el.getAttribute('data-canon');
     if(el.getAttribute('data-rows') === '1'){
       // Multi-row column: split lines into a list (one value per table row).
@@ -212,19 +1296,109 @@ function collect(){
       if(v) body[canon] = v;
     }
   });
+
+  // Form-specific questions → q:<id> (string for single, list for multi).
+  const qBuckets = {};
+  document.querySelectorAll('[data-qid]').forEach(el=>{
+    const qid = el.getAttribute('data-qid');
+    if(!qid || el.disabled) return;
+    if(el.type === 'checkbox'){
+      if(!el.checked) return;
+      (qBuckets[qid] = qBuckets[qid] || []).push(el.value);
+    } else {
+      const v = (el.value||'').trim();
+      if(v) qBuckets[qid] = v;
+    }
+  });
+  Object.entries(qBuckets).forEach(([qid, val])=>{
+    body['q:'+qid] = Array.isArray(val) ? (val.length === 1 ? val[0] : val) : val;
+  });
+
+  document.querySelectorAll('[data-narrative]').forEach(el=>{
+    if(el.disabled) return;
+    const field = el.getAttribute('data-narrative');
+    if(!field) return;
+    if(el.type === 'checkbox'){
+      if(!el.checked) return;
+      const v = (el.value||'').trim() || 'Yes';
+      body['t:'+field] = v;
+      return;
+    }
+    const v = (el.value||'').trim();
+    if(v) body['t:'+field] = v;
+  });
   return body;
+}
+
+function defaultFillBtnLabel(){
+  const signable = ((current && current.intake && current.intake.signatures) || [])
+    .filter(s => (s.kind || 'signature') !== 'date');
+  return signable.length ? 'Fill & Sign PDF' : 'Fill & Download PDF';
+}
+
+function wireDownload(url, filename, linkEl){
+  linkEl.onclick = async (ev)=>{
+    ev.preventDefault();
+    const dr = await fetch(url, { headers: { 'X-API-Key': getKey() } });
+    if(!dr.ok) throw new Error('Download failed');
+    const blob = await dr.blob();
+    const obj = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=obj; a.download=filename; a.click();
+    URL.revokeObjectURL(obj);
+  };
+}
+
+async function applySignatureToPdf(pdfBlob, prep){
+  const fd = new FormData();
+  fd.append('file', pdfBlob, 'filled.pdf');
+  fd.append('consent_given', 'true');
+  fd.append('include_timestamp', 'true');
+  fd.append('page_index', String(prep.placement.page_index ?? 0));
+  fd.append('x_pct', String(prep.placement.x_pct));
+  fd.append('y_pct', String(prep.placement.y_pct));
+  fd.append('width_pct', String(prep.placement.width_pct ?? 40));
+  fd.append('height_pct', String(prep.placement.height_pct ?? 8));
+  const signerName = (document.getElementById('esign-signer-name')?.value || '').trim();
+  const signerEmail = (document.getElementById('esign-signer-email')?.value || '').trim();
+  if(signerName) fd.append('signer_name', signerName);
+  if(signerEmail) fd.append('signer_email', signerEmail);
+  if(prep.mode === 'type'){
+    fd.append('signature_text', prep.text);
+  } else {
+    fd.append('signature_png', prep.png, 'signature.png');
+  }
+  const r = await fetch('/api/v1/signatures/apply', {
+    method:'POST', headers:{ 'X-API-Key': getKey() }, body: fd,
+  });
+  if(!r.ok){
+    const e = await r.json().catch(()=>({}));
+    throw new Error(e.detail || `Sign failed (HTTP ${r.status})`);
+  }
+  return r.json();
 }
 
 async function fillForm(){
   if(!current) return;
   clearErr();
   const btn = document.getElementById('fill-btn');
-  btn.disabled = true; btn.textContent = 'Filling…';
+  const prepared = await collectPreparedSignatures();
+  if(prepared.length){
+    const consent = document.getElementById('esign-consent');
+    if(!consent || !consent.checked){
+      showErr('Check the electronic signature consent box before Fill & Sign.');
+      return;
+    }
+  }
+
+  btn.disabled = true;
+  btn.textContent = prepared.length ? 'Filling…' : 'Filling…';
   document.getElementById('fill-success').classList.add('hidden');
+  document.getElementById('cert-btn').classList.add('hidden');
+
   try {
     const fd = new FormData();
     fd.append('user_data', JSON.stringify(collect()));
-    fd.append('guided', 'true');   // canonical-keyed data; preserve lists, no InputAdapter
+    fd.append('guided', 'true');
     const aiKey = document.getElementById('ai-key').value.trim();
     if(aiKey) fd.append('ai_api_key', aiKey);
     const r = await fetch('/api/v1/templates/'+encodeURIComponent(current.template_id)+'/fill', {
@@ -233,33 +1407,65 @@ async function fillForm(){
     if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${r.status}`); }
     const result = await r.json();
 
-    const dlBtn = document.getElementById('dl-btn');
-    dlBtn.onclick = async (ev)=>{
-      ev.preventDefault();
-      const dr = await fetch(result.download_url, { headers: { 'X-API-Key': getKey() } });
-      const blob = await dr.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href=url; a.download = current.template_id+'_filled.pdf'; a.click();
-      URL.revokeObjectURL(url);
-    };
+    let downloadUrl = result.download_url;
+    let downloadName = current.template_id + (prepared.length ? '_signed.pdf' : '_filled.pdf');
+    let lastCert = null;
+    let signedCount = 0;
+
+    if(prepared.length){
+      btn.textContent = 'Signing…';
+      let pdfResp = await fetch(downloadUrl, { headers: { 'X-API-Key': getKey() } });
+      if(!pdfResp.ok) throw new Error('Could not download filled PDF for signing');
+      let pdfBlob = await pdfResp.blob();
+
+      for(const prep of prepared){
+        const signed = await applySignatureToPdf(pdfBlob, prep);
+        downloadUrl = signed.download_url;
+        downloadName = signed.filename || downloadName;
+        lastCert = signed.certificate_url || lastCert;
+        signedCount += 1;
+        // Chain: next signature stamps the already-signed PDF.
+        pdfResp = await fetch(downloadUrl, { headers: { 'X-API-Key': getKey() } });
+        if(!pdfResp.ok) throw new Error('Could not download intermediate signed PDF');
+        pdfBlob = await pdfResp.blob();
+      }
+    }
+
+    wireDownload(downloadUrl, downloadName, document.getElementById('dl-btn'));
+    const certBtn = document.getElementById('cert-btn');
+    if(lastCert){
+      certBtn.classList.remove('hidden');
+      wireDownload(lastCert, 'signature_certificate.pdf', certBtn);
+    }
 
     const badge = document.getElementById('locked-badge');
     badge.classList.toggle('hidden', !result.canonical_map_reviewed);
     badge.classList.toggle('flex', !!result.canonical_map_reviewed);
+    const msg = document.getElementById('fill-success-msg');
+    msg.textContent = signedCount
+      ? `PDF filled and ${signedCount} signature(s) applied.`
+      : 'PDF filled successfully!';
+    // Remember non-PHI clinical/question answers for next time on this form.
+    try { saveFormRecipe({ quiet: true }); } catch(_){}
     document.getElementById('fill-success').classList.remove('hidden');
   } catch(e){ showErr(e.message); }
-  finally { btn.disabled=false; btn.textContent='Fill & Download PDF'; }
+  finally { btn.disabled=false; btn.textContent=defaultFillBtnLabel(); }
 }
 
 async function downloadCsv(){
-  if(!current || !current.fingerprint){ showErr('No mapping fingerprint for this form.'); return; }
+  if(!current || !current.template_id){ showErr('Open a Ready form first.'); return; }
   try {
-    const r = await fetch('/api/v1/mappings/'+encodeURIComponent(current.fingerprint)+'/schema.csv', { headers: { 'X-API-Key': getKey() } });
-    if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${r.status} (CSV template needs an admin key)`); }
-    const blob = await r.blob();
+    const d = await api('/api/v1/templates/'+encodeURIComponent(current.template_id)+'/guided-csv');
+    const blob = new Blob([d.csv || ''], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download = current.template_id+'_template.csv'; a.click();
+    const a = document.createElement('a'); a.href=url;
+    a.download = current.template_id+'_guided_batch.csv'; a.click();
     URL.revokeObjectURL(url);
+    // Companion legend for column docs
+    const lb = new Blob([JSON.stringify({ headers: d.headers, legend: d.legend, notes: d.notes }, null, 2)], { type: 'application/json' });
+    const a2 = document.createElement('a'); a2.href = URL.createObjectURL(lb);
+    a2.download = current.template_id+'_column_legend.json'; a2.click();
+    URL.revokeObjectURL(a2.href);
   } catch(e){ showErr(e.message); }
 }
 
@@ -277,7 +1483,7 @@ function useSample(){
     'medication.quantity':'30', 'medication.days_supply':'30',
     'clinical.primary_diagnosis_code':'K58.9', 'clinical.clinical_rationale':'IBS-C, inadequate response to prior therapy.',
     'clinical.relevant_lab_values':['A1C 6.1%','TSH 2.3','eGFR 88'],
-    'request.request_type':'initial', 'request.date_of_request':'2026-07-22',
+    'request.request_type':'new', 'request.date_of_request':'2026-07-22',
   };
   document.querySelectorAll('[data-canon]').forEach(el=>{
     const v = SAMPLE[el.getAttribute('data-canon')];

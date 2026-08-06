@@ -46,7 +46,7 @@ from typing import Dict, List, Optional
 from ..config import settings
 
 try:
-    from ..models.pa_canonical import CATALOG
+    from ..models.pa_canonical import CATALOG, BY_PATH, CRITICAL_FIELDS
     # A stable hash of the canonical schema so that editing CATALOG (adding a
     # field, renaming a path) automatically invalidates every *unreviewed*
     # cached mapping.
@@ -55,6 +55,8 @@ try:
     ).hexdigest()[:12]
 except Exception:  # pragma: no cover - schema import should always succeed
     _SCHEMA_VERSION = "0"
+    BY_PATH = {}
+    CRITICAL_FIELDS = set()
 
 
 class CanonicalMapCache:
@@ -78,13 +80,20 @@ class CanonicalMapCache:
         *,
         model: str = "",
     ) -> str:
-        """Stable 32-char hex key from (name, label, type) triples + schema ver."""
+        """Stable 32-char hex key from (map_key, label, type) triples + schema ver.
+
+        ``map_key`` is ``name`` or ``name::export`` for radio options so each
+        option's label contributes to the fingerprint.
+        """
+        from ..models.pa_canonical import map_field_key
+
         parts = []
         for f in fields_info:
             name = str(f.get("name") or "")
+            key = map_field_key(f) if name else ""
             parts.append((
-                name,
-                str(field_labels.get(name, "") or ""),
+                key,
+                str(field_labels.get(key) or field_labels.get(name, "") or ""),
                 str(f.get("type", "") or ""),
             ))
         parts.sort()
@@ -174,6 +183,22 @@ class CanonicalMapCache:
                     return data
         return None
 
+    def find_by_signature(self, sig: str) -> Optional[dict]:
+        """Return ANY entry (draft or reviewed) whose structure signature matches.
+
+        Unlike :meth:`get_by_signature` (reviewed-only, used at fill time), this
+        is for import/build code that just needs to know whether a map already
+        exists for this blank form — regardless of the label-based fingerprint or
+        the model used — so it can avoid creating a duplicate entry.
+        """
+        if not settings.CANONICAL_MAP_CACHE_ENABLED or not sig:
+            return None
+        for p in self.cache_dir.glob("*.json"):
+            data = self._read_payload(p)
+            if data and data.get("signature") == sig:
+                return data
+        return None
+
     # ------------------------------------------------------------------
     # Write
     # ------------------------------------------------------------------
@@ -183,6 +208,8 @@ class CanonicalMapCache:
         mappings: Dict[str, dict],
         *,
         field_labels: Optional[Dict[str, str]] = None,
+        field_types: Optional[Dict[str, str]] = None,
+        field_kinds: Optional[Dict[str, str]] = None,
         signature: Optional[str] = None,
         form_label: Optional[str] = None,
         reviewed: bool = False,
@@ -192,6 +219,14 @@ class CanonicalMapCache:
         ``mappings`` holds ONLY schema data, e.g.
         ``{"2": {"canonical": "patient.dob", "confidence": "high",
         "source": "catalog"}}`` — never a patient value.
+
+        ``field_types`` is optional AcroForm type per field (e.g. ``/Btn``)
+        so AI-suggest can tell Gemini which widgets are checkboxes.
+
+        ``field_kinds`` records each widget's bucket (data / choice / longtext /
+        signature). Only ``data`` fields are canonical-mappable, so coverage
+        stats and the review UI use this to avoid counting a checkbox as an
+        unmapped canonical field.
         """
         if not settings.CANONICAL_MAP_CACHE_ENABLED:
             return
@@ -204,6 +239,8 @@ class CanonicalMapCache:
             "form_label": form_label,
             "reviewed": reviewed,
             "field_labels": field_labels or {},
+            "field_types": field_types or {},
+            "field_kinds": field_kinds or {},
             "mappings": mappings,
         }
         self.save_full(fp, payload)
@@ -227,11 +264,13 @@ class CanonicalMapCache:
             print(f"  ⚠️  canonical-map cache write failed: {exc}")
             return False
 
-    def update_fields(self, fp: str, updates: Dict[str, Optional[str]]) -> bool:
-        """Apply admin corrections ``{field: canonical_path|"other"|""}``.
+    def update_fields(self, fp: str, updates: Dict[str, object]) -> bool:
+        """Apply admin corrections ``{field: canonical|"other"|""|{canonical,value}}``.
 
-        Setting a field to "" (or None) removes its mapping. Any other value is
-        stored as a manually-reviewed entry (source='manual', confidence='high').
+        Setting a field to "" (or None) removes its mapping. A string sets the
+        canonical path (clears any prior option ``value``). A dict may include
+        ``canonical`` and optional ``value`` (checkbox/radio choice). Stored as
+        source='manual', confidence='high'.
         """
         data = self.get_full(fp)
         if data is None:
@@ -239,15 +278,29 @@ class CanonicalMapCache:
         mappings = data.get("mappings")
         if not isinstance(mappings, dict):
             mappings = {}
-        for field, canonical in updates.items():
+        for field, spec in updates.items():
+            if spec in (None, ""):
+                mappings.pop(field, None)
+                continue
+            opt_val = None
+            if isinstance(spec, dict):
+                canonical = spec.get("canonical")
+                raw_val = spec.get("value")
+                if raw_val not in (None, ""):
+                    opt_val = str(raw_val)
+            else:
+                canonical = spec
             if canonical in (None, ""):
                 mappings.pop(field, None)
                 continue
-            mappings[field] = {
-                "canonical": canonical,
+            entry = {
+                "canonical": str(canonical),
                 "confidence": "high",
                 "source": "manual",
             }
+            if opt_val is not None:
+                entry["value"] = opt_val
+            mappings[field] = entry
         data["mappings"] = mappings
         return self.save_full(fp, data)
 
@@ -271,13 +324,48 @@ class CanonicalMapCache:
     # Listing
     # ------------------------------------------------------------------
     def list_entries(self) -> List[dict]:
-        """Summary of all cached canonical mappings (for admin / review routes)."""
+        """Summary of all cached canonical mappings (for admin / review routes).
+
+        Coverage stats let reviewers triage worst-first:
+          * ``total_fields``      — every widget on the form (labeled + mapped).
+          * ``mapped_count``      — widgets resolved to a real catalog path.
+          * ``unmapped_count``    — widgets still on ``other``/unmapped.
+          * ``critical_unmapped`` — CRITICAL canonical paths this form does NOT
+                                    yet cover (a denial risk if left blank).
+        """
         entries = []
         for p in self.cache_dir.glob("*.json"):
             data = self._read_payload(p)
             if not data:
                 continue
             mappings = data.get("mappings", {}) or {}
+            labels = data.get("field_labels", {}) or {}
+            kinds = data.get("field_kinds", {}) or {}
+            names = set(labels.keys()) | set(mappings.keys())
+            # Coverage is about canonical-mappable fields only. Checkboxes,
+            # narratives and signatures live in the form spec, so counting them
+            # here would report a form as mostly unmapped when it is complete.
+            form_specific = 0
+            if kinds:
+                form_specific = sum(
+                    1 for n in names if kinds.get(n, "data") != "data"
+                )
+                names = {n for n in names if kinds.get(n, "data") == "data"}
+            mapped_paths = {
+                m["canonical"] for m in mappings.values()
+                if isinstance(m, dict) and m.get("canonical") in BY_PATH
+            }
+            mapped_count = sum(
+                1 for m in mappings.values()
+                if isinstance(m, dict) and m.get("canonical") in BY_PATH
+            )
+            other_count = sum(
+                1 for m in mappings.values()
+                if isinstance(m, dict) and m.get("canonical") == "other"
+            )
+            total = len(names)
+            # "other" is an AI/manual decision ("nothing fits"), not pending work.
+            unmapped_count = max(total - mapped_count - other_count, 0)
             entries.append(
                 {
                     "fingerprint": data.get("fingerprint", p.stem),
@@ -286,12 +374,13 @@ class CanonicalMapCache:
                     "cached_at": data.get("cached_at"),
                     "updated_at": data.get("updated_at"),
                     "reviewed": bool(data.get("reviewed", False)),
-                    "field_count": len(mappings),
-                    "mapped_count": sum(
-                        1 for m in mappings.values()
-                        if isinstance(m, dict) and m.get("canonical")
-                        and m.get("canonical") != "other"
-                    ),
+                    "field_count": total,
+                    "total_fields": total,
+                    "form_specific_count": form_specific,
+                    "mapped_count": mapped_count,
+                    "other_count": other_count,
+                    "unmapped_count": unmapped_count,
+                    "critical_unmapped": len(set(CRITICAL_FIELDS) - mapped_paths),
                 }
             )
         return sorted(entries, key=lambda e: e.get("updated_at") or e.get("cached_at") or "", reverse=True)

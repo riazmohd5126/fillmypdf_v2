@@ -33,8 +33,14 @@
           <option value="dependent">Dependent</option>
         </optgroup>
         <optgroup label="Healthcare">
-          <option value="patient">Patient</option>
+          <option value="patient">Patient / Member</option>
           <option value="provider">Provider / Prescriber</option>
+          <option value="requesting_provider">Requesting Provider</option>
+          <option value="attending_provider">Attending / Servicing</option>
+          <option value="billing_provider">Billing Provider</option>
+          <option value="pharmacy">Pharmacy</option>
+          <option value="facility">Facility / Site of Care</option>
+          <option value="encounter">Encounter / PA case</option>
         </optgroup>
         <optgroup label="Insurance">
           <option value="insured">Insured / Policyholder</option>
@@ -82,8 +88,14 @@
                 <option value="dependent">Dependent</option>
               </optgroup>
               <optgroup label="Healthcare">
-                <option value="patient">Patient</option>
+                <option value="patient">Patient / Member</option>
                 <option value="provider">Provider / Prescriber</option>
+                <option value="requesting_provider">Requesting Provider</option>
+                <option value="attending_provider">Attending / Servicing</option>
+                <option value="billing_provider">Billing Provider</option>
+                <option value="pharmacy">Pharmacy</option>
+                <option value="facility">Facility / Site of Care</option>
+                <option value="encounter">Encounter / PA case</option>
               </optgroup>
               <optgroup label="Insurance">
                 <option value="insured">Insured / Policyholder</option>
@@ -91,6 +103,17 @@
               </optgroup>
               <option value="custom">Custom (JSON only)</option>
             </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-600 mb-1 block">Org ID (optional share)</label>
+            <input id="f-org" type="text" placeholder="org_metro_clinic"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+          </div>
+          <div class="flex items-end pb-1">
+            <label class="inline-flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+              <input id="f-shared" type="checkbox" class="accent-indigo-600"/>
+              Shared with org (others can read)
+            </label>
           </div>
         </div>
 
@@ -318,6 +341,112 @@
             </div>
           </div>
 
+          <!-- Facility / Site of Care -->
+          <div id="fields-facility" class="space-y-3 hidden">
+            <p class="text-[11px] text-gray-500">Clinic / site defaults reused across PA forms (separate from the MD).</p>
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Facility / Practice Name</label>
+              <input data-key="facility_name" type="text" placeholder="City Medical Group" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Facility NPI</label>
+                <input data-key="facility_npi" type="text" placeholder="1234567890" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Tax ID</label>
+                <input data-key="facility_tax_id" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Address</label>
+              <input data-key="facility_address" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            <div class="grid grid-cols-3 gap-3">
+              <div class="col-span-1"><label class="text-xs font-medium text-gray-600 mb-1 block">City</label>
+                <input data-key="facility_city" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">State</label>
+                <input data-key="facility_state" type="text" maxlength="2" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">ZIP</label>
+                <input data-key="facility_zip" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Phone</label>
+                <input data-key="facility_phone" type="tel" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Fax</label>
+                <input data-key="facility_fax" type="tel" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+          </div>
+
+          <!-- Pharmacy -->
+          <div id="fields-pharmacy" class="space-y-3 hidden">
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Pharmacy Name</label>
+              <input data-key="pharmacy_name" type="text" placeholder="CVS #4521" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Pharmacy NPI</label>
+                <input data-key="pharmacy_npi" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Store #</label>
+                <input data-key="pharmacy_store_number" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Address</label>
+              <input data-key="pharmacy_address" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            <div class="grid grid-cols-3 gap-3">
+              <div class="col-span-1"><label class="text-xs font-medium text-gray-600 mb-1 block">City</label>
+                <input data-key="pharmacy_city" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">State</label>
+                <input data-key="pharmacy_state" type="text" maxlength="2" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">ZIP</label>
+                <input data-key="pharmacy_zip" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Phone</label>
+                <input data-key="pharmacy_phone" type="tel" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Fax</label>
+                <input data-key="pharmacy_fax" type="tel" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+          </div>
+
+          <!-- Encounter / PA case pack (visit-specific, not a person) -->
+          <div id="fields-encounter" class="space-y-3 hidden">
+            <p class="text-[11px] text-gray-500">Reusable clinical pack for this authorization (drug + diagnosis + request). Keep patient/provider separate.</p>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Drug Name</label>
+                <input data-key="drug_name" type="text" placeholder="Linzess" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Strength</label>
+                <input data-key="strength" type="text" placeholder="290 mcg" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Sig / Directions</label>
+              <input data-key="sig" type="text" placeholder="1 capsule daily" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            <div class="grid grid-cols-3 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Quantity</label>
+                <input data-key="quantity" type="text" placeholder="30" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Days Supply</label>
+                <input data-key="days_supply" type="text" placeholder="30" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Dosage Form</label>
+                <input data-key="dosage_form" type="text" placeholder="capsule" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">HCPCS / J-Code</label>
+                <input data-key="hcpcs_jcode" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">NDC</label>
+                <input data-key="ndc" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Diagnosis (ICD-10)</label>
+                <input data-key="diagnosis_code" type="text" placeholder="K58.9" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Diagnosis description</label>
+                <input data-key="diagnosis_description" type="text" placeholder="IBS-C" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div><label class="text-xs font-medium text-gray-600 mb-1 block">Clinical rationale</label>
+              <textarea data-key="clinical_rationale" rows="2" placeholder="Inadequate response to prior therapy…" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"></textarea></div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Previous Auth #</label>
+                <input data-key="previous_auth_number" type="text" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Requested duration</label>
+                <input data-key="requested_duration" type="text" placeholder="12 months" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Request type</label>
+                <select data-key="request_type" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                  <option value="">—</option><option value="new">new</option><option value="renewal">renewal</option><option value="modification">modification</option>
+                </select></div>
+              <div><label class="text-xs font-medium text-gray-600 mb-1 block">Date of request</label>
+                <input data-key="date_of_request" type="date" class="field-input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/></div>
+            </div>
+          </div>
+
           <!-- Insured / Policyholder fields (insurance) -->
           <div id="fields-insured" class="space-y-3 hidden">
             <div class="grid grid-cols-2 gap-3">
@@ -460,6 +589,9 @@
           <option value="business">Business</option>
           <option value="patient">Patient</option>
           <option value="provider">Provider</option>
+          <option value="facility">Facility</option>
+          <option value="pharmacy">Pharmacy</option>
+          <option value="encounter">Encounter</option>
           <option value="insured">Insured</option>
           <option value="agency">Agency</option>
           <option value="custom">Custom</option>
@@ -494,6 +626,9 @@
     personal:'bg-blue-100 text-blue-700',    business:'bg-green-100 text-green-700',
     spouse:'bg-purple-100 text-purple-700',  dependent:'bg-yellow-100 text-yellow-700',
     patient:'bg-teal-100 text-teal-700',     provider:'bg-cyan-100 text-cyan-700',
+    requesting_provider:'bg-cyan-100 text-cyan-800', attending_provider:'bg-sky-100 text-sky-700',
+    billing_provider:'bg-sky-100 text-sky-800', pharmacy:'bg-violet-100 text-violet-700',
+    facility:'bg-violet-100 text-violet-800', encounter:'bg-rose-100 text-rose-800',
     insured:'bg-orange-100 text-orange-700', agency:'bg-violet-100 text-violet-700',
     custom:'bg-gray-100 text-gray-600'
   };
@@ -514,13 +649,17 @@
       personal: ['personal', 'spouse', 'dependent'],
       business: ['business'],
       patient:  ['patient'],
-      provider: ['provider'],
+      provider: ['provider', 'requesting_provider', 'attending_provider', 'billing_provider', 'prescriber'],
+      facility: ['facility'],
+      pharmacy: ['pharmacy'],
+      encounter:['encounter'],
       insured:  ['insured'],
       agency:   ['agency'],
     };
     const show = Object.entries(sections).find(([, types]) => types.includes(type))?.[0] || 'personal';
-    ['personal','business','patient','provider','insured','agency'].forEach(id => {
-      document.getElementById('fields-' + id).classList.toggle('hidden', id !== show);
+    ['personal','business','patient','provider','facility','pharmacy','encounter','insured','agency'].forEach(id => {
+      const el = document.getElementById('fields-' + id);
+      if (el) el.classList.toggle('hidden', id !== show);
     });
   }
 
@@ -614,6 +753,8 @@
     document.getElementById('hidden-id').value = '';
     document.getElementById('f-name').value = '';
     document.getElementById('f-type').value = 'personal';
+    document.getElementById('f-org').value = '';
+    document.getElementById('f-shared').checked = false;
     clearFormFields();
     document.getElementById('f-data').value = '';
     setInputMode('form');
@@ -629,6 +770,8 @@
     document.getElementById('hidden-id').value = p.id;
     document.getElementById('f-name').value = p.name;
     document.getElementById('f-type').value = p.profile_type;
+    document.getElementById('f-org').value = p.org_id || '';
+    document.getElementById('f-shared').checked = !!p.shared;
     setInputMode('form');
     switchFormTab();
     dataToForm(p.data_preview||{});
@@ -655,11 +798,13 @@
     }
 
     const id = document.getElementById('hidden-id').value;
+    const org_id = document.getElementById('f-org').value.trim() || null;
+    const shared = document.getElementById('f-shared').checked;
     try {
       const r = await fetch(id ? `/api/v1/profiles/${id}` : '/api/v1/profiles/', {
         method: id ? 'PATCH' : 'POST',
         headers: {'X-API-Key': key, 'Content-Type': 'application/json'},
-        body: JSON.stringify({name, profile_type: type, data}),
+        body: JSON.stringify({name, profile_type: type, data, org_id, shared}),
       });
       if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.detail||`HTTP ${r.status}`); }
       closeModal(); loadProfiles();

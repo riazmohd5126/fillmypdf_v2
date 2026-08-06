@@ -1,15 +1,18 @@
 """
-PDF Utility Routes — Merge & Split
-====================================
-  POST /api/v1/pdf/merge   — Merge 2-20 PDFs into one (multipart upload)
-  POST /api/v1/pdf/split   — Split a PDF into individual pages or page ranges
+PDF Utility Routes — Merge, Split & Static→Fillable
+=====================================================
+  POST /api/v1/pdf/merge            — Merge 2-20 PDFs into one (multipart upload)
+  POST /api/v1/pdf/split            — Split a PDF into individual pages or page ranges
+  POST /api/v1/pdf/convert-fillable — Convert a static PDF to AcroForm (CommonForms)
   GET  /api/v1/pdf/download/{filename} — Download utility output
 """
 
 from __future__ import annotations
 
 import io
+import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -18,6 +21,9 @@ from fastapi.responses import FileResponse
 from pypdf import PdfReader, PdfWriter
 
 from ...config import settings
+from ...models.template import TemplateManifest
+from ...services.pdf_service import PDFService
+from ...services.template_service import TemplateService
 from ..dependencies.auth import require_api_key
 
 
@@ -29,10 +35,18 @@ router = APIRouter(
 
 MAX_PDF_BYTES = 52_428_800   # 50 MiB per file
 MAX_MERGE_FILES = 20
+_pdf_service = PDFService()
+_template_service = TemplateService()
 
 
 def _out_dir() -> Path:
     p = settings.OUTPUT_DIR / "pdf_utils"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _upload_dir() -> Path:
+    p = settings.UPLOAD_DIR
     p.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -202,6 +216,138 @@ async def split_pdf(
         "output_files": len(results),
         "files": results,
     }
+
+
+# ── Static → Fillable ──────────────────────────────────────────────────────
+
+@router.post(
+    "/convert-fillable",
+    summary="Convert a static PDF to a fillable AcroForm PDF",
+)
+async def convert_fillable(
+    file: UploadFile = File(..., description="Static (or already-fillable) PDF"),
+    output_name: Optional[str] = Form(
+        None,
+        description="Optional output filename stem (without .pdf)",
+    ),
+    save_as_template: bool = Form(
+        False,
+        description="If true, also save the result into the Template Library (admin key required)",
+    ),
+    template_id: Optional[str] = Form(
+        None,
+        description="Template id when save_as_template=true (auto-generated if omitted)",
+    ),
+    template_name: Optional[str] = Form(
+        None,
+        description="Template display name when save_as_template=true",
+    ),
+    category: str = Form(
+        "general",
+        description="Template category when save_as_template=true",
+    ),
+    api_key: dict = Depends(require_api_key),
+):
+    """
+    Detect form fields on a flat/static PDF (CommonForms / cloud converter) and
+    return a fillable AcroForm PDF.
+
+    - Already-fillable PDFs are returned unchanged (`status=already_fillable`).
+    - Flat PDFs are converted via local CommonForms or the cloud converter
+      depending on ``COMMONFORMS_MODE``.
+    - Optional ``save_as_template`` stores the fillable PDF in the template
+      library (requires an **admin** API key).
+    """
+    if not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(400, "File must be a PDF.")
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "Empty PDF upload.")
+    if len(raw) > MAX_PDF_BYTES:
+        raise HTTPException(400, "File exceeds 50 MiB limit.")
+
+    uid = uuid.uuid4().hex[:12]
+    stem = Path(file.filename or "form").stem[:40]
+    safe_stem = "".join(c for c in (output_name or stem) if c.isalnum() or c in "-_")[:60] or "form"
+    in_path = _upload_dir() / f"convert_in_{uid}.pdf"
+    out_filename = f"{safe_stem}_fillable_{uid}.pdf"
+    out_path = _out_dir() / out_filename
+
+    try:
+        in_path.write_bytes(raw)
+        report = _pdf_service.convert_to_fillable_detailed(in_path, out_path)
+    finally:
+        in_path.unlink(missing_ok=True)
+
+    if not report.get("ok") or not out_path.exists():
+        raise HTTPException(500, report.get("message") or "Conversion failed.")
+
+    result = {
+        "success": True,
+        "status": report.get("status"),
+        "engine": report.get("engine"),
+        "field_count_before": report.get("field_count_before", 0),
+        "field_count_after": report.get("field_count_after", 0),
+        "page_count": report.get("page_count", 0),
+        "filename": out_filename,
+        "download_url": f"/api/v1/pdf/download/{out_filename}",
+        "message": report.get("message"),
+        "template": None,
+    }
+
+    if save_as_template:
+        if (api_key.get("tier") or "").lower() != "admin":
+            result["warning"] = (
+                "Converted OK, but save_as_template requires an admin API key. "
+                "Download the fillable PDF below."
+            )
+        else:
+            tid = (template_id or "").strip()
+            if not tid:
+                tid = re.sub(r"[^a-z0-9_]+", "_", safe_stem.lower()).strip("_")[:40] or "form"
+                tid = f"{tid}_{uid[:8]}"
+            tname = (template_name or "").strip() or safe_stem.replace("_", " ").title()
+            now = datetime.now(timezone.utc).isoformat()
+            try:
+                manifest = TemplateManifest(
+                    id=tid,
+                    name=tname,
+                    category=(category or "general").strip() or "general",
+                    tags=["converted", "commonforms"],
+                    pages=int(report.get("page_count") or 0) or None,
+                    is_public=True,
+                    created_at=now,
+                    updated_at=now,
+                    custom={
+                        "source": "convert-fillable",
+                        "engine": report.get("engine"),
+                        "field_count": report.get("field_count_after"),
+                    },
+                )
+                fillable_bytes = out_path.read_bytes()
+                saved = _template_service.add(manifest, fillable_bytes)
+                # Cache as fillable so Guided Fill skips re-conversion.
+                try:
+                    _template_service.repo.save_fillable(tid, fillable_bytes)
+                except Exception:
+                    pass
+                result["template"] = {
+                    "id": saved.id,
+                    "name": saved.name,
+                    "category": saved.category,
+                    "guided_fill_url": f"/ui/form_fill.html?template_id={saved.id}",
+                    "templates_url": "/ui/templates.html",
+                }
+                result["message"] = (
+                    f"{result['message']} Saved as template '{saved.id}'."
+                )
+            except ValueError as exc:
+                result["warning"] = f"Converted OK, but template save failed: {exc}"
+            except Exception as exc:
+                result["warning"] = f"Converted OK, but template save failed: {exc}"
+
+    return result
 
 
 # ── Download ───────────────────────────────────────────────────────────────

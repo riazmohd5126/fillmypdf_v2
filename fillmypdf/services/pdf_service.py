@@ -7,15 +7,17 @@ already-fillable PDFs.
 """
 
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict, Union
 
 from pypdf import PdfReader, PdfWriter
+
+PathLike = Union[str, Path]
 
 
 class PDFService:
     """Service for PDF operations"""
 
-    def convert_to_fillable(self, input_path: Path, output_path: Path) -> bool:
+    def convert_to_fillable(self, input_path: PathLike, output_path: PathLike) -> bool:
         """
         Convert a PDF to a fillable form and write to output_path.
 
@@ -25,42 +27,100 @@ class PDFService:
         3. If commonforms fails, fall back to a direct copy so the
            pipeline can still proceed (fields_filled will just be 0).
         """
+        return bool(self.convert_to_fillable_detailed(input_path, output_path).get("ok"))
+
+    def convert_to_fillable_detailed(
+        self, input_path: PathLike, output_path: PathLike
+    ) -> Dict[str, Any]:
+        """
+        Same as :meth:`convert_to_fillable` but returns a status report:
+
+        ``status`` — ``already_fillable`` | ``converted`` | ``copied_as_is`` | ``error``
+        ``engine`` — ``none`` | ``commonforms`` | ``cloud``
+        """
+        input_path = Path(input_path)
+        output_path = Path(output_path)
         try:
             reader = PdfReader(str(input_path))
+            page_count = len(reader.pages)
+            before_fields = reader.get_fields() or {}
+            field_count_before = len(before_fields)
 
-            if reader.get_fields():
-                # Already a fillable form — just copy it
+            if before_fields:
                 writer = PdfWriter()
                 writer.append(reader)
+                output_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(output_path, "wb") as fh:
                     writer.write(fh)
-                print(f"  📄 PDF already fillable ({len(reader.get_fields())} fields)")
-                return True
+                print(f"  📄 PDF already fillable ({field_count_before} fields)")
+                return {
+                    "ok": True,
+                    "status": "already_fillable",
+                    "engine": "none",
+                    "field_count_before": field_count_before,
+                    "field_count_after": field_count_before,
+                    "page_count": page_count,
+                    "message": f"PDF already fillable ({field_count_before} AcroForm fields).",
+                }
 
-            # Flat PDF: detect + inject fields. This runs a YOLO (commonforms)
-            # model which is RAM-heavy — thin clients offload it to the cloud.
             from ..config import settings
             mode = (getattr(settings, "COMMONFORMS_MODE", "local") or "local").lower()
+            engine_tried = "cloud" if mode == "cloud" else "commonforms"
+            converted = False
 
             if mode == "cloud":
-                if self._convert_via_cloud(input_path, output_path):
-                    return True
-                # Cloud unreachable — do NOT silently run torch on a thin client.
-                print("  ⚠️  cloud converter unavailable, copying PDF as-is")
+                converted = self._convert_via_cloud(input_path, output_path)
+                if not converted:
+                    print("  ⚠️  cloud converter unavailable, copying PDF as-is")
             else:
-                if self._convert_via_commonforms(input_path, output_path):
-                    return True
+                converted = self._convert_via_commonforms(input_path, output_path)
+
+            if converted and output_path.exists():
+                after = PdfReader(str(output_path))
+                field_count_after = len(after.get_fields() or {})
+                return {
+                    "ok": True,
+                    "status": "converted",
+                    "engine": engine_tried,
+                    "field_count_before": field_count_before,
+                    "field_count_after": field_count_after,
+                    "page_count": page_count,
+                    "message": (
+                        f"Converted via {engine_tried}: "
+                        f"{field_count_after} fillable field(s) detected."
+                    ),
+                }
 
             # Fallback: plain copy so the pipeline can still proceed (0 fields).
             writer = PdfWriter()
             writer.append(reader)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, "wb") as fh:
                 writer.write(fh)
-            return True
+            return {
+                "ok": True,
+                "status": "copied_as_is",
+                "engine": engine_tried,
+                "field_count_before": 0,
+                "field_count_after": 0,
+                "page_count": page_count,
+                "message": (
+                    f"Conversion via {engine_tried} failed or found no fields; "
+                    "returned original PDF unchanged."
+                ),
+            }
 
         except Exception as e:
             print(f"  ❌ Error converting PDF: {e}")
-            return False
+            return {
+                "ok": False,
+                "status": "error",
+                "engine": "none",
+                "field_count_before": 0,
+                "field_count_after": 0,
+                "page_count": 0,
+                "message": str(e),
+            }
 
     # ------------------------------------------------------------------
     # Flat -> fillable backends

@@ -107,6 +107,8 @@ class BatchFillService:
         profile_id: Optional[str] = None,
         profile_ids: Optional[List[str]] = None,
         on_record_done: Optional[Callable[[int, int, int], None]] = None,
+        owner_id: Optional[str] = None,
+        tier: str = "free",
     ) -> Dict[str, Any]:
         """
         Process batch fill from JSON array.
@@ -114,18 +116,22 @@ class BatchFillService:
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # Resolve profiles — multi takes precedence
+        # Resolve profiles — multi takes precedence (scoped to API key)
         base_profile_data = {}
         ids = profile_ids or ([profile_id] if profile_id else [])
         if len(ids) > 1:
             try:
-                base_profile_data = self.profile_service.use_profiles(ids)
+                base_profile_data = self.profile_service.use_profiles(
+                    ids, owner_id=owner_id, tier=tier
+                )
                 print(f"✅ Using profiles: {ids}")
             except Exception as e:
                 print(f"⚠️  Profile merge failed: {e}")
         elif ids:
             try:
-                base_profile_data = self.profile_service.use_profile(ids[0])
+                base_profile_data = self.profile_service.use_profile(
+                    ids[0], owner_id=owner_id, tier=tier
+                )
                 print(f"✅ Using profile: {ids[0]}")
             except ValueError as e:
                 print(f"⚠️  Profile not found: {e}")
@@ -275,6 +281,8 @@ class BatchFillService:
         profile_id: Optional[str] = None,
         profile_ids: Optional[List[str]] = None,
         on_record_done: Optional[Callable[[int, int, int], None]] = None,
+        owner_id: Optional[str] = None,
+        tier: str = "free",
     ) -> Dict[str, Any]:
         records = self.parse_csv(csv_content)
         if len(records) > 500:
@@ -292,6 +300,8 @@ class BatchFillService:
             profile_id=profile_id,
             profile_ids=profile_ids,
             on_record_done=on_record_done,
+            owner_id=owner_id,
+            tier=tier,
         )
 
     def parse_xlsx(self, xlsx_content: bytes) -> List[Dict[str, str]]:
@@ -361,6 +371,8 @@ class BatchFillService:
         profile_id: Optional[str] = None,
         profile_ids: Optional[List[str]] = None,
         on_record_done: Optional[Callable[[int, int, int], None]] = None,
+        owner_id: Optional[str] = None,
+        tier: str = "free",
     ) -> Dict[str, Any]:
         records = self.parse_xlsx(xlsx_content)
         if len(records) > 500:
@@ -378,6 +390,8 @@ class BatchFillService:
             profile_id=profile_id,
             profile_ids=profile_ids,
             on_record_done=on_record_done,
+            owner_id=owner_id,
+            tier=tier,
         )
 
     def _generate_filename(self, data: Dict[str, str], index: int) -> str:

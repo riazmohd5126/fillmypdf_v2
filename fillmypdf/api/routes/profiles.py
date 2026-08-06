@@ -1,14 +1,14 @@
 """
 Profile API Routes
 ==================
-CRUD endpoints for user profiles
+CRUD endpoints for user profiles (scoped to the calling API key).
 """
 
 import csv
 import io
 from typing import Any, Callable, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from ...models import Profile, ProfileCreate, ProfileUpdate
 from ...services.profile_service import ProfileService
@@ -26,26 +26,32 @@ profile_service = ProfileService()
 increment_profiles_created: Callable[[], None] = lambda: None
 
 
+def _owner(api_key: dict) -> Optional[str]:
+    return api_key.get("id")
+
+
+def _tier(api_key: dict) -> str:
+    return api_key.get("tier", "free")
+
+
 @router.post("/", response_model=Profile, status_code=201)
 async def create_profile(
     profile_data: ProfileCreate,
     api_key: dict = Depends(require_api_key),
 ):
     """
-    Create a new profile
+    Create a new profile owned by the calling API key.
 
-    **Saves personal or business data for reuse across forms**
-
-    - **name**: Profile name (e.g., "My Company", "Personal Info")
-    - **profile_type**: personal, business, spouse, dependent, or custom
-    - **data**: Key-value pairs (SSN, DOB, etc. are encrypted automatically)
-
-    Per-tier limits apply:
-      - free: 1 profile
-      - pro / business / admin: unlimited
+    Well-known ``profile_type`` values: personal, business, patient, provider,
+    requesting_provider, attending_provider, billing_provider, pharmacy,
+    facility, encounter, insured, agency, custom.
     """
     try:
-        result = profile_service.create_profile(profile_data, tier=api_key.get("tier", "free"))
+        result = profile_service.create_profile(
+            profile_data,
+            tier=_tier(api_key),
+            owner_id=_owner(api_key),
+        )
         increment_profiles_created()
         return result
     except ValueError as e:
@@ -55,33 +61,66 @@ async def create_profile(
 
 
 @router.get("/", response_model=List[Profile])
-async def list_profiles():
-    """
-    List all profiles
-
-    Returns all saved profiles (encrypted data not included in response)
-    """
-    return profile_service.list_profiles()
+async def list_profiles(
+    profile_type: Optional[str] = Query(None, description="Filter by profile_type"),
+    api_key: dict = Depends(require_api_key),
+):
+    """List profiles visible to this API key (own + org-shared)."""
+    return profile_service.list_profiles(
+        owner_id=_owner(api_key),
+        tier=_tier(api_key),
+        profile_type=profile_type,
+    )
 
 
 @router.get("/{profile_id}", response_model=Profile)
-async def get_profile(profile_id: str):
-    """Get profile by ID"""
-    profile = profile_service.get_profile(profile_id)
+async def get_profile(
+    profile_id: str,
+    api_key: dict = Depends(require_api_key),
+):
+    """Get profile by ID (must be owned or org-shared)."""
+    profile = profile_service.get_profile(
+        profile_id, owner_id=_owner(api_key), tier=_tier(api_key)
+    )
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile
 
 
-@router.patch("/{profile_id}", response_model=Profile)
-async def update_profile(profile_id: str, update_data: ProfileUpdate):
-    """
-    Update profile
-
-    Only provided fields will be updated
-    """
+@router.get(
+    "/{profile_id}/fill-data",
+    summary="Decrypted flat key/values for Guided Fill / template prefill",
+)
+async def get_profile_fill_data(
+    profile_id: str,
+    api_key: dict = Depends(require_api_key),
+):
+    """Return decrypted profile ``data`` (increments usage)."""
     try:
-        return profile_service.update_profile(profile_id, update_data)
+        return {
+            "profile_id": profile_id,
+            "data": profile_service.use_profile(
+                profile_id, owner_id=_owner(api_key), tier=_tier(api_key)
+            ),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.patch("/{profile_id}", response_model=Profile)
+async def update_profile(
+    profile_id: str,
+    update_data: ProfileUpdate,
+    api_key: dict = Depends(require_api_key),
+):
+    """Update a profile you own."""
+    try:
+        return profile_service.update_profile(
+            profile_id,
+            update_data,
+            owner_id=_owner(api_key),
+            tier=_tier(api_key),
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -89,9 +128,17 @@ async def update_profile(profile_id: str, update_data: ProfileUpdate):
 
 
 @router.delete("/{profile_id}", status_code=204)
-async def delete_profile(profile_id: str):
-    """Delete profile"""
-    if not profile_service.delete_profile(profile_id):
+async def delete_profile(
+    profile_id: str,
+    api_key: dict = Depends(require_api_key),
+):
+    """Delete a profile you own."""
+    try:
+        if not profile_service.delete_profile(
+            profile_id, owner_id=_owner(api_key), tier=_tier(api_key)
+        ):
+            raise HTTPException(status_code=404, detail="Profile not found")
+    except ValueError:
         raise HTTPException(status_code=404, detail="Profile not found")
     return None
 
@@ -105,23 +152,7 @@ async def import_profiles(
     ),
     api_key: dict = Depends(require_api_key),
 ) -> Dict[str, Any]:
-    """
-    Import profiles in bulk from a CSV or Excel file.
-
-    **Required columns:** `name`
-
-    **Optional columns:** `profile_type` (overrides the `profile_type` form field),
-    plus any key=value columns that become the profile's `data` dict.
-
-    **Example CSV:**
-    ```
-    name,profile_type,first_name,last_name,npi,phone
-    Dr. Alice,provider,Alice,Smith,1234567890,(555) 100-2000
-    John Doe,patient,John,Doe,,,(555) 200-3000
-    ```
-
-    Returns a summary of how many profiles were created, skipped, and any row errors.
-    """
+    """Import profiles owned by the calling API key."""
     fname = (file.filename or "").lower()
     content = await file.read()
 
@@ -144,7 +175,10 @@ async def import_profiles(
                 raise HTTPException(400, "Excel file is empty")
             headers = [str(h).strip() if h else f"col_{i}" for i, h in enumerate(raw[0])]
             for row in raw[1:]:
-                rec = {headers[i]: str(v).strip() if v is not None else "" for i, v in enumerate(row) if i < len(headers)}
+                rec = {
+                    headers[i]: str(v).strip() if v is not None else ""
+                    for i, v in enumerate(row) if i < len(headers)
+                }
                 if any(v for v in rec.values()):
                     rows.append(rec)
         else:
@@ -159,20 +193,30 @@ async def import_profiles(
     if len(rows) > 500:
         raise HTTPException(400, "Maximum 500 rows per import")
 
-    created, skipped, errors = [], [], []
-    tier = api_key.get("tier", "free")
+    created, errors = [], []
+    tier = _tier(api_key)
+    owner_id = _owner(api_key)
 
-    for i, row in enumerate(rows, start=2):  # row 2 = first data row after header
-        name = row.pop("name", "").strip()
+    for i, row in enumerate(rows, start=2):
+        name = (row.pop("name", "") or "").strip()
         if not name:
             errors.append({"row": i, "error": "Missing 'name' column"})
             continue
-        ptype = row.pop("profile_type", profile_type or "personal").strip() or "personal"
+        shared_raw = (row.pop("shared", "") or "").strip().lower()
+        org_id = (row.pop("org_id", "") or "").strip() or None
+        ptype = (row.pop("profile_type", None) or profile_type or "personal").strip() or "personal"
         data = {k: v for k, v in row.items() if k and v}
         try:
             p = profile_service.create_profile(
-                ProfileCreate(name=name, profile_type=ptype, data=data),
+                ProfileCreate(
+                    name=name,
+                    profile_type=ptype,
+                    data=data,
+                    shared=shared_raw in ("1", "true", "yes", "y"),
+                    org_id=org_id,
+                ),
                 tier=tier,
+                owner_id=owner_id,
             )
             increment_profiles_created()
             created.append(p.id)
@@ -183,7 +227,7 @@ async def import_profiles(
 
     return {
         "created": len(created),
-        "skipped": len(skipped),
+        "skipped": 0,
         "errors": errors,
         "profile_ids": created,
         "message": f"Imported {len(created)} profile{'s' if len(created) != 1 else ''}"

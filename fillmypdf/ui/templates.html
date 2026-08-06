@@ -293,20 +293,33 @@
   function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
   let allTemplates = [];
   let currentTemplateId = null;
+  let readinessById = {};
 
   // ── Load templates ────────────────────────────────────────────
   async function loadTemplates() {
     const key = getKey();
     if (!key) { document.getElementById('template-grid').innerHTML = '<p class="col-span-3 text-center text-red-500 py-8">No API key. <a href="/ui/index.html" class="underline">Set it on the dashboard.</a></p>'; return; }
     try {
-      const r = await fetch('/api/v1/templates', { headers: { 'X-API-Key': key } });
+      const [r, readyR] = await Promise.all([
+        fetch('/api/v1/templates', { headers: { 'X-API-Key': key } }),
+        fetch('/api/v1/templates/readiness', { headers: { 'X-API-Key': key } }),
+      ]);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       allTemplates = data.templates || [];
-      document.getElementById('template-count').textContent = `${allTemplates.length} template${allTemplates.length !== 1 ? 's' : ''}`;
+      readinessById = {};
+      if (readyR.ok) {
+        const ready = await readyR.json();
+        (ready.items || []).forEach(x => { readinessById[x.template_id] = x; });
+      }
+      const readyN = Object.values(readinessById).filter(x => x.ready).length;
+      document.getElementById('template-count').textContent =
+        `${allTemplates.length} template${allTemplates.length !== 1 ? 's' : ''} · ${readyN} ready for Guided Fill`;
       buildFilterOptions();
       renderGrid(allTemplates);
       await loadProfileOptions(null);
+      const tid = new URLSearchParams(location.search).get('template_id');
+      if (tid) openDetail(tid, 'fill');
     } catch (e) { document.getElementById('template-grid').innerHTML = `<p class="col-span-3 text-center text-red-500 py-8">${e.message}</p>`; }
   }
 
@@ -350,23 +363,44 @@
     const empty = document.getElementById('empty-state');
     if (!list.length) { grid.innerHTML = ''; empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
-    grid.innerHTML = list.map(t => `
+    // Ready forms first
+    const sorted = list.slice().sort((a, b) =>
+      Number(!!readinessById[b.id]?.ready) - Number(!!readinessById[a.id]?.ready)
+      || String(a.name || a.id).localeCompare(String(b.name || b.id)));
+    grid.innerHTML = sorted.map(t => {
+      const ready = !!readinessById[t.id]?.ready;
+      const fp = readinessById[t.id]?.fingerprint;
+      const status = ready
+        ? '<span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">Ready</span>'
+        : '<span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Needs mapping</span>';
+      const primary = ready
+        ? `<div class="mt-auto space-y-1.5">
+             <a href="/ui/form_fill.html?template_id=${encodeURIComponent(t.id)}" onclick="event.stopPropagation()"
+               class="block text-sm text-center bg-indigo-600 text-white rounded-lg px-3 py-2 font-medium hover:bg-indigo-700">Guided Fill →</a>
+             <a href="/ui/guided_batch.html?template_id=${encodeURIComponent(t.id)}" onclick="event.stopPropagation()"
+               class="block text-xs text-center text-indigo-700 hover:underline">Guided Batch (CSV) →</a>
+           </div>`
+        : `<a href="${fp ? '/ui/mapping_review.html?fp='+encodeURIComponent(fp) : '/ui/mapping_review.html'}" onclick="event.stopPropagation()"
+             class="mt-auto text-sm text-center bg-amber-50 text-amber-800 border border-amber-200 rounded-lg px-3 py-2 font-medium hover:bg-amber-100">Review map →</a>`;
+      return `
       <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition cursor-pointer" onclick="openDetail('${esc(t.id)}')">
         <div class="flex items-start justify-between gap-2">
           <span class="text-xs px-2 py-0.5 rounded-full font-medium ${CAT_COLORS[t.category] || 'bg-gray-100 text-gray-600'}">${esc(t.category || 'general')}</span>
-          ${t.state ? `<span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">${esc(t.state)}</span>` : ''}
+          <div class="flex items-center gap-1 flex-wrap justify-end">
+            ${status}
+            ${t.state ? `<span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">${esc(t.state)}</span>` : ''}
+          </div>
         </div>
         <div>
           <h3 class="font-semibold text-gray-900 text-sm leading-snug">${esc(t.name)}</h3>
-          ${t.drug?.name ? `<p class="text-xs text-gray-400 mt-1">${esc(t.drug.name)}</p>` : ''}
-          ${t.payer?.name ? `<p class="text-xs text-gray-400">${esc(t.payer.name)}</p>` : ''}
+          ${t.drug_name ? `<p class="text-xs text-gray-400 mt-1">${esc(t.drug_name)}</p>` : ''}
+          ${t.payer_name ? `<p class="text-xs text-gray-400">${esc(t.payer_name)}</p>` : ''}
         </div>
+        ${primary}
         <button onclick="event.stopPropagation(); openDetail('${esc(t.id)}', 'fill')"
-          class="mt-auto text-sm text-indigo-600 font-medium hover:text-indigo-800 flex items-center gap-1">
-          Fill this form →
-        </button>
-      </div>
-    `).join('');
+          class="text-xs text-gray-500 hover:text-indigo-700 text-left">Classic AI fill…</button>
+      </div>`;
+    }).join('');
   }
 
   // ── Detail modal ──────────────────────────────────────────────
