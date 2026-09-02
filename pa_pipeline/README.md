@@ -107,6 +107,56 @@ open pa_pipeline/eval_out/report.csv
 | `pa_pipeline/schema_out/` | pa_forms.db, field_alias_map.csv, canonical_schema.json |
 | `pa_pipeline/eval_out/` | filled PDFs, report.csv, summary.json |
 
+## Specialty pipeline: rheumatology + dermatology
+
+A separate, standalone harvest/profile pair aimed at these two specialties,
+where variety (drug class, condition, payer, structural type) is the
+explicit priority — not raw form count. Feeds the same downstream steps
+(`pa_schema_extractor.py`, `pa_vision_mapper.py`, `pa_stratify.py`) once
+pointed at its output folder.
+
+```
+pa_rheum_derm_taxonomy.py  -> shared drug/class/condition/payer data (pure, no I/O)
+pa_rheum_derm_harvester.py -> pa_forms_rheum_derm/<structural_type>/<specialty>/<drug_class>/<payer>/*.pdf
+pa_rheum_derm_profiler.py  -> report_rheum_derm/profile_rheum_derm.csv + coverage report
+```
+
+Why not just widen `pa_form_harvester.py`'s drug list: rheum and derm share
+a lot of molecules (Humira, Cosentyx, Otezla, Rinvoq, Stelara treat both,
+just asking different clinical questions — joint counts vs. PASI/BSA), and
+a flat drug x payer cross product either buries rare mechanisms under
+Humira-x-every-payer results or exhausts the first few drugs alphabetically
+under a query cap. The specialty harvester instead classifies every drug by
+mechanism (TNF, IL-17, IL-23, JAK, PDE4, topical, ...) and condition, builds
+condition-level + drug-level + drug-x-rotating-payer dorks, then
+**round-robins the final query list across drug class/specialty** so even a
+small `--max-queries` cap samples every mechanism. `--fill-gaps` re-sorts a
+follow-up run to spend its budget on whatever (specialty, drug class) cell
+is still thinnest.
+
+```bash
+# Broad first pass, variety-first ordering, capped query budget:
+python3 pa_pipeline/pa_rheum_derm_harvester.py --discover --max-queries 80
+
+# Rheumatology only, wider payer rotation per drug:
+python3 pa_pipeline/pa_rheum_derm_harvester.py --discover --specialty rheum --payers-per-drug 8
+
+# Follow-up run that prioritizes whatever's still thin:
+python3 pa_pipeline/pa_rheum_derm_harvester.py --discover --fill-gaps --max-queries 60
+
+# See the query plan first — no API calls, no downloads:
+python3 pa_pipeline/pa_rheum_derm_harvester.py --discover --dry-run
+
+# Coverage report: by specialty, drug class, payer, structural type, plus
+# rheum/derm clinical-question coverage (PASI/BSA, DAS28/CDAI, TB/hep
+# screening, conventional-DMARD step therapy):
+python3 pa_pipeline/pa_rheum_derm_profiler.py --root pa_forms_rheum_derm --out report_rheum_derm
+```
+
+`pa_rheum_derm_profiler.py` extends `pa_profiler.py`'s `SEMANTIC` dict in
+place (imports it, doesn't fork it) with the taxonomy's `EXTRA_SEMANTIC`
+tags, so its per-PDF profiling logic stays a single source of truth.
+
 ## Canonical model
 
 The canonical field catalog lives in `fillmypdf/models/pa_canonical.py`.
