@@ -117,9 +117,31 @@ pointed at its output folder.
 
 ```
 pa_rheum_derm_taxonomy.py  -> shared drug/class/condition/payer data (pure, no I/O)
-pa_rheum_derm_harvester.py -> pa_forms_rheum_derm/<structural_type>/<specialty>/<drug_class>/<payer>/*.pdf
+pa_rheum_derm_harvester.py -> pa_forms_rheum_derm/<structural_type>/<specialty>/<drug_class>/<payer>/*.pdf   (NEW downloads, hits the network)
+pa_rheum_derm_extractor.py -> pa_forms_rheum_derm/<same layout>                                              (from a corpus you ALREADY have, zero network calls)
 pa_rheum_derm_profiler.py  -> report_rheum_derm/profile_rheum_derm.csv + coverage report
 ```
+
+Two ways to populate `pa_forms_rheum_derm/` — pick one, or both:
+- **`pa_rheum_derm_harvester.py`** goes and fetches new PDFs from the web
+  (search-API dorks + payer-portal crawling).
+- **`pa_rheum_derm_extractor.py`** does NOT touch the network at all. If
+  you already ran `pa_form_harvester.py` (or collected forms some other
+  way) and just want the rheum/derm slice of what's already on disk — no
+  re-downloading, no search-API quota spent — point it at that corpus:
+  ```bash
+  python3 pa_pipeline/pa_rheum_derm_extractor.py --root pa_forms --out pa_forms_rheum_derm
+  ```
+  It matches each PDF by drug brand name in the filename, then in the page
+  text, then falls back to a condition-only match (e.g. "psoriatic
+  arthritis" with no drug named); files land in the same
+  `<structural_type>/<specialty>/<drug_class>/<payer>/` layout the
+  harvester produces. Content-hash deduped and **idempotent** — re-running
+  after adding more source files only copies what's new, never re-copies
+  or duplicates a form you already pulled out. `--dry-run` to preview,
+  `--symlink` to avoid duplicating bytes, `--specialty {rheum,derm,both}`
+  to filter, `--include-documents` to also keep prose/criteria PDFs
+  (excluded by default — forms only).
 
 Why not just widen `pa_form_harvester.py`'s drug list: rheum and derm share
 a lot of molecules (Humira, Cosentyx, Otezla, Rinvoq, Stelara treat both,
