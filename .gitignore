@@ -64,3 +64,10 @@ pa_pipeline/schema_out/
 pa_pipeline/eval_out/
 pa_pipeline/test_set_new/
 *.db
+
+# Harvested PA form corpora (raw PDFs downloaded by the harvest scripts —
+# large binaries, never committed; lives wherever you ran the script from)
+pa_forms/
+pa_forms_rheum_derm/
+report_rheum_derm/
+test_set/
