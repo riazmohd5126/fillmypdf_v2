@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
 
@@ -446,6 +446,14 @@ except ImportError as e:
 # ---------------------------------------------------------------------------
 _UI_DIR = Path(__file__).parent / "ui"
 _STATIC_DIR = Path(__file__).parent / "static"
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    path = _UI_DIR / "favicon.ico"
+    if path.is_file():
+        return FileResponse(path, media_type="image/x-icon")
+    return JSONResponse({"detail": "Not found"}, status_code=404)
+
 if _UI_DIR.exists():
     app.mount("/ui", StaticFiles(directory=str(_UI_DIR), html=True), name="ui")
 if _STATIC_DIR.exists():

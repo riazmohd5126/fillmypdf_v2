@@ -3,6 +3,18 @@
  * Workspace pages (Guided Fill, Mapping Review) use an icon-only collapsed rail.
  */
 (function () {
+  if (!document.querySelector('link[rel="icon"]')) {
+    const svg = document.createElement("link");
+    svg.rel = "icon";
+    svg.type = "image/svg+xml";
+    svg.href = "/ui/favicon.svg";
+    document.head.appendChild(svg);
+    const ico = document.createElement("link");
+    ico.rel = "icon";
+    ico.href = "/ui/favicon.ico";
+    ico.sizes = "32x32";
+    document.head.appendChild(ico);
+  }
   const WORKSPACES = { "form_fill.html": 1, "mapping_review.html": 1 };
   const COLLAPSE_KEY = "fmp_nav_collapsed";
   const pageFile = (location.pathname.split("/").pop() || "index.html").split("?")[0];
