@@ -5,103 +5,156 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Guided Fill — FillMyPDF</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
+  <script src="/ui/profile_canon.js"></script>
+  <style>
+    #gf-preview-canvas { max-width: 100%; height: auto; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+    .gf-chevron { display: inline-block; transition: transform .15s ease; }
+    .gf-open .gf-chevron { transform: rotate(180deg); }
+  </style>
 </head>
-<body class="bg-gray-50 min-h-screen font-sans">
+<body class="bg-gray-50 h-screen flex flex-col overflow-hidden font-sans">
 
-<nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
-  <a href="/ui/index.html" class="text-indigo-600 text-sm hover:underline">← Dashboard</a>
-  <span class="text-gray-300">|</span>
+<nav class="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center gap-3 shrink-0">
   <span class="font-semibold text-gray-800">Guided Fill</span>
+  <span class="text-xs text-gray-400 hidden md:inline">PDF on the left · fill on the right · live overlay</span>
   <a href="/ui/guided_batch.html" class="ml-auto text-xs text-indigo-600 hover:underline">Guided Batch →</a>
-  <a href="/ui/mapping_review.html" class="text-xs text-indigo-600 hover:underline">Mapping Review →</a>
 </nav>
 
-<main class="max-w-6xl mx-auto px-4 py-8 space-y-6">
+<div id="no-key" class="hidden shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-800">
+  Sign in to load clinic profiles and recipes.
+  <a href="/ui/login.html?next=/ui/form_fill.html" class="underline font-semibold">Sign in</a>
+  or set an API key on the <a href="/ui/index.html" class="underline font-semibold">Dashboard</a>.
+</div>
+<div id="error-box" class="hidden shrink-0 bg-red-50 border-b border-red-200 px-4 py-2 text-sm text-red-700"></div>
 
-  <div class="bg-indigo-600 rounded-2xl p-6 text-white">
-    <h1 class="text-2xl font-bold">Guided Form Fill</h1>
-    <p class="text-indigo-200 text-sm mt-1">
-      Pick a form, enter data into a clean form auto-generated from its reviewed
-      mapping, and download the filled PDF. Locked mappings fill deterministically
-      — no AI guessing, and only the fields the form actually needs.
-    </p>
-  </div>
+<main id="workspace" class="flex-1 min-h-0 flex overflow-hidden">
 
-  <div id="no-key" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-    No API key set. Open the <a href="/ui/index.html" class="underline font-semibold">Dashboard</a> and set your API key first.
-  </div>
-  <div id="error-box" class="hidden bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700"></div>
+  <button id="rail-expand" type="button" onclick="setRailCollapsed(false)" title="Show forms"
+    class="hidden shrink-0 w-9 border-r border-gray-200 bg-white hover:bg-indigo-50 text-gray-500 text-xs font-semibold">
+    »
+  </button>
 
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <aside id="maps-rail" class="rail border-r border-gray-200 bg-white flex flex-col min-h-0 overflow-hidden shrink-0">
+    <div class="px-2 py-1.5 border-b border-gray-100 flex items-center gap-2 shrink-0">
+      <h2 class="font-semibold text-gray-800 text-[11px] uppercase tracking-wide flex-1">Forms</h2>
+      <button onclick="loadTemplates()" class="text-[11px] text-indigo-600 hover:underline">Refresh</button>
+      <button type="button" onclick="setRailCollapsed(true)" title="Collapse forms rail"
+        class="text-xs text-gray-500 hover:text-indigo-600 px-1.5 py-0.5 rounded hover:bg-indigo-50">«</button>
+    </div>
+    <div class="p-3 border-b border-gray-100 space-y-2 shrink-0">
+      <input id="tpl-search" type="search" placeholder="Search name, drug, payer…"
+        oninput="renderTemplateList()"
+        class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        autocomplete="off"/>
+      <div class="flex gap-1 text-[11px] flex-wrap">
+        <button id="flt-ready" onclick="setListFilter('ready')" class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium">Ready</button>
+        <button id="flt-mine" onclick="setListFilter('mine')" class="px-2 py-1 rounded-full bg-gray-100 text-gray-600">Mine</button>
+        <button id="flt-all" onclick="setListFilter('all')" class="px-2 py-1 rounded-full bg-gray-100 text-gray-600">All</button>
+        <button id="flt-needs" onclick="setListFilter('needs')" class="px-2 py-1 rounded-full bg-gray-100 text-gray-600">Needs mapping</button>
+      </div>
+      <p id="tpl-count" class="text-[11px] text-gray-400"></p>
+    </div>
+    <div id="tpl-list" class="flex-1 overflow-y-auto p-2 space-y-2 text-sm min-h-0">
+      <div class="text-gray-400 text-xs px-1">Loading…</div>
+    </div>
+  </aside>
 
-    <!-- LEFT: form picker -->
-    <div class="space-y-4">
-      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-3">
-        <div class="flex items-center justify-between">
-          <h2 class="font-semibold text-gray-800 text-sm uppercase tracking-wide">Choose a Form</h2>
-          <button onclick="loadTemplates()" class="text-xs text-indigo-600 hover:underline">Refresh</button>
-        </div>
-        <div class="flex gap-1 text-[11px]">
-          <button id="flt-ready" onclick="setListFilter('ready')" class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium">Ready</button>
-          <button id="flt-all" onclick="setListFilter('all')" class="px-2 py-1 rounded-full bg-gray-100 text-gray-600">All</button>
-          <button id="flt-needs" onclick="setListFilter('needs')" class="px-2 py-1 rounded-full bg-gray-100 text-gray-600">Needs mapping</button>
-        </div>
-        <p id="tpl-count" class="text-[11px] text-gray-400"></p>
-        <div id="tpl-list" class="space-y-2 text-sm max-h-[70vh] overflow-y-auto">
-          <div class="text-gray-400 text-xs">Loading…</div>
-        </div>
+  <section id="pdf-pane" class="min-h-0 min-w-0 bg-slate-100 flex flex-col" style="flex: 50 1 0;">
+    <div class="px-2 py-1.5 border-b border-gray-200 bg-white flex items-center gap-1.5 shrink-0 flex-wrap">
+      <h2 class="font-semibold text-gray-800 text-xs uppercase tracking-wide shrink-0">PDF</h2>
+      <span id="pdf-status" class="text-[11px] text-gray-400 truncate max-w-[8rem] sm:max-w-xs">Select a form</span>
+      <div id="pdf-page-nav" class="flex items-center gap-1 ml-1 opacity-50 pointer-events-none">
+        <button type="button" onclick="pdfPageBy(-1)" class="pdf-tool" title="Previous page">‹</button>
+        <label class="flex items-center gap-1 text-[11px] text-gray-600">
+          <input id="pdf-page-input" type="number" min="1" value="1"
+            class="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-[11px] font-semibold"
+            onkeydown="if(event.key==='Enter'){ event.preventDefault(); goToPdfPage(this.value); }"
+            onchange="goToPdfPage(this.value)"/>
+          <span>/ <span id="pdf-page-total">0</span></span>
+        </label>
+        <button type="button" onclick="pdfPageBy(1)" class="pdf-tool" title="Next page">›</button>
+      </div>
+      <div class="ml-auto flex items-center gap-1 flex-wrap">
+        <button type="button" onclick="pdfZoomBy(-0.15)" class="pdf-tool" title="Zoom out">−</button>
+        <button type="button" onclick="pdfZoomReset()" id="pdf-zoom-label" class="pdf-tool min-w-[3rem]" title="Fit width">100%</button>
+        <button type="button" onclick="pdfZoomBy(0.15)" class="pdf-tool" title="Zoom in">+</button>
+        <button type="button" onclick="togglePdfFocus()" id="pdf-focus-btn" class="pdf-tool" title="Widen PDF">Focus</button>
+        <button type="button" onclick="setRailCollapsed(false)" class="pdf-tool" title="Show forms">Forms</button>
       </div>
     </div>
+    <div id="pdf-viewport" class="flex-1 min-h-0 overflow-auto relative bg-slate-300/50">
+      <div id="pdf-empty" class="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-gray-500 z-10">
+        Select a Ready form to preview the PDF here while you fill.
+      </div>
+      <div id="pdf-pages" class="hidden py-3 px-3 space-y-3"></div>
+    </div>
+  </section>
 
-    <!-- RIGHT: dynamic form -->
-    <div class="lg:col-span-2 space-y-4">
-      <div id="form-empty" class="bg-white rounded-2xl border border-dashed border-gray-300 p-10 text-center text-gray-400 text-sm">
-        Select a form on the left to begin.
+  <div id="split-handle" title="Drag to resize" class="hidden lg:flex w-1.5 shrink-0 cursor-col-resize bg-gray-200 hover:bg-indigo-400 active:bg-indigo-500 items-stretch"></div>
+
+  <section id="editor-pane" class="min-h-0 min-w-0 flex flex-col bg-gray-50 overflow-hidden" style="flex: 50 1 0; min-width: 280px;">
+      <div id="form-empty" class="m-4 bg-white rounded-2xl border border-dashed border-gray-300 p-10 text-center text-gray-400 text-sm">
+        Select a form on the left to begin. The PDF will appear beside the fields.
       </div>
 
-      <div id="not-reviewed" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-6 text-sm text-amber-800 space-y-3">
+      <div id="not-reviewed" class="hidden m-4 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-sm text-amber-800 space-y-3">
         <p class="font-semibold mb-1">This form isn't reviewed yet.</p>
-        <p>Guided Fill needs a locked canonical map so the fill is trustworthy.</p>
+        <p>An admin must lock the mapping in Mapping Review before Guided Fill. Clinic fills never run AI on an unlocked form.</p>
         <a id="not-reviewed-link" href="/ui/mapping_review.html"
-          class="inline-flex items-center gap-1 bg-amber-600 text-white rounded-lg px-3 py-2 text-xs font-semibold hover:bg-amber-700">
+          class="admin-only hidden inline-flex items-center gap-1 bg-amber-600 text-white rounded-lg px-3 py-2 text-xs font-semibold hover:bg-amber-700">
           Open Mapping Review →
         </a>
       </div>
 
-      <div id="form-card" class="hidden bg-white rounded-2xl border border-gray-200 shadow-sm">
-        <div class="p-5 border-b border-gray-100 flex items-center gap-3 flex-wrap">
-          <div>
-            <p class="font-semibold text-gray-800" id="form-title">—</p>
-            <p class="text-xs text-gray-400" id="form-sub">—</p>
+      <div id="form-card" class="hidden flex-1 min-h-0 flex flex-col bg-white">
+        <div class="p-3 border-b border-gray-100 flex items-center gap-3 flex-wrap shrink-0">
+          <div class="min-w-0">
+            <p class="font-semibold text-gray-800 truncate" id="form-title">—</p>
+            <p class="text-xs text-gray-400 truncate" id="form-sub">—</p>
           </div>
           <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">LOCKED mapping</span>
-          <div class="ml-auto flex gap-2">
+          <div class="ml-auto flex gap-2 flex-wrap">
             <button onclick="downloadCsv()" id="csv-btn"
               class="bg-gray-100 text-gray-700 rounded-lg px-3 py-2 font-semibold text-xs hover:bg-gray-200 transition">
-              Download CSV template
+              CSV
             </button>
             <button onclick="useSample()"
               class="bg-amber-50 text-amber-700 border border-amber-200 rounded-lg px-3 py-2 font-semibold text-xs hover:bg-amber-100 transition">
-              Sample data
+              Sample
             </button>
           </div>
         </div>
 
-        <div id="profile-bar" class="px-5 pt-4 space-y-2 border-b border-gray-50 pb-3">
-          <div class="flex items-center justify-between gap-2">
-            <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Clinic autofill</p>
-            <div class="flex flex-wrap gap-1.5 justify-end">
-              <button type="button" onclick="reApplySelectedProfiles({fromButton:true})"
-                class="text-[11px] bg-indigo-50 text-indigo-700 rounded-lg px-2 py-1 hover:bg-indigo-100"
-                title="Re-apply Patient → Provider → Facility → Pharmacy → Encounter">Apply all</button>
+        <div id="profile-bar" class="border-b border-gray-50 shrink-0">
+          <div class="px-3 py-2 flex items-center gap-2">
+            <button type="button" id="profile-toggle" onclick="toggleProfileBar()"
+              class="flex-1 min-w-0 flex items-center gap-2 text-left rounded-lg border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-50 -mx-0.5 px-2 py-1.5"
+              aria-expanded="false" aria-controls="profile-panel" title="Click to pick Patient, Provider, Facility, Pharmacy">
+              <span class="text-[11px] font-semibold text-indigo-800 uppercase tracking-wide shrink-0">Profiles</span>
+              <span id="profile-summary" class="flex-1 min-w-0 flex flex-wrap gap-1 items-center"></span>
+              <span class="text-[10px] font-semibold text-indigo-700 shrink-0">Choose <span class="gf-chevron inline-block">▾</span></span>
+            </button>
+            <button type="button" onclick="reApplySelectedProfiles({fromButton:true})"
+              class="text-[11px] bg-indigo-50 text-indigo-700 rounded-lg px-2 py-1 hover:bg-indigo-100 shrink-0"
+              title="Re-apply Patient → Provider → Facility → Pharmacy → Encounter">Apply</button>
+          </div>
+          <p id="profile-status" class="hidden text-[11px] text-emerald-700 px-3 pb-1"></p>
+          <p id="coverage-status" class="hidden text-[11px] text-slate-600 px-3 pb-1.5"></p>
+          <div id="profile-panel" class="hidden px-3 pb-3 space-y-2 overflow-y-auto max-h-[40vh]">
+          <div class="flex flex-wrap gap-1.5">
               <button type="button" onclick="saveFormRecipe()"
                 class="text-[11px] bg-gray-100 text-gray-700 rounded-lg px-2 py-1 hover:bg-gray-200"
                 title="Save questions + clinical answers for this form (no patient PHI)">Save recipe</button>
               <button type="button" onclick="applyFormRecipe()"
                 class="text-[11px] bg-gray-100 text-gray-700 rounded-lg px-2 py-1 hover:bg-gray-200"
                 title="Restore last saved recipe for this form">Use recipe</button>
+              <button type="button" onclick="pinCurrentForm()"
+                class="text-[11px] bg-violet-50 text-violet-700 rounded-lg px-2 py-1 hover:bg-violet-100"
+                title="Pin this shared form to My forms (does not copy the PDF)">Pin</button>
             </div>
-          </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div class="flex gap-2 items-center">
               <label class="text-[11px] text-gray-500 w-16 shrink-0">Patient</label>
@@ -138,52 +191,84 @@
             <button type="button" onclick="importEncounterRow()"
               class="text-[11px] bg-indigo-600 text-white rounded-lg px-2.5 py-1.5 hover:bg-indigo-700">Apply import</button>
           </div>
-          <p id="profile-status" class="hidden text-[11px] text-emerald-700"></p>
-          <p id="coverage-status" class="hidden text-[11px] text-slate-600"></p>
+          </div>
         </div>
 
-        <div class="p-5 space-y-5" id="form-body"></div>
+        <div class="p-4 space-y-5 flex-1 min-h-0 overflow-y-auto" id="form-body"></div>
 
-        <div class="p-5 border-t border-gray-100 space-y-3">
-          <div class="flex items-center gap-2">
-            <label class="text-xs text-gray-500 w-28">Gemini key (opt.)</label>
-            <input id="ai-key" type="password" placeholder="only needed if unmapped tail" class="inp flex-1"/>
-          </div>
-          <div id="esign-consent-box" class="hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 space-y-2">
-            <p class="text-[11px] text-slate-600 leading-relaxed">
-              By checking below you agree to sign this document electronically (ESIGN / UETA).
-              Your signature image will be stamped on the filled PDF with an audit record.
-            </p>
-            <label class="inline-flex items-start gap-2 text-xs text-gray-800 cursor-pointer">
-              <input id="esign-consent" type="checkbox" class="mt-0.5 accent-indigo-600"/>
-              <span>I consent to sign electronically and intend this as my signature.</span>
-            </label>
-            <div class="grid grid-cols-2 gap-2">
-              <input id="esign-signer-name" type="text" class="inp" placeholder="Signer name (optional)"/>
-              <input id="esign-signer-email" type="email" class="inp" placeholder="Signer email (optional)"/>
-            </div>
-          </div>
-          <div id="fill-success" class="hidden bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm">
-            <p class="font-medium text-green-800 mb-2" id="fill-success-msg">PDF filled successfully!</p>
-            <div id="locked-badge" class="hidden items-center gap-1.5 bg-emerald-100 text-emerald-800 rounded-full px-2.5 py-1 text-xs font-medium mb-2 w-max">
+        <div class="border-t border-gray-100 shrink-0">
+          <div id="fill-success" class="hidden mx-2.5 mt-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm">
+            <p class="font-medium text-green-800 mb-1.5" id="fill-success-msg">PDF filled successfully!</p>
+            <div id="locked-badge" class="hidden items-center gap-1.5 bg-emerald-100 text-emerald-800 rounded-full px-2.5 py-1 text-xs font-medium mb-1.5 w-max">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
               Reviewed mapping used (locked, no AI)
             </div>
             <div class="flex flex-wrap gap-2">
-              <a id="dl-btn" href="#" class="inline-flex items-center gap-2 bg-green-600 text-white rounded-lg px-3 py-2 text-sm font-medium hover:bg-green-700">Download PDF</a>
-              <a id="cert-btn" href="#" class="hidden inline-flex items-center gap-2 bg-slate-700 text-white rounded-lg px-3 py-2 text-sm font-medium hover:bg-slate-800">Download certificate</a>
-              <a href="/ui/approvals.html" class="inline-flex items-center gap-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg px-3 py-2 text-sm font-medium hover:bg-amber-100">Request approval →</a>
+              <a id="dl-btn" href="#" class="inline-flex items-center gap-2 bg-green-600 text-white rounded-lg px-3 py-1.5 text-xs font-medium hover:bg-green-700">Download PDF</a>
+              <a id="cert-btn" href="#" class="hidden inline-flex items-center gap-2 bg-slate-700 text-white rounded-lg px-3 py-1.5 text-xs font-medium hover:bg-slate-800">Download certificate</a>
+              <a id="approval-btn" href="/ui/approvals.html" class="inline-flex items-center gap-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg px-3 py-1.5 text-xs font-medium hover:bg-amber-100">Request approval →</a>
             </div>
           </div>
+          <div class="px-2.5 py-1.5 flex items-center gap-2">
           <button onclick="fillForm()" id="fill-btn"
-            class="w-full bg-indigo-600 text-white rounded-xl py-3 font-semibold text-sm hover:bg-indigo-700 transition">
-            Fill &amp; Download PDF
+            class="flex-1 bg-indigo-600 text-white rounded-lg py-1.5 font-semibold text-sm hover:bg-indigo-700 transition">
+            Fill &amp; preview PDF
           </button>
+          <button type="button" id="sign-opts-toggle" onclick="toggleSignOpts()"
+            class="shrink-0 px-1.5 py-1 text-[10px] text-gray-400 hover:text-indigo-600"
+            aria-expanded="false" aria-controls="sign-opts-panel">
+            Options <span class="gf-chevron">▾</span>
+          </button>
+          </div>
+          <div id="sign-opts-panel" class="hidden px-2.5 pb-1.5 space-y-2">
+          <div class="flex items-center gap-2">
+            <label class="text-[11px] text-gray-500 shrink-0">Gemini (opt.)</label>
+            <input id="ai-key" type="password" placeholder="not required for locked Guided Fill" class="inp flex-1 text-xs py-1"/>
+          </div>
+          <div id="esign-consent-box" class="hidden rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+            <p class="text-[10px] text-slate-500 leading-relaxed">
+              Your signature image will be stamped on the filled PDF with an audit record.
+            </p>
+            <div class="grid grid-cols-2 gap-1.5 mt-1.5">
+              <input id="esign-signer-name" type="text" class="inp text-xs py-1" placeholder="Signer name (opt.)"/>
+              <input id="esign-signer-email" type="email" class="inp text-xs py-1" placeholder="Email (opt.)"/>
+            </div>
+          </div>
+          </div>
         </div>
       </div>
+  </section>
+</main>
+
+<!-- PDF preview modal (A blank / B filled / C sign overlay) -->
+<div id="gf-preview-modal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-start justify-center overflow-y-auto py-6 px-3">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-auto overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-200 flex items-center gap-2 flex-wrap">
+      <div class="min-w-0">
+        <h2 id="gf-preview-title" class="font-semibold text-gray-900 text-sm">PDF preview</h2>
+        <p id="gf-preview-sub" class="text-[11px] text-gray-500 truncate"></p>
+      </div>
+      <button type="button" onclick="closeGfPreview()" class="ml-auto text-gray-400 hover:text-gray-700 text-lg leading-none px-2">✕</button>
+    </div>
+    <div class="px-4 py-2 border-b border-gray-100 flex items-center gap-2 flex-wrap bg-slate-50">
+      <button type="button" onclick="gfPreviewPageBy(-1)" class="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50">‹ Prev</button>
+      <span class="text-xs text-gray-600">Page <span id="gf-preview-page">1</span> / <span id="gf-preview-pages">1</span></span>
+      <button type="button" onclick="gfPreviewPageBy(1)" class="text-xs px-2 py-1 rounded border border-gray-200 bg-white hover:bg-gray-50">Next ›</button>
+      <span id="gf-preview-status" class="text-[11px] text-gray-400 ml-auto"></span>
+    </div>
+    <div class="bg-slate-200/70 p-3 max-h-[70vh] overflow-auto flex justify-center">
+      <canvas id="gf-preview-canvas"></canvas>
+    </div>
+    <div class="px-4 py-3 border-t border-gray-200 flex flex-wrap gap-2 justify-end bg-white">
+      <button type="button" onclick="closeGfPreview()"
+        class="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50">Close</button>
+      <button type="button" id="gf-preview-confirm" onclick="confirmGfPreview()"
+        class="hidden text-sm px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700">
+        Confirm &amp; download
+      </button>
     </div>
   </div>
-</main>
+</div>
 
 <style>
   .label { display:block; font-size:0.7rem; color:#6b7280; margin-bottom:2px; font-weight:500 }
@@ -192,13 +277,119 @@
   .q-check { display:flex; flex-wrap:wrap; gap:6px 14px; padding:6px 0 }
   .q-check label { display:inline-flex; align-items:center; gap:6px; font-size:0.8rem; color:#374151; cursor:pointer }
   .q-check input { accent-color:#4f46e5 }
-  .sig-pad { border:1px solid #d1d5db; border-radius:0.5rem; background:#fff; touch-action:none; width:100%; max-width:100%; height:96px }
+  .sig-pad { border:1px solid #d1d5db; border-radius:0.5rem; background:#fff; touch-action:none; width:100%; max-width:100%; height:auto; display:block }
+  .sig-pad-wrap { width:100%; overflow:hidden; border-radius:0.5rem }
   .sig-tab { font-size:0.7rem; padding:4px 10px; border-radius:999px; border:1px solid #e5e7eb; background:#fff; color:#4b5563 }
   .sig-tab.active { background:#eef2ff; border-color:#c7d2fe; color:#4338ca; font-weight:600 }
+  #gf-preview-canvas { max-width: 100%; height: auto; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .pdf-tool { border:1px solid #e5e7eb; border-radius:0.375rem; padding:2px 8px; font-size:0.7rem;
+              font-weight:600; color:#374151; background:#fff; line-height:1.4 }
+  .pdf-tool:hover:not(:disabled) { border-color:#6366f1; color:#4338ca; background:#eef2ff }
+  .pdf-tool:disabled { opacity:0.4; cursor:not-allowed }
+  #maps-rail.rail { width:17rem; }
+  #workspace.rail-collapsed #maps-rail { display:none; }
+  #workspace.rail-collapsed #rail-expand { display:block; }
+  #workspace.pdf-focus #editor-pane { flex: 0 0 22rem !important; min-width: 18rem !important; }
+  #workspace.pdf-focus #pdf-pane { flex: 1 1 auto !important; }
+  #workspace.pdf-focus #pdf-focus-btn { border-color:#6366f1; background:#eef2ff; color:#4338ca }
+  .pdf-page { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.12); margin:0 auto; position:relative; width:fit-content; max-width:100%; }
+  .pdf-page-canvas, .pdf-overlay-canvas { display:block; max-width:100%; height:auto; }
+  .pdf-overlay-canvas { position:absolute; left:0; top:0; pointer-events:none; }
+  .pdf-page-num { position:absolute; top:6px; right:6px; font-size:10px; font-weight:600;
+                  color:#64748b; background:rgba(255,255,255,.85); border:1px solid #e2e8f0;
+                  border-radius:999px; padding:1px 7px; pointer-events:none; z-index:2; }
+  .tpl-btn.active { border-color:#6366f1; background:#eef2ff; }
+  body.resizing-split { cursor:col-resize; user-select:none; }
+  body.resizing-split canvas { pointer-events:none; }
+  @media (max-width: 1023px) {
+    #workspace { flex-direction: column; }
+    #maps-rail.rail { width:100%; max-height:28vh; }
+    #split-handle { display:none !important; }
+    #pdf-pane, #editor-pane { flex: 1 1 40% !important; min-height: 32vh; }
+  }
 </style>
 
 <script>
 function getKey(){ return localStorage.getItem('fmp_api_key') || ''; }
+function authHeaders(extra){
+  return Object.assign({}, window.fmpAuthHeaders ? fmpAuthHeaders() : {}, extra || {});
+}
+const LS_GF_PROFILE = 'fmp_gf_profile_open';
+const LS_GF_SIGNOPTS = 'fmp_gf_signopts_open';
+
+function lsPanelOpen(key, fallback){
+  try {
+    const v = localStorage.getItem(key);
+    if(v === '1') return true;
+    if(v === '0') return false;
+  } catch(_){}
+  return fallback;
+}
+function lsSetPanel(key, open){
+  try { localStorage.setItem(key, open ? '1' : '0'); } catch(_){}
+}
+
+function setProfileBarOpen(open){
+  const bar = document.getElementById('profile-bar');
+  const panel = document.getElementById('profile-panel');
+  const btn = document.getElementById('profile-toggle');
+  if(!panel) return;
+  panel.classList.toggle('hidden', !open);
+  if(bar) bar.classList.toggle('gf-open', open);
+  if(btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  lsSetPanel(LS_GF_PROFILE, open);
+}
+function toggleProfileBar(){
+  const panel = document.getElementById('profile-panel');
+  setProfileBarOpen(!!(panel && panel.classList.contains('hidden')));
+}
+
+function setSignOptsOpen(open){
+  const panel = document.getElementById('sign-opts-panel');
+  const btn = document.getElementById('sign-opts-toggle');
+  if(!panel) return;
+  panel.classList.toggle('hidden', !open);
+  if(btn){
+    btn.classList.toggle('gf-open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  lsSetPanel(LS_GF_SIGNOPTS, open);
+}
+function toggleSignOpts(){
+  const panel = document.getElementById('sign-opts-panel');
+  setSignOptsOpen(!!(panel && panel.classList.contains('hidden')));
+}
+function toggleEsignDetails(ev){
+  if(ev) ev.preventDefault();
+  setSignOptsOpen(true);
+}
+
+const PROFILE_CHIP_SLOTS = [
+  { id: 'pick-patient', label: 'Patient' },
+  { id: 'pick-provider', label: 'Provider' },
+  { id: 'pick-facility', label: 'Facility' },
+  { id: 'pick-pharmacy', label: 'Pharmacy' },
+];
+
+function updateProfileSummary(){
+  const el = document.getElementById('profile-summary');
+  if(!el) return;
+  let available = 0;
+  const chips = PROFILE_CHIP_SLOTS.map(slot => {
+    const sel = document.getElementById(slot.id);
+    const n = sel ? Math.max(0, sel.options.length - 1) : 0;
+    available += n;
+    if(sel && sel.value){
+      const name = (sel.options[sel.selectedIndex]?.text || '').split(' (')[0].trim();
+      return `<span class="inline-flex items-center px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-semibold max-w-[7.5rem] truncate">${esc(name)}</span>`;
+    }
+    return `<span class="inline-flex items-center px-1.5 py-0.5 rounded-full border border-dashed border-indigo-300 text-indigo-700 text-[10px] font-medium">${esc(slot.label)}</span>`;
+  }).join('');
+  const hint = available
+    ? `<span class="text-[10px] text-indigo-600 font-medium">${available} saved</span>`
+    : `<span class="text-[10px] text-amber-700 font-medium">Add profiles in Account</span>`;
+  el.innerHTML = chips + hint;
+}
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function showErr(m){ const e=document.getElementById('error-box'); e.textContent=m; e.classList.remove('hidden'); }
 function clearErr(){ document.getElementById('error-box').classList.add('hidden'); }
@@ -208,11 +399,752 @@ let allTemplates = [];
 let readinessById = {};  // template_id -> {ready, fingerprint, signature}
 let listFilter = 'ready';
 let pendingReviewFp = null;
+let selectedTemplateId = null;
+
+/** PDF.js preview state for A/B/C confirm modal */
+let gfPreview = {
+  mode: 'blank',       // blank | filled | live-overlay
+  doc: null,
+  page: 1,
+  pageCount: 1,
+  overlays: [],
+  fieldOverlays: [],
+  pending: null,
+};
+
+/** Cached blank template PDF for live signature + left-pane overlays. */
+let blankPdfCache = { templateId: null, buffer: null, doc: null };
+const liveSigPreviewTimers = {};
+
+/** Left-pane PDF.js (Mapping Review style) */
+let pdfDoc = null;
+let pdfLoadToken = 0;
+let pdfRenderToken = 0;
+let pdfZoom = 1;
+let pdfZoomTimer = null;
+let pdfFocus = false;
+let pdfCurrentPage = 1;
+let pdfPageObserver = null;
+let pdfJumpPending = null;
+let liveOverlayTimer = null;
+const LS_RAIL = 'fmp_gf_rail_collapsed';
+const LS_SPLIT = 'fmp_gf_pdf_pct';
+const LS_FOCUS = 'fmp_gf_pdf_focus';
+
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
 async function api(path, opts){
-  const r = await fetch(path, Object.assign({ headers: { 'X-API-Key': getKey() } }, opts||{}));
+  opts = opts || {};
+  const headers = Object.assign(authHeaders(), opts.headers || {});
+  const r = await fetch(path, Object.assign({ credentials: 'same-origin' }, opts, { headers }));
   if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${r.status}`); }
   return r.json();
+}
+
+function setPdfOpenEnabled(on){
+  const nav = document.getElementById('pdf-page-nav');
+  if(nav){
+    nav.classList.toggle('opacity-50', !on);
+    nav.classList.toggle('pointer-events-none', !on);
+  }
+  const inp = document.getElementById('pdf-page-input');
+  if(inp) inp.disabled = !on;
+}
+
+function updatePdfPageControls(page, total){
+  pdfCurrentPage = page;
+  const inp = document.getElementById('pdf-page-input');
+  const tot = document.getElementById('pdf-page-total');
+  if(tot) tot.textContent = String(total || 0);
+  if(inp && document.activeElement !== inp){
+    inp.value = String(page || 1);
+    inp.max = String(total || 1);
+  }
+}
+
+function disconnectPdfPageObserver(){
+  if(pdfPageObserver){
+    const viewportEl = document.getElementById('pdf-viewport');
+    if(viewportEl) viewportEl.removeEventListener('scroll', pdfPageObserver);
+    pdfPageObserver = null;
+  }
+}
+
+function syncPdfPageFromScroll(){
+  if(!pdfDoc) return;
+  const viewportEl = document.getElementById('pdf-viewport');
+  const pages = document.querySelectorAll('#pdf-pages .pdf-page[data-page]');
+  if(!viewportEl || !pages.length) return;
+  const marker = viewportEl.scrollTop + Math.min(80, viewportEl.clientHeight * 0.2);
+  let n = 1;
+  pages.forEach(el=>{
+    if(el.offsetTop <= marker) n = parseInt(el.getAttribute('data-page'), 10) || n;
+  });
+  if(n !== pdfCurrentPage) updatePdfPageControls(n, pdfDoc.numPages);
+}
+
+function observePdfPages(){
+  disconnectPdfPageObserver();
+  const viewportEl = document.getElementById('pdf-viewport');
+  if(!viewportEl) return;
+  pdfPageObserver = ()=>{ syncPdfPageFromScroll(); };
+  viewportEl.addEventListener('scroll', pdfPageObserver, { passive: true });
+  syncPdfPageFromScroll();
+}
+
+function goToPdfPage(raw){
+  if(!pdfDoc) return;
+  const total = pdfDoc.numPages;
+  let n = parseInt(raw, 10);
+  if(!Number.isFinite(n)) return;
+  n = Math.max(1, Math.min(total, n));
+  const el = document.querySelector(`#pdf-pages .pdf-page[data-page="${n}"]`);
+  if(!el){ pdfJumpPending = n; return; }
+  const viewportEl = document.getElementById('pdf-viewport');
+  if(viewportEl) viewportEl.scrollTo({ top: Math.max(0, el.offsetTop - 8), behavior: 'smooth' });
+  updatePdfPageControls(n, total);
+}
+
+function pdfPageBy(delta){ goToPdfPage((pdfCurrentPage || 1) + delta); }
+
+function setPdfEmpty(msg){
+  const pages = document.getElementById('pdf-pages');
+  const empty = document.getElementById('pdf-empty');
+  const status = document.getElementById('pdf-status');
+  pdfRenderToken++;
+  disconnectPdfPageObserver();
+  pdfDoc = null;
+  pdfCurrentPage = 1;
+  pdfJumpPending = null;
+  if(pages){ pages.innerHTML = ''; pages.classList.add('hidden'); }
+  if(empty){
+    empty.classList.remove('hidden');
+    empty.textContent = msg || 'Select a Ready form to preview the PDF here while you fill.';
+  }
+  if(status) status.textContent = 'No PDF';
+  updatePdfPageControls(1, 0);
+  setPdfOpenEnabled(false);
+}
+
+function revealPdfPages(){
+  document.getElementById('pdf-pages').classList.remove('hidden');
+  document.getElementById('pdf-empty').classList.add('hidden');
+  setPdfOpenEnabled(true);
+}
+
+function drawFieldOverlayOnCtx(ctx, fo, vw, vh){
+  const p = fo.placement || {};
+  const xPct = Number(p.x_pct), yPct = Number(p.y_pct);
+  const wPct = Number(p.width_pct ?? 20), hPct = Number(p.height_pct ?? 3);
+  if([xPct,yPct,wPct,hPct].some(v => Number.isNaN(v))) return;
+  const bx = (xPct / 100) * vw;
+  const by = (1 - yPct / 100 - hPct / 100) * vh;
+  const bw = (wPct / 100) * vw;
+  const bh = (hPct / 100) * vh;
+  ctx.fillStyle = 'rgba(99,102,241,0.10)';
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeStyle = 'rgba(99,102,241,0.65)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.strokeRect(bx, by, bw, bh);
+  ctx.setLineDash([]);
+  const txt = String(fo.text || '');
+  if(!txt) return;
+  if(fo.kind === 'checkbox'){
+    ctx.fillStyle = '#0a2864';
+    ctx.font = `bold ${Math.max(10, Math.min(bh * 0.85, 18))}px sans-serif`;
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✓', bx + bw * 0.2, by + bh / 2);
+  } else {
+    ctx.fillStyle = '#0a2864';
+    const fs = Math.max(8, Math.min(bh * 0.72, 16));
+    ctx.font = `${fs}px system-ui, sans-serif`;
+    ctx.textBaseline = 'middle';
+    let draw = txt;
+    while(draw.length > 1 && ctx.measureText(draw).width > bw - 4) draw = draw.slice(0, -1);
+    if(draw !== txt) draw = draw.slice(0, Math.max(0, draw.length - 1)) + '…';
+    ctx.fillText(draw, bx + 2, by + bh / 2);
+  }
+}
+
+async function paintLiveOverlays(){
+  if(!pdfDoc) return;
+  const fieldOverlays = (typeof buildLiveFieldOverlays === 'function') ? buildLiveFieldOverlays() : [];
+  let sigOverlays = [];
+  try { sigOverlays = await collectPreparedSignatures(); } catch(_){ sigOverlays = []; }
+  const pages = document.querySelectorAll('#pdf-pages .pdf-page');
+  for(const wrap of pages){
+    const overlay = wrap.querySelector('.pdf-overlay-canvas');
+    const base = wrap.querySelector('.pdf-page-canvas');
+    if(!overlay || !base) continue;
+    overlay.width = base.width;
+    overlay.height = base.height;
+    overlay.style.width = base.style.width;
+    overlay.style.height = base.style.height;
+    const ctx = overlay.getContext('2d');
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    const pageIdx = (parseInt(wrap.getAttribute('data-page'), 10) || 1) - 1;
+    const vw = overlay.width, vh = overlay.height;
+    fieldOverlays.filter(o => Number(o.placement?.page_index ?? 0) === pageIdx)
+      .forEach(fo => drawFieldOverlayOnCtx(ctx, fo, vw, vh));
+    for(const prep of sigOverlays.filter(o => Number(o.placement?.page_index ?? 0) === pageIdx)){
+      const p = prep.placement || {};
+      const xPct = Number(p.x_pct), yPct = Number(p.y_pct);
+      const wPct = Number(p.width_pct ?? 40), hPct = Number(p.height_pct ?? 8);
+      if([xPct,yPct,wPct,hPct].some(v => Number.isNaN(v))) continue;
+      const bx = (xPct / 100) * vw;
+      const by = (1 - yPct / 100 - hPct / 100) * vh;
+      const bw = (wPct / 100) * vw;
+      const bh = (hPct / 100) * vh;
+      ctx.strokeStyle = 'rgba(79,70,229,0.95)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(bx, by, bw, bh);
+      ctx.setLineDash([]);
+      try {
+        const img = await rasterizeSigOverlay(prep);
+        drawInkInStampBox(ctx, img, bx, by, bw, bh, wPct, hPct);
+      } catch(_){}
+    }
+  }
+  const status = document.getElementById('pdf-status');
+  if(status && current){
+    const n = fieldOverlays.length + sigOverlays.length;
+    status.textContent = n ? `${n} overlay(s)` : (current.name || 'Blank PDF');
+  }
+}
+
+function scheduleLiveOverlay(){
+  clearTimeout(liveOverlayTimer);
+  liveOverlayTimer = setTimeout(()=>{ paintLiveOverlays().catch(()=>{}); }, 180);
+}
+
+async function renderPdfDoc(){
+  const pagesEl = document.getElementById('pdf-pages');
+  const viewportEl = document.getElementById('pdf-viewport');
+  const label = document.getElementById('pdf-zoom-label');
+  if(!pdfDoc || !pagesEl || !viewportEl) return;
+  const keepPage = pdfJumpPending || pdfCurrentPage || 1;
+  const token = ++pdfRenderToken;
+  const z = Math.max(0.5, Math.min(2.5, pdfZoom));
+  pdfZoom = z;
+  if(label) label.textContent = Math.round(z * 100) + '%';
+  const pad = 24;
+  const baseWidth = Math.max(280, (viewportEl.clientWidth || 600) - pad);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  disconnectPdfPageObserver();
+  pagesEl.innerHTML = '';
+  for(let i = 1; i <= pdfDoc.numPages; i++){
+    if(token !== pdfRenderToken) return;
+    const page = await pdfDoc.getPage(i);
+    const unscaled = page.getViewport({ scale: 1 });
+    const fit = baseWidth / unscaled.width;
+    const scale = fit * z;
+    const viewport = page.getViewport({ scale: scale * dpr });
+    const canvas = document.createElement('canvas');
+    canvas.className = 'pdf-page-canvas';
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    canvas.style.width = Math.floor(viewport.width / dpr) + 'px';
+    canvas.style.height = Math.floor(viewport.height / dpr) + 'px';
+    const overlay = document.createElement('canvas');
+    overlay.className = 'pdf-overlay-canvas';
+    overlay.width = canvas.width;
+    overlay.height = canvas.height;
+    overlay.style.width = canvas.style.width;
+    overlay.style.height = canvas.style.height;
+    const wrap = document.createElement('div');
+    wrap.className = 'pdf-page';
+    wrap.setAttribute('data-page', String(i));
+    wrap.id = 'pdf-page-' + i;
+    const badge = document.createElement('div');
+    badge.className = 'pdf-page-num';
+    badge.textContent = i + ' / ' + pdfDoc.numPages;
+    wrap.appendChild(canvas);
+    wrap.appendChild(overlay);
+    wrap.appendChild(badge);
+    pagesEl.appendChild(wrap);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  }
+  updatePdfPageControls(Math.min(keepPage, pdfDoc.numPages), pdfDoc.numPages);
+  observePdfPages();
+  pdfJumpPending = null;
+  requestAnimationFrame(()=>{
+    const el = document.querySelector(`#pdf-pages .pdf-page[data-page="${keepPage}"]`);
+    if(el && viewportEl) viewportEl.scrollTop = Math.max(0, el.offsetTop - 8);
+  });
+  await paintLiveOverlays();
+}
+
+function schedulePdfRender(){
+  clearTimeout(pdfZoomTimer);
+  pdfJumpPending = pdfCurrentPage || 1;
+  pdfZoomTimer = setTimeout(()=>{ renderPdfDoc().catch(e=>console.warn(e)); }, 100);
+}
+function pdfZoomBy(delta){ pdfZoom = Math.round((pdfZoom + delta) * 100) / 100; schedulePdfRender(); }
+function pdfZoomReset(){ pdfZoom = 1; schedulePdfRender(); }
+
+function setRailCollapsed(collapsed){
+  const ws = document.getElementById('workspace');
+  const expand = document.getElementById('rail-expand');
+  if(!ws) return;
+  ws.classList.toggle('rail-collapsed', !!collapsed);
+  if(expand) expand.classList.toggle('hidden', !collapsed);
+  try { localStorage.setItem(LS_RAIL, collapsed ? '1' : '0'); } catch(_){}
+  requestAnimationFrame(schedulePdfRender);
+}
+
+function togglePdfFocus(){
+  pdfFocus = !pdfFocus;
+  const ws = document.getElementById('workspace');
+  ws.classList.toggle('pdf-focus', pdfFocus);
+  try { localStorage.setItem(LS_FOCUS, pdfFocus ? '1' : '0'); } catch(_){}
+  if(pdfFocus) setRailCollapsed(true);
+  else {
+    const pct = parseInt(localStorage.getItem(LS_SPLIT) || '50', 10);
+    applySplitPct(isNaN(pct) ? 50 : pct);
+  }
+  requestAnimationFrame(schedulePdfRender);
+}
+
+function applySplitPct(pct){
+  const pdf = document.getElementById('pdf-pane');
+  const ed = document.getElementById('editor-pane');
+  if(!pdf || !ed || pdfFocus) return;
+  pct = Math.max(35, Math.min(70, pct));
+  pdf.style.flex = pct + ' 1 0';
+  ed.style.flex = (100 - pct) + ' 1 0';
+  try { localStorage.setItem(LS_SPLIT, String(Math.round(pct))); } catch(_){}
+}
+
+function initSplitDrag(){
+  const handle = document.getElementById('split-handle');
+  const ws = document.getElementById('workspace');
+  if(!handle || !ws) return;
+  let dragging = false;
+  handle.addEventListener('mousedown', (e)=>{
+    if(window.matchMedia('(max-width: 1023px)').matches) return;
+    dragging = true;
+    document.body.classList.add('resizing-split');
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e)=>{
+    if(!dragging) return;
+    const rail = document.getElementById('maps-rail');
+    const expand = document.getElementById('rail-expand');
+    const rect = ws.getBoundingClientRect();
+    let left = 0;
+    if(!ws.classList.contains('rail-collapsed') && rail) left += rail.getBoundingClientRect().width;
+    else if(expand && !expand.classList.contains('hidden')) left += expand.getBoundingClientRect().width;
+    const usable = rect.width - left - handle.offsetWidth;
+    if(usable < 100) return;
+    applySplitPct(((e.clientX - rect.left - left) / usable) * 100);
+    schedulePdfRender();
+  });
+  window.addEventListener('mouseup', ()=>{
+    if(!dragging) return;
+    dragging = false;
+    document.body.classList.remove('resizing-split');
+    schedulePdfRender();
+  });
+}
+
+function initFillLayout(){
+  try {
+    const railPref = localStorage.getItem(LS_RAIL);
+    setRailCollapsed(railPref === '1');
+    const pct = parseInt(localStorage.getItem(LS_SPLIT) || '50', 10);
+    applySplitPct(isNaN(pct) ? 50 : pct);
+    if(localStorage.getItem(LS_FOCUS) === '1'){
+      pdfFocus = true;
+      document.getElementById('workspace').classList.add('pdf-focus');
+      setRailCollapsed(true);
+    }
+  } catch(_){ applySplitPct(50); }
+  initSplitDrag();
+  window.addEventListener('resize', ()=>{ schedulePdfRender(); });
+}
+
+async function ensureBlankPdfDoc(){
+  if(!current || !current.template_id) return null;
+  if(typeof pdfjsLib === 'undefined') return null;
+  if(blankPdfCache.templateId === current.template_id && blankPdfCache.doc){
+    return blankPdfCache.doc;
+  }
+  const r = await fetch('/api/v1/templates/'+encodeURIComponent(current.template_id)+'/pdf', {
+    headers: authHeaders(), credentials: 'same-origin',
+  });
+  if(!r.ok) throw new Error('Could not load blank template PDF for preview.');
+  const buffer = await r.arrayBuffer();
+  const doc = await pdfjsLib.getDocument({ data: buffer.slice(0) }).promise;
+  blankPdfCache = { templateId: current.template_id, buffer, doc };
+  return doc;
+}
+
+function drawInkInStampBox(ctx, img, bx, by, bw, bh, wPct, hPct){
+  const shortBox = hPct < 4.5;
+  const wideShort = shortBox && (wPct / Math.max(hPct, 0.01) >= 8.0);
+  const pad = 2;
+  if(wideShort){
+    const imgBoxW = bw * 0.90 - pad;
+    const imgBoxH = Math.max(1, bh - pad);
+    const scaleW = imgBoxW / img.width;
+    let dw = imgBoxW;
+    let dh = img.height * scaleW;
+    let sx = 0, sy = 0, sw = img.width, sh = img.height;
+    if(dh > imgBoxH + 0.5){
+      sh = Math.max(1, Math.round(img.height * (imgBoxH / dh)));
+      sy = Math.max(0, img.height - sh);
+      dh = imgBoxH;
+    }
+    ctx.drawImage(img, sx, sy, sw, sh, bx + pad, by + bh - dh - 1, dw, dh);
+  } else {
+    const scaleImg = Math.min((bw - pad*2) / img.width, (bh - pad) / img.height);
+    const dw = img.width * scaleImg;
+    const dh = img.height * scaleImg;
+    ctx.drawImage(img, bx + pad, by + bh - dh - 1, dw, dh);
+  }
+}
+
+function isCanvasEmpty(canvas){
+  const d = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
+  for(let i=3;i<d.length;i+=4) if(d[i] > 0) return false;
+  return true;
+}
+
+async function collectPreparedSignatures(){
+  const prepared = [];
+  const cards = document.querySelectorAll('[data-sig-card]');
+  for(const card of cards){
+    const field = card.getAttribute('data-sig-card');
+    const activeTab = card.querySelector('.sig-tab.active');
+    const mode = activeTab ? activeTab.getAttribute('data-sig-tab') : 'type';
+    const id = 'sig_' + String(field).replace(/[^a-z0-9]/gi,'_');
+    let placement = null;
+    try{
+      const el = mode === 'draw'
+        ? document.getElementById(id+'_canvas')
+        : document.getElementById(id+'_text');
+      placement = JSON.parse(decodeURIComponent(el.getAttribute('data-sig-placement')||'%7B%7D'));
+    }catch(_){ placement = null; }
+    if(!placement || placement.page_index == null || placement.x_pct == null){
+      continue;
+    }
+    if(mode === 'type'){
+      const txt = (document.getElementById(id+'_text')?.value || '').trim();
+      if(!txt) continue;
+      prepared.push({ field, mode:'type', text: txt, placement });
+    } else {
+      const canvas = document.getElementById(id+'_canvas');
+      if(!canvas || isCanvasEmpty(canvas)) continue;
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      prepared.push({ field, mode:'draw', png: blob, placement });
+    }
+  }
+  return prepared;
+}
+
+function signableSignatures(){
+  return ((current && current.intake && current.intake.signatures) || [])
+    .filter(s => (s.kind || 'signature') !== 'date');
+}
+
+function placementComplete(p){
+  return !!(p && p.page_index != null && p.x_pct != null && p.y_pct != null);
+}
+
+function mountEsignConsent(){
+  const body = document.getElementById('form-body');
+  if(!body) return;
+  let row = document.getElementById('esign-consent-row');
+  if(!row){
+    row = document.createElement('label');
+    row.id = 'esign-consent-row';
+    row.className = 'hidden flex items-center gap-2 text-[11px] text-gray-800 cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-3 py-2';
+    row.innerHTML = '<input id="esign-consent" type="checkbox" class="accent-indigo-600 shrink-0"/>'
+      + '<span class="leading-snug">I consent to sign electronically (ESIGN / UETA)</span>';
+  }
+  body.appendChild(row);
+  syncEsignChrome();
+}
+
+function syncEsignChrome(){
+  const n = signableSignatures().length;
+  const box = document.getElementById('esign-consent-box');
+  if(box) box.classList.toggle('hidden', !n);
+  const row = document.getElementById('esign-consent-row');
+  if(row){
+    row.classList.toggle('hidden', !n);
+    row.classList.toggle('flex', !!n);
+  }
+  const btn = document.getElementById('fill-btn');
+  if(btn && !btn.disabled) btn.textContent = defaultFillBtnLabel();
+}
+
+function setSigTab(card, tab){
+  if(!card || !tab) return;
+  card.querySelectorAll('.sig-tab').forEach(b => b.classList.toggle('active', b.getAttribute('data-sig-tab') === tab));
+  const id = card.getAttribute('data-sig-id');
+  const typeWrap = document.getElementById(id + '_type_wrap');
+  const drawWrap = document.getElementById(id + '_draw_wrap');
+  if(typeWrap) typeWrap.classList.toggle('hidden', tab !== 'type');
+  if(drawWrap) drawWrap.classList.toggle('hidden', tab !== 'draw');
+  scheduleLiveOverlay();
+}
+
+function bindDrawCanvas(canvas){
+  if(!canvas || canvas.dataset.sigWired === '1') return;
+  canvas.dataset.sigWired = '1';
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#0a2864';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  let drawing = false, lastX = 0, lastY = 0;
+  function pos(e){
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / Math.max(1, rect.width);
+    const scaleY = canvas.height / Math.max(1, rect.height);
+    const src = e.touches ? e.touches[0] : e;
+    return [(src.clientX - rect.left) * scaleX, (src.clientY - rect.top) * scaleY];
+  }
+  canvas.addEventListener('pointerdown', e => {
+    drawing = true;
+    [lastX, lastY] = pos(e);
+    try { canvas.setPointerCapture(e.pointerId); } catch(_){}
+    e.preventDefault();
+  });
+  canvas.addEventListener('pointermove', e => {
+    if(!drawing) return;
+    const [x, y] = pos(e);
+    const cctx = canvas.getContext('2d');
+    cctx.strokeStyle = '#0a2864';
+    cctx.lineWidth = Math.max(1.5, Math.min(3.5, canvas.height / 28));
+    cctx.lineCap = 'round';
+    cctx.lineJoin = 'round';
+    cctx.beginPath();
+    cctx.moveTo(lastX, lastY);
+    cctx.lineTo(x, y);
+    cctx.stroke();
+    [lastX, lastY] = [x, y];
+    e.preventDefault();
+    scheduleLiveOverlay();
+  });
+  canvas.addEventListener('pointerup', () => { drawing = false; });
+  canvas.addEventListener('pointercancel', () => { drawing = false; });
+  canvas.addEventListener('pointerleave', () => { drawing = false; });
+}
+
+function bindSignaturePads(){
+  const body = document.getElementById('form-body');
+  if(!body) return;
+  if(!body.dataset.sigTabsWired){
+    body.dataset.sigTabsWired = '1';
+    body.addEventListener('click', (e) => {
+      const tab = e.target.closest('.sig-tab');
+      if(tab){
+        const card = tab.closest('[data-sig-card]');
+        if(card) setSigTab(card, tab.getAttribute('data-sig-tab'));
+        return;
+      }
+      const clearBtn = e.target.closest('[data-sig-clear]');
+      if(clearBtn){
+        const id = clearBtn.getAttribute('data-sig-clear');
+        const canvas = document.getElementById(id + '_canvas');
+        if(canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+        scheduleLiveOverlay();
+      }
+    });
+  }
+  body.querySelectorAll('canvas.sig-pad').forEach(bindDrawCanvas);
+}
+
+function zoneToPlacement(z){
+  return {
+    page_index: Number(z.page_index),
+    x_pct: Number(z.x_pct),
+    y_pct: Number(z.y_pct),
+    width_pct: Number(z.width_pct ?? 40),
+    height_pct: Number(z.height_pct ?? 8),
+  };
+}
+
+function writeSigPlacement(field, place){
+  const sigs = (current.intake && current.intake.signatures) || [];
+  const sig = sigs.find(s => s.field === field || s.acro_field === field);
+  if(sig) sig.placement = place;
+  const cards = document.querySelectorAll('[data-sig-card]');
+  let card = null;
+  cards.forEach(el => { if(el.getAttribute('data-sig-card') === field) card = el; });
+  if(!card) return;
+  const attr = encodeURIComponent(JSON.stringify(place || {}));
+  card.querySelectorAll('[data-sig-placement]').forEach(el => el.setAttribute('data-sig-placement', attr));
+  const chip = card.querySelector('[data-sig-chip]');
+  if(chip){
+    const ok = placementComplete(place);
+    chip.textContent = ok ? 'e-sign' : 'no placement';
+    chip.className = ok
+      ? 'text-[9px] align-middle px-1 py-0.5 rounded bg-indigo-50 text-indigo-700'
+      : 'text-[9px] align-middle px-1 py-0.5 rounded bg-amber-50 text-amber-700';
+    chip.setAttribute('data-sig-chip', '');
+  }
+}
+
+function matchDetectZone(s, zones, used){
+  const name = String(s.acro_field || s.field || '').toLowerCase();
+  const label = String(s.label || '').toLowerCase();
+  const hit = zones.find((z, i) => {
+    if(used.has(i)) return false;
+    const k = String(z.key || '').toLowerCase();
+    const l = String(z.label || '').toLowerCase();
+    return (name && (k === name || l.indexOf(name) >= 0))
+      || (label && (l === label || (label.length > 8 && l.indexOf(label.slice(0, 12)) >= 0)));
+  });
+  if(hit){
+    used.add(zones.indexOf(hit));
+    return hit;
+  }
+  const idx = zones.findIndex((_, i) => !used.has(i));
+  if(idx < 0) return null;
+  used.add(idx);
+  return zones[idx];
+}
+
+function ensureSignaturesSection(){
+  const body = document.getElementById('form-body');
+  if(!body || body.querySelector('[data-sig-card]')) return;
+  const sigs = signableSignatures();
+  if(!sigs.length) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <h3 class="font-semibold text-gray-700 text-sm mb-2">Signatures</h3>
+    <div class="grid grid-cols-2 gap-3">
+      ${sigs.map(signatureControl).join('')}
+    </div>`;
+  body.appendChild(wrap);
+  mountEsignConsent();
+}
+
+async function enrichSignaturePlacementsFromDetect(){
+  if(!current) return;
+  const sigs = signableSignatures();
+  const missing = sigs.filter(s => !placementComplete(s.placement));
+  if(sigs.length && !missing.length) return;
+  try {
+    await ensureBlankPdfDoc();
+    const buf = blankPdfCache.buffer;
+    if(!buf) return;
+    const fd = new FormData();
+    fd.append('file', new Blob([buf], { type: 'application/pdf' }), (current.template_id || 'form') + '.pdf');
+    fd.append('use_ai', 'true');
+    fd.append('max_pages', '8');
+    const r = await fetch('/api/v1/signatures/detect-fields', {
+      method: 'POST', headers: authHeaders(), body: fd, credentials: 'same-origin',
+    });
+    if(!r.ok) return;
+    const d = await r.json();
+    const zones = (d.fields || []).filter(z => (z.kind || 'signature') === 'signature' || z.kind === 'initial');
+    if(!zones.length) return;
+    if(!current.intake) current.intake = {};
+    if(!Array.isArray(current.intake.signatures)) current.intake.signatures = [];
+    const used = new Set();
+    if(!sigs.length){
+      zones.forEach((z, i) => {
+        current.intake.signatures.push({
+          field: z.key || ('detected_' + i),
+          acro_field: z.key || ('detected_' + i),
+          label: z.label || 'Signature',
+          kind: 'signature',
+          page: (Number(z.page_index) || 0) + 1,
+          placement: zoneToPlacement(z),
+        });
+      });
+      ensureSignaturesSection();
+      return;
+    }
+    missing.forEach(s => {
+      const z = matchDetectZone(s, zones, used);
+      if(!z) return;
+      writeSigPlacement(s.field || s.acro_field, zoneToPlacement(z));
+    });
+  } catch(_){}
+}
+
+async function loadBlankPdfIntoPane(){
+  if(!current || !current.template_id){ setPdfEmpty(); return; }
+  const status = document.getElementById('pdf-status');
+  if(status) status.textContent = 'Loading PDF…';
+  const token = ++pdfLoadToken;
+  try {
+    await ensureBlankPdfDoc();
+    if(token !== pdfLoadToken) return;
+    if(!blankPdfCache.doc){
+      setPdfEmpty('Could not load this form’s PDF.');
+      return;
+    }
+    pdfDoc = blankPdfCache.doc;
+    revealPdfPages();
+    await renderPdfDoc();
+    if(status) status.textContent = current.name || 'Blank PDF';
+  } catch(e){
+    if(token !== pdfLoadToken) return;
+    setPdfEmpty(e.message || 'PDF failed to load.');
+  }
+}
+
+function pageIndexForAcro(name){
+  if(!name || !current) return null;
+  const places = current.widget_placements || {};
+  const p = places[name] || places[String(name).split('::')[0]];
+  return (p && p.page_index != null) ? Number(p.page_index) : null;
+}
+
+function jumpPdfForElement(el){
+  if(!el || !pdfDoc) return;
+  let pageIdx = null;
+  const canon = el.getAttribute('data-canon');
+  if(canon && current && current.intake){
+    const fields = [
+      ...((current.intake.canonical||{}).fields || []),
+      ...(((current.intake.canonical||{}).groups || []).flatMap(g => g.fields || [])),
+    ];
+    const f = fields.find(x => x.canonical === canon);
+    const names = (f && f.form_fields) || [];
+    for(const n of names){
+      pageIdx = pageIndexForAcro(n);
+      if(pageIdx != null) break;
+    }
+  }
+  if(pageIdx == null && el.getAttribute('data-qid') && current){
+    const q = ((current.intake||{}).questions||[]).find(x => x.id === el.getAttribute('data-qid'));
+    if(q && q.page) pageIdx = Number(q.page) - 1;
+    else if(q && q.options && q.options[0]) pageIdx = pageIndexForAcro(q.options[0].field);
+  }
+  if(pageIdx == null && el.getAttribute('data-narrative')){
+    pageIdx = pageIndexForAcro(el.getAttribute('data-narrative'));
+  }
+  if(pageIdx == null && el.getAttribute('data-sig-field')){
+    const sig = ((current.intake||{}).signatures||[]).find(s =>
+      s.field === el.getAttribute('data-sig-field') || s.acro_field === el.getAttribute('data-sig-field'));
+    if(sig && sig.placement && sig.placement.page_index != null) pageIdx = Number(sig.placement.page_index);
+    else if(sig) pageIdx = pageIndexForAcro(sig.acro_field || sig.field);
+  }
+  if(pageIdx != null && pageIdx >= 0) goToPdfPage(pageIdx + 1);
+}
+
+function wireLivePdfPreview(){
+  const body = document.getElementById('form-body');
+  if(!body) return;
+  if(!body.dataset.liveWired){
+    body.dataset.liveWired = '1';
+    body.addEventListener('input', scheduleLiveOverlay);
+    body.addEventListener('change', scheduleLiveOverlay);
+    body.addEventListener('focusin', (e)=>{ jumpPdfForElement(e.target); });
+  }
+  scheduleLiveOverlay();
 }
 
 function setListFilter(mode){
@@ -224,43 +1156,80 @@ function setListFilter(mode){
     el.className = on
       ? (m==='ready' ? 'px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium'
         : m==='needs' ? 'px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-medium'
+        : m==='mine' ? 'px-2 py-1 rounded-full bg-violet-100 text-violet-800 font-medium'
         : 'px-2 py-1 rounded-full bg-indigo-100 text-indigo-800 font-medium')
       : 'px-2 py-1 rounded-full bg-gray-100 text-gray-600';
   });
   renderTemplateList();
 }
 
+function templateSearchHaystack(t){
+  const drug = t.drug?.name || t.drug_name || '';
+  const payer = t.payer?.name || t.payer_name || '';
+  const tags = Array.isArray(t.tags) ? t.tags.join(' ') : '';
+  return [t.name, t.id, t.category, t.description, t.state, drug, payer, tags]
+    .filter(Boolean).join(' ').toLowerCase();
+}
+
+function templateMetaLine(t){
+  const drug = t.drug?.name || t.drug_name || '';
+  const payer = t.payer?.name || t.payer_name || '';
+  const bits = [];
+  if(drug) bits.push(drug);
+  if(payer) bits.push(payer);
+  if(t.category) bits.push(t.category);
+  if(t.state) bits.push(t.state);
+  return bits.join(' · ');
+}
+
 function renderTemplateList(){
   const el = document.getElementById('tpl-list');
+  const q = (document.getElementById('tpl-search')?.value || '').trim().toLowerCase();
   let list = allTemplates.slice();
   if(listFilter === 'ready') list = list.filter(t => readinessById[t.id]?.ready);
   else if(listFilter === 'needs') list = list.filter(t => !readinessById[t.id]?.ready);
-  // Ready forms first within "all"
-  if(listFilter === 'all'){
-    list.sort((a,b)=> Number(!!readinessById[b.id]?.ready) - Number(!!readinessById[a.id]?.ready)
-      || String(a.name||a.id).localeCompare(String(b.name||b.id)));
-  }
+  else if(listFilter === 'mine') list = list.filter(t => t.pinned || t.visibility === 'private');
+  if(q) list = list.filter(t => templateSearchHaystack(t).includes(q));
+  // Ready forms first within "all"; otherwise name sort
+  list.sort((a,b)=> Number(!!readinessById[b.id]?.ready) - Number(!!readinessById[a.id]?.ready)
+    || String(a.name||a.id).localeCompare(String(b.name||b.id)));
   const readyN = allTemplates.filter(t => readinessById[t.id]?.ready).length;
   document.getElementById('tpl-count').textContent =
-    `${list.length} shown · ${readyN} ready for Guided Fill`;
+    `${list.length} shown · ${readyN} ready for Guided Fill`
+    + (q ? ` · filter “${q}”` : '');
   if(!list.length){
+    if(q){
+      el.innerHTML = `<p class="text-gray-400 text-xs">No forms match “${esc(q)}”.
+        <button type="button" onclick="document.getElementById('tpl-search').value=''; renderTemplateList();"
+          class="underline text-indigo-600">Clear search</button></p>`;
+      return;
+    }
     el.innerHTML = listFilter === 'ready'
-      ? '<p class="text-gray-400 text-xs">No locked forms yet. Switch to <button onclick="setListFilter(\'needs\')" class="underline text-indigo-600">Needs mapping</button> or lock maps in Mapping Review.</p>'
+      ? '<p class="text-gray-400 text-xs">No locked forms yet. An admin must lock the mapping before this clinic can fill.</p>'
+      : listFilter === 'mine'
+      ? '<p class="text-gray-400 text-xs">No pinned forms yet. Open a form and click Pin, or upload a private clinic PDF in Template Library.</p>'
       : '<p class="text-gray-400 text-xs">No templates. Add one in the Templates screen.</p>';
     return;
   }
   el.innerHTML = list.map(t=>{
     const ready = !!readinessById[t.id]?.ready;
     const badge = ready
-      ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Ready</span>'
-      : '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Needs mapping</span>';
+      ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 shrink-0">Ready</span>'
+      : '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">Pending lock</span>';
+    const meta = templateMetaLine(t);
+    const pin = t.pinned
+      ? '<span class="text-[10px] text-violet-600">★</span>'
+      : '';
+    const priv = t.visibility === 'private'
+      ? '<span class="text-[10px] px-1 rounded bg-slate-100 text-slate-600">private</span>'
+      : '';
     return `<button onclick="openTemplate('${esc(t.id)}','${esc(t.name||t.id)}')"
-        class="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 transition border border-gray-100">
+        class="tpl-btn w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 transition border border-gray-100${selectedTemplateId===t.id?' active':''}">
         <div class="flex items-center justify-between gap-2">
           <div class="font-medium text-gray-800 truncate">${esc(t.name||t.id)}</div>
-          ${badge}
+          <span class="flex items-center gap-1 shrink-0">${pin}${priv}${badge}</span>
         </div>
-        <div class="text-[11px] text-gray-400">${esc(t.category||'')}</div>
+        ${meta ? `<div class="text-[11px] text-gray-400 truncate mt-0.5">${esc(meta)}</div>` : ''}
       </button>`;
   }).join('');
 }
@@ -272,7 +1241,7 @@ async function loadTemplates(){
   try {
     const [d, ready] = await Promise.all([
       api('/api/v1/templates'),
-      api('/api/v1/templates/readiness').catch(()=>({ items: [] })),
+      (window.fmpReadiness ? fmpReadiness() : api('/api/v1/templates/readiness')).catch(()=>({ items: [] })),
     ]);
     const items = d.templates || d.items || d || [];
     allTemplates = Array.isArray(items) ? items : (items.templates || []);
@@ -319,92 +1288,8 @@ async function loadProfilePickers(){
     fill('pick-facility', ['facility','business']);
     fill('pick-pharmacy', ['pharmacy']);
     fill('pick-encounter', ['encounter']);
+    updateProfileSummary();
   } catch { /* optional */ }
-}
-
-/** Flat profile keys → Guided Fill canonical paths (role-neutral base). */
-const PROFILE_TO_CANON = {
-  patient_first_name:'patient.first_name', patient_last_name:'patient.last_name',
-  patient_dob:'patient.dob', patient_gender:'patient.sex', patient_sex:'patient.sex',
-  patient_address:'patient.address_line1', patient_city:'patient.city',
-  patient_state:'patient.state', patient_zip:'patient.zip', patient_phone:'patient.phone',
-  patient_email:'patient.email', patient_full_name:'patient.full_name',
-  member_id:'insurance.member_id', group_number:'insurance.group_number',
-  insurance_plan:'insurance.payer_name', payer_name:'insurance.payer_name',
-  subscriber_name:'insurance.subscriber_name',
-  provider_first_name:'prescriber.first_name', provider_last_name:'prescriber.last_name',
-  provider_full_name:'prescriber.full_name',
-  npi:'prescriber.npi', specialty:'prescriber.specialty', practice_name:'facility.name',
-  provider_address:'prescriber.address_line1', provider_city:'prescriber.city',
-  provider_state:'prescriber.state', provider_zip:'prescriber.zip',
-  provider_phone:'prescriber.phone', provider_fax:'prescriber.fax', dea_number:'prescriber.dea',
-  provider_tax_id:'prescriber.tax_id',
-  first_name:'patient.first_name', last_name:'patient.last_name', dob:'patient.dob',
-  email:'patient.email', phone:'patient.phone', address:'patient.address_line1',
-  city:'patient.city', state:'patient.state', zip:'patient.zip',
-  company_name:'facility.name', employer_name:'facility.name',
-  employer_address:'facility.address_line1', ein:'facility.tax_id',
-  facility_name:'facility.name', facility_npi:'facility.npi',
-  facility_phone:'facility.phone', facility_fax:'facility.fax',
-  facility_address:'facility.address_line1', facility_city:'facility.city',
-  facility_state:'facility.state', facility_zip:'facility.zip', facility_tax_id:'facility.tax_id',
-  pharmacy_name:'pharmacy.name', pharmacy_npi:'pharmacy.npi',
-  pharmacy_phone:'pharmacy.phone', pharmacy_fax:'pharmacy.fax',
-  pharmacy_address:'pharmacy.address_line1', pharmacy_city:'pharmacy.city',
-  pharmacy_state:'pharmacy.state', pharmacy_zip:'pharmacy.zip',
-  pharmacy_store_number:'pharmacy.store_number',
-  // Encounter / PA case pack
-  drug_name:'medication.drug_name', strength:'medication.strength', sig:'medication.sig',
-  quantity:'medication.quantity', days_supply:'medication.days_supply',
-  dosage_form:'medication.dosage_form', hcpcs_jcode:'medication.hcpcs_jcode',
-  ndc:'medication.ndc', frequency:'medication.frequency',
-  diagnosis_code:'clinical.primary_diagnosis_code',
-  diagnosis_description:'clinical.primary_diagnosis_description',
-  clinical_rationale:'clinical.clinical_rationale',
-  previous_auth_number:'request.previous_auth_number',
-  requested_duration:'request.requested_duration',
-  request_type:'request.request_type', date_of_request:'request.date_of_request',
-  // namespaced merges from multi-profile use
-  patient_patient_first_name:'patient.first_name', provider_npi:'prescriber.npi',
-  provider_provider_phone:'prescriber.phone', provider_specialty:'prescriber.specialty',
-};
-
-/** When applying from a role picker, remap ambiguous keys (npi, phone, …). */
-const ROLE_KEY_OVERRIDES = {
-  facility: {
-    npi:'facility.npi', phone:'facility.phone', fax:'facility.fax',
-    address:'facility.address_line1', city:'facility.city', state:'facility.state', zip:'facility.zip',
-    practice_name:'facility.name', company_name:'facility.name',
-    provider_phone:'facility.phone', provider_fax:'facility.fax',
-    provider_address:'facility.address_line1', provider_city:'facility.city',
-    provider_state:'facility.state', provider_zip:'facility.zip',
-    provider_tax_id:'facility.tax_id',
-  },
-  pharmacy: {
-    npi:'pharmacy.npi', phone:'pharmacy.phone', fax:'pharmacy.fax',
-    address:'pharmacy.address_line1', city:'pharmacy.city', state:'pharmacy.state', zip:'pharmacy.zip',
-    practice_name:'pharmacy.name', company_name:'pharmacy.name',
-    pharmacy_name:'pharmacy.name',
-  },
-  encounter: {
-    // keep diagnosis_code etc. from base map; no person remaps
-  },
-};
-
-/** Mirror role-specific aliases so one provider profile fills TDI/UHC/etc. */
-const ROLE_MIRROR_PREFIXES = [
-  ['prescriber', 'requesting_provider'],
-  ['prescriber', 'attending_provider'],
-  ['prescriber', 'billing_provider'],
-];
-
-function normalizeSex(v){
-  const s = String(v || '').trim().toLowerCase();
-  if(!s) return v;
-  if(s === 'm' || s === 'male' || s === 'man') return 'M';
-  if(s === 'f' || s === 'female' || s === 'woman') return 'F';
-  if(s === 'u' || s === 'unknown' || s === 'other' || s === 'x' || s === 'non-binary') return 'U';
-  return v;
 }
 
 function showProfileStatus(msg, isErr){
@@ -423,58 +1308,6 @@ function showCoverageStatus(msg){
   if(!msg){ el.classList.add('hidden'); el.textContent = ''; return; }
   el.textContent = msg;
   el.classList.remove('hidden');
-}
-
-function composeNames(mapped){
-  const pf = mapped['patient.first_name'], pl = mapped['patient.last_name'];
-  if((pf || pl) && !mapped['patient.full_name'])
-    mapped['patient.full_name'] = [pf, pl].filter(Boolean).join(' ');
-  const prf = mapped['prescriber.first_name'], prl = mapped['prescriber.last_name'];
-  if((prf || prl) && !mapped['prescriber.full_name'])
-    mapped['prescriber.full_name'] = [prf, prl].filter(Boolean).join(' ');
-}
-
-function expandRoleAliases(mapped, role){
-  if(role === 'provider' || !role){
-    const keys = Object.keys(mapped);
-    ROLE_MIRROR_PREFIXES.forEach(([from, to])=>{
-      keys.forEach(k=>{
-        if(!k.startsWith(from + '.')) return;
-        const alt = to + k.slice(from.length);
-        if(mapped[alt] === undefined || mapped[alt] === '') mapped[alt] = mapped[k];
-      });
-    });
-    if(mapped['requesting_provider.full_name'] && !mapped['prescriber.contact_name'])
-      mapped['prescriber.contact_name'] = mapped['requesting_provider.full_name'];
-    if(mapped['prescriber.full_name'] && !mapped['prescriber.contact_name'])
-      mapped['prescriber.contact_name'] = mapped['prescriber.full_name'];
-  }
-  if(mapped['patient.full_name'] && !mapped['insurance.subscriber_name'])
-    mapped['insurance.subscriber_name'] = mapped['patient.full_name'];
-  if(mapped['facility.name'] && !mapped['prescriber.practice_name'])
-    mapped['prescriber.practice_name'] = mapped['facility.name'];
-}
-
-function flatToCanonMap(flat, role){
-  const mapped = {};
-  const overrides = ROLE_KEY_OVERRIDES[role] || {};
-  Object.keys(flat || {}).forEach(k=>{
-    const raw = flat[k];
-    if(raw === undefined || raw === null || raw === '') return;
-    // Already-canonical keys (from import / recipe)
-    if(k.includes('.') || k.startsWith('q:') || k.startsWith('t:')){
-      mapped[k] = raw;
-      return;
-    }
-    const canon = overrides[k] || PROFILE_TO_CANON[k];
-    if(!canon) return;
-    let v = raw;
-    if(canon === 'patient.sex') v = normalizeSex(v);
-    mapped[canon] = v;
-  });
-  composeNames(mapped);
-  expandRoleAliases(mapped, role);
-  return mapped;
 }
 
 function applyFormValues(map){
@@ -573,10 +1406,12 @@ function updateCoverageStatus(){
   if(locked) msg += ` · ${locked} locked`;
   if(remainParts.length) msg += ` (need: ${remainParts.join(', ')})`;
   showCoverageStatus(msg);
+  scheduleLiveOverlay();
 }
 
 async function onProfileSelect(pickerId){
   const id = document.getElementById(pickerId)?.value;
+  updateProfileSummary();
   if(!id){ updateCoverageStatus(); return; }
   await applyProfile(pickerId, { quiet: false });
   updateCoverageStatus();
@@ -708,7 +1543,7 @@ function recipeStorageKey(){
 }
 
 /** Save non-PHI form answers (questions, narratives, med/clinical/request) for this template. */
-function saveFormRecipe(opts){
+async function saveFormRecipe(opts){
   opts = opts || {};
   if(!current){ if(!opts.quiet) showErr('Open a form first.'); return 0; }
   const body = collect();
@@ -729,6 +1564,17 @@ function saveFormRecipe(opts){
       fingerprint: current.fingerprint,
       data: recipe,
     }));
+    try {
+      await api('/api/v1/account/recipes/' + encodeURIComponent(current.fingerprint || current.template_id), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fingerprint: current.fingerprint,
+          template_id: current.template_id,
+          data: recipe,
+        }),
+      });
+    } catch (e) { /* local copy still saved */ }
     if(!opts.quiet){
       showProfileStatus(`Saved recipe (${n} answers) for this form. Patient/provider data was not stored.`);
     }
@@ -739,29 +1585,50 @@ function saveFormRecipe(opts){
   }
 }
 
-function applyFormRecipe(opts){
+async function applyFormRecipe(opts){
   opts = opts || {};
   const key = recipeStorageKey();
-  if(!key) return 0;
-  let raw;
-  try { raw = localStorage.getItem(key); } catch { return 0; }
-  if(!raw){
+  if(!current) return 0;
+  let data = null;
+  try {
+    const rec = await api('/api/v1/account/recipes/' + encodeURIComponent(current.fingerprint || current.template_id));
+    data = rec.data || rec;
+  } catch {
+    let raw;
+    try { raw = key && localStorage.getItem(key); } catch { raw = null; }
+    if(!raw){
+      if(!opts.quiet) showProfileStatus('No saved recipe for this form yet.', true);
+      return 0;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      data = parsed.data || parsed;
+    } catch {
+      if(!opts.quiet) showProfileStatus('Saved recipe is invalid.', true);
+      return 0;
+    }
+  }
+  if(!data || !Object.keys(data).length){
     if(!opts.quiet) showProfileStatus('No saved recipe for this form yet.', true);
     return 0;
   }
-  try {
-    const parsed = JSON.parse(raw);
-    const data = parsed.data || parsed;
-    const { applied } = applyFormValues(data);
-    if(!opts.quiet){
-      showProfileStatus(`Applied recipe (${applied} fields).`);
-      updateCoverageStatus();
-    }
-    return applied;
-  } catch {
-    if(!opts.quiet) showProfileStatus('Saved recipe is invalid.', true);
-    return 0;
+  const { applied } = applyFormValues(data);
+  if(!opts.quiet){
+    showProfileStatus(`Applied recipe (${applied} fields).`);
+    updateCoverageStatus();
   }
+  return applied;
+}
+
+async function pinCurrentForm(){
+  if(!current || !current.template_id){ showErr('Open a form first.'); return; }
+  try {
+    await api('/api/v1/account/library/' + encodeURIComponent(current.template_id), { method: 'POST' });
+    const t = allTemplates.find(x => x.id === current.template_id);
+    if(t) t.pinned = true;
+    renderTemplateList();
+    showProfileStatus('Pinned to My forms. The shared catalog was not copied.');
+  } catch(e){ showErr(e.message); }
 }
 
 const TYPE_INPUT = { date:'date', number:'number', member_id:'text', npi:'text', ndc:'text', phone:'tel', email:'email', zip:'text' };
@@ -789,8 +1656,10 @@ function ruleHint(rule){
 }
 
 function fieldControl(f){
-  const req = f.required ? ' <span class="text-red-500">*</span>' : '';
-  const crit = f.critical ? ' <span class="text-[9px] align-middle px-1 py-0.5 rounded bg-red-100 text-red-700">critical</span>' : '';
+  // Catalog "critical" is an AI-mapping caution flag (denial-sensitive paths),
+  // not form-specific requiredness — keep it out of Guided Fill labels.
+  // Show * only for fields marked required on this intake (catalog heuristic).
+  const req = f.required ? ' <span class="text-red-500" title="Usually needed on PA forms">*</span>' : '';
   const id = 'f_' + f.canonical.replace(/[^a-z0-9]/gi,'_');
   const rows = f.rows || 1;
   const ra = ruleAttrs(f.rule);
@@ -812,7 +1681,7 @@ function fieldControl(f){
     control = `<input id="${id}" data-canon="${esc(f.canonical)}" type="${t}" class="inp"${ra}${locked}/>`;
   }
   return `<div${spanClass}>
-      <label class="label" for="${id}">${esc(f.label)}${req}${crit}${hint}${ruleHint(f.rule)}</label>
+      <label class="label" for="${id}">${esc(f.label)}${req}${hint}${ruleHint(f.rule)}</label>
       ${control}
     </div>`;
 }
@@ -900,7 +1769,7 @@ function extraControl(ex){
     </div>`;
 }
 
-/** Companion date → normal field. Signature → type/draw pad (e-sign after fill). */
+/** Companion date → normal field. Signature → type/draw pad + live PDF placement preview. */
 function signatureControl(s){
   const field = s.field || s.acro_field || '';
   const id = 'sig_' + String(field).replace(/[^a-z0-9]/gi,'_');
@@ -916,11 +1785,21 @@ function signatureControl(s){
   const place = s.placement || {};
   const placeAttr = encodeURIComponent(JSON.stringify(place));
   const canSign = place.page_index != null && place.x_pct != null;
-  return `<div class="col-span-2 border border-gray-100 rounded-xl p-3 bg-gray-50/50 space-y-2" data-sig-card="${esc(field)}">
+  const wPct = Math.max(0.5, Number(place.width_pct) || 40);
+  const hPct = Math.max(0.5, Number(place.height_pct) || 4);
+  // Mirror stamp box aspect on US Letter (same as E-Signature pad).
+  const boxAspect = (wPct / hPct) * (612 / 792);
+  const canvasW = 720;
+  const canvasH = Math.max(36, Math.min(220, Math.round(canvasW / boxAspect)));
+  const cssH = Math.max(40, Math.min(160, Math.round(560 / boxAspect)));
+  const dimHint = canSign
+    ? `Pad mirrors stamp (${wPct}% × ${hPct}%) · page ${(Number(place.page_index)||0)+1}`
+    : 'Pad default — no locked placement yet';
+  return `<div class="col-span-2 border border-gray-100 rounded-xl p-3 bg-gray-50/50 space-y-2" data-sig-card="${esc(field)}" data-sig-id="${esc(id)}">
       <div class="flex items-center justify-between gap-2">
         <label class="label mb-0">${esc(s.label || field)}${role}${page}
-          ${canSign ? '<span class="text-[9px] align-middle px-1 py-0.5 rounded bg-indigo-50 text-indigo-700">e-sign</span>'
-                    : '<span class="text-[9px] align-middle px-1 py-0.5 rounded bg-amber-50 text-amber-700">no placement</span>'}
+          ${canSign ? '<span data-sig-chip class="text-[9px] align-middle px-1 py-0.5 rounded bg-indigo-50 text-indigo-700">e-sign</span>'
+                    : '<span data-sig-chip class="text-[9px] align-middle px-1 py-0.5 rounded bg-amber-50 text-amber-700">no placement</span>'}
         </label>
         <div class="flex gap-1">
           <button type="button" class="sig-tab active" data-sig-tab="type" data-sig-for="${esc(id)}">Type</button>
@@ -928,13 +1807,24 @@ function signatureControl(s){
         </div>
       </div>
       <div id="${id}_type_wrap">
-        <input id="${id}_text" type="text" class="inp" placeholder="Type full name to sign"
-          data-sig-field="${esc(field)}" data-sig-mode="type" data-sig-placement="${placeAttr}"/>
+        <div class="sig-pad-wrap border border-gray-200 bg-white flex items-center px-3"
+          style="height:${cssH}px">
+          <input id="${id}_text" type="text" class="inp border-0 shadow-none focus:ring-0 px-0"
+            style="font-family:cursive;font-size:${Math.max(14, Math.min(36, Math.round(cssH * 0.55)))}px"
+            placeholder="Type full name to sign"
+            data-sig-field="${esc(field)}" data-sig-mode="type" data-sig-placement="${placeAttr}"/>
+        </div>
       </div>
       <div id="${id}_draw_wrap" class="hidden">
-        <canvas id="${id}_canvas" class="sig-pad" width="480" height="120"
-          data-sig-field="${esc(field)}" data-sig-mode="draw" data-sig-placement="${placeAttr}"></canvas>
-        <button type="button" class="text-[11px] text-indigo-600 hover:underline mt-1" data-sig-clear="${esc(id)}">Clear drawing</button>
+        <div class="sig-pad-wrap" style="height:${cssH}px">
+          <canvas id="${id}_canvas" class="sig-pad" width="${canvasW}" height="${canvasH}"
+            style="height:${cssH}px"
+            data-sig-field="${esc(field)}" data-sig-mode="draw" data-sig-placement="${placeAttr}"></canvas>
+        </div>
+        <div class="flex items-center justify-between mt-1">
+          <button type="button" class="text-[11px] text-indigo-600 hover:underline" data-sig-clear="${esc(id)}">Clear drawing</button>
+          <span class="text-[10px] text-gray-400">${esc(dimHint)}</span>
+        </div>
       </div>
     </div>`;
 }
@@ -1039,11 +1929,12 @@ function applyIntakeLocks(){
 
 async function openTemplate(id, name){
   clearErr();
+  selectedTemplateId = id;
+  renderTemplateList();
   document.getElementById('form-empty').classList.add('hidden');
   document.getElementById('form-card').classList.add('hidden');
   document.getElementById('not-reviewed').classList.add('hidden');
   document.getElementById('fill-success').classList.add('hidden');
-  // Keep URL shareable
   try {
     const u = new URL(location.href);
     u.searchParams.set('template_id', id);
@@ -1052,12 +1943,16 @@ async function openTemplate(id, name){
   try {
     const d = await api('/api/v1/templates/'+encodeURIComponent(id)+'/schema');
     if(!d.reviewed){
-      pendingReviewFp = d.fingerprint || readinessById[id]?.fingerprint || null;
       const link = document.getElementById('not-reviewed-link');
-      link.href = pendingReviewFp
-        ? '/ui/mapping_review.html?fp='+encodeURIComponent(pendingReviewFp)
-        : '/ui/mapping_review.html';
+      if (window.fmpIsAdmin && fmpIsAdmin()) {
+        pendingReviewFp = d.fingerprint || readinessById[id]?.fingerprint || null;
+        link.href = pendingReviewFp
+          ? '/ui/mapping_review.html?fp='+encodeURIComponent(pendingReviewFp)
+          : '/ui/mapping_review.html';
+        link.classList.remove('hidden');
+      }
       document.getElementById('not-reviewed').classList.remove('hidden');
+      setPdfEmpty('An admin must lock this form before Guided Fill.');
       return;
     }
     current = {
@@ -1065,9 +1960,18 @@ async function openTemplate(id, name){
       fingerprint: d.fingerprint,
       schema: d.schema,
       intake: d.intake || { questions: [], narratives: [], canonical: d.schema },
+      widget_placements: d.widget_placements || {},
       name,
     };
+    blankPdfCache = { templateId: null, buffer: null, doc: null };
     renderForm(d, name);
+    wireLivePdfPreview();
+    bindSignaturePads();
+    syncEsignChrome();
+    loadBlankPdfIntoPane()
+      .then(() => enrichSignaturePlacementsFromDetect())
+      .then(() => { bindSignaturePads(); syncEsignChrome(); scheduleLiveOverlay(); })
+      .catch(()=>{});
   } catch(e){ showErr(e.message); }
 }
 
@@ -1163,11 +2067,9 @@ function renderForm(d, name){
       </div>
     </div>`).join('');
 
-  const signable = signatures.filter(s => (s.kind || 'signature') !== 'date');
   const signaturesHtml = signatures.length ? `
     <div>
       <h3 class="font-semibold text-gray-700 text-sm mb-2">Signatures</h3>
-      <p class="text-[11px] text-gray-500 mb-2">Type or draw each signature. Dates fill with the form; signatures are stamped with e-sign after fill.</p>
       <div class="grid grid-cols-2 gap-3">
         ${signatures.map(signatureControl).join('')}
       </div>
@@ -1178,107 +2080,13 @@ function renderForm(d, name){
     '<p class="text-sm text-gray-400">No fields on this form.</p>';
   document.getElementById('form-card').classList.remove('hidden');
 
-  const consentBox = document.getElementById('esign-consent-box');
-  consentBox.classList.toggle('hidden', !signable.length);
-  const fillBtn = document.getElementById('fill-btn');
-  fillBtn.textContent = signable.length ? 'Fill & Sign PDF' : 'Fill & Download PDF';
-
   // Unlock dependents when the controlling question (usually Yes) is answered.
   const body = document.getElementById('form-body');
   body.querySelectorAll('[data-qid]').forEach(el=>{
     el.addEventListener('change', applyIntakeLocks);
   });
   applyIntakeLocks();
-  wireSignaturePads();
-  // If profiles were already selected (or selected before the form opened), fill now.
-  reApplySelectedProfiles({ quiet: true });
-}
-
-function wireSignaturePads(){
-  document.querySelectorAll('[data-sig-tab]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const id = btn.getAttribute('data-sig-for');
-      const mode = btn.getAttribute('data-sig-tab');
-      const card = btn.closest('[data-sig-card]');
-      if(!card) return;
-      card.querySelectorAll('.sig-tab').forEach(b=>b.classList.toggle('active', b===btn));
-      const typeWrap = document.getElementById(id+'_type_wrap');
-      const drawWrap = document.getElementById(id+'_draw_wrap');
-      if(typeWrap) typeWrap.classList.toggle('hidden', mode !== 'type');
-      if(drawWrap) drawWrap.classList.toggle('hidden', mode !== 'draw');
-    });
-  });
-  document.querySelectorAll('[data-sig-clear]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const id = btn.getAttribute('data-sig-clear');
-      const canvas = document.getElementById(id+'_canvas');
-      if(!canvas) return;
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    });
-  });
-  document.querySelectorAll('canvas.sig-pad').forEach(canvas=>{
-    const ctx = canvas.getContext('2d');
-    ctx.strokeStyle = '#0a2864';
-    ctx.lineWidth = 2.2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    let drawing = false, lastX = 0, lastY = 0;
-    function pos(e){
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const src = e.touches ? e.touches[0] : e;
-      return [(src.clientX - rect.left) * scaleX, (src.clientY - rect.top) * scaleY];
-    }
-    canvas.addEventListener('pointerdown', e=>{ drawing=true; [lastX,lastY]=pos(e); e.preventDefault(); });
-    canvas.addEventListener('pointermove', e=>{
-      if(!drawing) return;
-      const [x,y]=pos(e);
-      ctx.beginPath(); ctx.moveTo(lastX,lastY); ctx.lineTo(x,y); ctx.stroke();
-      [lastX,lastY]=[x,y]; e.preventDefault();
-    });
-    canvas.addEventListener('pointerup', ()=> drawing=false);
-    canvas.addEventListener('pointerleave', ()=> drawing=false);
-  });
-}
-
-function isCanvasEmpty(canvas){
-  const d = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
-  for(let i=3;i<d.length;i+=4) if(d[i] > 0) return false;
-  return true;
-}
-
-async function collectPreparedSignatures(){
-  const prepared = [];
-  const cards = document.querySelectorAll('[data-sig-card]');
-  for(const card of cards){
-    const field = card.getAttribute('data-sig-card');
-    const activeTab = card.querySelector('.sig-tab.active');
-    const mode = activeTab ? activeTab.getAttribute('data-sig-tab') : 'type';
-    const id = 'sig_' + String(field).replace(/[^a-z0-9]/gi,'_');
-    let placement = null;
-    try{
-      const el = mode === 'draw'
-        ? document.getElementById(id+'_canvas')
-        : document.getElementById(id+'_text');
-      placement = JSON.parse(decodeURIComponent(el.getAttribute('data-sig-placement')||'%7B%7D'));
-    }catch(_){ placement = null; }
-    if(!placement || placement.page_index == null || placement.x_pct == null){
-      continue;
-    }
-    if(mode === 'type'){
-      const txt = (document.getElementById(id+'_text')?.value || '').trim();
-      if(!txt) continue;
-      prepared.push({ field, mode:'type', text: txt, placement });
-    } else {
-      const canvas = document.getElementById(id+'_canvas');
-      if(!canvas || isCanvasEmpty(canvas)) continue;
-      const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
-      prepared.push({ field, mode:'draw', png: blob, placement });
-    }
-  }
-  return prepared;
+  mountEsignConsent();
 }
 
 function collect(){
@@ -1333,13 +2141,13 @@ function collect(){
 function defaultFillBtnLabel(){
   const signable = ((current && current.intake && current.intake.signatures) || [])
     .filter(s => (s.kind || 'signature') !== 'date');
-  return signable.length ? 'Fill & Sign PDF' : 'Fill & Download PDF';
+  return signable.length ? 'Fill, preview & sign' : 'Fill & preview PDF';
 }
 
 function wireDownload(url, filename, linkEl){
   linkEl.onclick = async (ev)=>{
     ev.preventDefault();
-    const dr = await fetch(url, { headers: { 'X-API-Key': getKey() } });
+    const dr = await fetch(url, { headers: authHeaders(), credentials: 'same-origin' });
     if(!dr.ok) throw new Error('Download failed');
     const blob = await dr.blob();
     const obj = URL.createObjectURL(blob);
@@ -1368,13 +2176,479 @@ async function applySignatureToPdf(pdfBlob, prep){
     fd.append('signature_png', prep.png, 'signature.png');
   }
   const r = await fetch('/api/v1/signatures/apply', {
-    method:'POST', headers:{ 'X-API-Key': getKey() }, body: fd,
+    method:'POST', headers: authHeaders(), body: fd, credentials: 'same-origin',
   });
   if(!r.ok){
     const e = await r.json().catch(()=>({}));
     throw new Error(e.detail || `Sign failed (HTTP ${r.status})`);
   }
   return r.json();
+}
+
+function closeGfPreview(){
+  document.getElementById('gf-preview-modal').classList.add('hidden');
+  // Keep pending until confirm or user starts a new fill — allow re-open by re-filling.
+}
+
+function gfPreviewPageBy(delta){
+  if(!gfPreview.doc) return;
+  const next = Math.min(gfPreview.pageCount, Math.max(1, gfPreview.page + delta));
+  if(next === gfPreview.page) return;
+  gfPreview.page = next;
+  renderGfPreviewPage();
+}
+
+async function openGfPreview({ mode, arrayBuffer, overlays, fieldOverlays, title, sub, showConfirm, pending }){
+  if(typeof pdfjsLib === 'undefined'){
+    showErr('PDF.js failed to load — preview unavailable.');
+    return;
+  }
+  gfPreview.mode = mode || 'blank';
+  gfPreview.overlays = overlays || [];
+  gfPreview.fieldOverlays = fieldOverlays || [];
+  gfPreview.pending = pending || null;
+  document.getElementById('gf-preview-title').textContent = title || 'PDF preview';
+  document.getElementById('gf-preview-sub').textContent = sub || '';
+  document.getElementById('gf-preview-confirm').classList.toggle('hidden', !showConfirm);
+  document.getElementById('gf-preview-confirm').textContent =
+    (overlays && overlays.length)
+      ? 'Confirm — apply signature(s) & download'
+      : 'Confirm & download';
+  document.getElementById('gf-preview-status').textContent = 'Loading…';
+  document.getElementById('gf-preview-modal').classList.remove('hidden');
+  try {
+    gfPreview.doc = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+    gfPreview.pageCount = gfPreview.doc.numPages || 1;
+    // Jump to first page that has a signature or field overlay when present.
+    let startPage = 1;
+    if(gfPreview.overlays.length){
+      const p = Number(gfPreview.overlays[0].placement?.page_index);
+      if(!Number.isNaN(p) && p >= 0) startPage = p + 1;
+    } else if(gfPreview.fieldOverlays.length){
+      const p = Number(gfPreview.fieldOverlays[0].placement?.page_index);
+      if(!Number.isNaN(p) && p >= 0) startPage = p + 1;
+    }
+    gfPreview.page = Math.min(gfPreview.pageCount, Math.max(1, startPage));
+    document.getElementById('gf-preview-pages').textContent = String(gfPreview.pageCount);
+    await renderGfPreviewPage();
+  } catch(e){
+    document.getElementById('gf-preview-status').textContent = 'Preview failed: ' + (e.message || e);
+  }
+}
+
+async function rasterizeSigOverlay(prep){
+  if(prep.mode === 'draw' && prep.png){
+    const url = URL.createObjectURL(prep.png);
+    const im = await new Promise((resolve, reject)=>{
+      const img = new Image();
+      img.onload = ()=> resolve(img);
+      img.onerror = reject;
+      img.src = url;
+    });
+    URL.revokeObjectURL(url);
+    return im;
+  }
+  // Typed name → temporary canvas
+  const txt = (prep.text || '').trim() || 'Signature';
+  const c = document.createElement('canvas');
+  c.width = 600; c.height = 80;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.fillStyle = '#0a2864';
+  ctx.font = 'italic 42px Georgia, "Times New Roman", serif';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(txt, 12, c.height/2);
+  return c;
+}
+
+async function renderGfPreviewPage(){
+  if(!gfPreview.doc) return;
+  const status = document.getElementById('gf-preview-status');
+  const out = document.getElementById('gf-preview-canvas');
+  document.getElementById('gf-preview-page').textContent = String(gfPreview.page);
+  status.textContent = 'Rendering page…';
+  try {
+    const page = await gfPreview.doc.getPage(gfPreview.page);
+    const scale = 1.25;
+    const viewport = page.getViewport({ scale });
+    out.width = viewport.width;
+    out.height = viewport.height;
+    const ctx = out.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, out.width, out.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    const pageIdx = gfPreview.page - 1;
+
+    // Client-side field value overlays (live overlay mode).
+    const fieldOnPage = (gfPreview.fieldOverlays || []).filter(o =>
+      Number(o.placement?.page_index ?? 0) === pageIdx
+    );
+    for(const fo of fieldOnPage){
+      const p = fo.placement || {};
+      const xPct = Number(p.x_pct), yPct = Number(p.y_pct);
+      const wPct = Number(p.width_pct ?? 20), hPct = Number(p.height_pct ?? 3);
+      if([xPct,yPct,wPct,hPct].some(v => Number.isNaN(v))) continue;
+      const bx = (xPct / 100) * viewport.width;
+      const by = (1 - yPct / 100 - hPct / 100) * viewport.height;
+      const bw = (wPct / 100) * viewport.width;
+      const bh = (hPct / 100) * viewport.height;
+      ctx.fillStyle = 'rgba(99,102,241,0.08)';
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = 'rgba(99,102,241,0.55)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.strokeRect(bx, by, bw, bh);
+      ctx.setLineDash([]);
+      const txt = String(fo.text || '');
+      if(!txt) continue;
+      if(fo.kind === 'checkbox'){
+        ctx.fillStyle = '#0a2864';
+        ctx.font = `bold ${Math.max(10, Math.min(bh * 0.85, 18))}px sans-serif`;
+        ctx.textBaseline = 'middle';
+        ctx.fillText('✓', bx + bw * 0.2, by + bh / 2);
+      } else {
+        ctx.fillStyle = '#0a2864';
+        const fs = Math.max(8, Math.min(bh * 0.72, 16));
+        ctx.font = `${fs}px system-ui, sans-serif`;
+        ctx.textBaseline = 'middle';
+        // Clip long text to box width
+        let draw = txt;
+        while(draw.length > 1 && ctx.measureText(draw).width > bw - 4){
+          draw = draw.slice(0, -1);
+        }
+        if(draw !== txt) draw = draw.slice(0, Math.max(0, draw.length - 1)) + '…';
+        ctx.fillText(draw, bx + 2, by + bh / 2);
+      }
+    }
+
+    const onPage = (gfPreview.overlays || []).filter(o =>
+      Number(o.placement?.page_index ?? 0) === pageIdx
+    );
+    for(const prep of onPage){
+      const p = prep.placement || {};
+      const xPct = Number(p.x_pct), yPct = Number(p.y_pct);
+      const wPct = Number(p.width_pct ?? 40), hPct = Number(p.height_pct ?? 8);
+      if([xPct,yPct,wPct,hPct].some(v => Number.isNaN(v))) continue;
+      const bx = (xPct / 100) * viewport.width;
+      const by = (1 - yPct / 100 - hPct / 100) * viewport.height;
+      const bw = (wPct / 100) * viewport.width;
+      const bh = (hPct / 100) * viewport.height;
+      ctx.strokeStyle = 'rgba(79,70,229,0.95)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(bx, by, bw, bh);
+      ctx.setLineDash([]);
+      try {
+        const img = await rasterizeSigOverlay(prep);
+        drawInkInStampBox(ctx, img, bx, by, bw, bh, wPct, hPct);
+      } catch(_){}
+    }
+
+    if(gfPreview.mode === 'blank'){
+      status.textContent = 'Blank template — confirm this is the right form before filling.';
+    } else if(gfPreview.mode === 'live-overlay'){
+      status.textContent = `Preview page ${pageIdx + 1} — ${fieldOnPage.length} field(s) on this page. Close to keep editing, then Fill when ready.`;
+    } else if(onPage.length || fieldOnPage.length){
+      const bits = [];
+      if(fieldOnPage.length) bits.push(`${fieldOnPage.length} field value(s)`);
+      if(onPage.length) bits.push(`${onPage.length} signature(s)`);
+      status.textContent = `Filled page ${pageIdx + 1} — ${bits.join(' + ')} shown. Confirm to download.`;
+    } else if((gfPreview.overlays||[]).length || (gfPreview.fieldOverlays||[]).length){
+      status.textContent = `Filled page ${pageIdx + 1} — nothing on this page (use Next/Prev).`;
+    } else {
+      status.textContent = `Filled page ${pageIdx + 1} — review data, then Confirm & download.`;
+    }
+  } catch(e){
+    status.textContent = 'Render failed: ' + (e.message || e);
+  }
+}
+
+async function previewBlankForm(){
+  if(!current || !current.template_id){ showErr('Select a form first.'); return; }
+  clearErr();
+  try {
+    let buf = null;
+    if(blankPdfCache.templateId === current.template_id && blankPdfCache.buffer){
+      buf = blankPdfCache.buffer;
+    } else {
+      const r = await fetch('/api/v1/templates/'+encodeURIComponent(current.template_id)+'/pdf', {
+        headers: authHeaders(), credentials: 'same-origin',
+      });
+      if(!r.ok) throw new Error('Could not load blank template PDF.');
+      buf = await r.arrayBuffer();
+      // Warm live-preview cache without blocking modal open.
+      ensureBlankPdfDoc().catch(()=>{});
+    }
+    await openGfPreview({
+      mode: 'blank',
+      arrayBuffer: buf,
+      overlays: [],
+      title: 'A — Blank form preview',
+      sub: current.name || current.template_id,
+      showConfirm: false,
+    });
+  } catch(e){ showErr(e.message || String(e)); }
+}
+
+/** Call guided /fill and return { result, filledBlob, arrayBuffer, downloadUrl }. */
+async function requestGuidedFill(){
+  const fd = new FormData();
+  fd.append('user_data', JSON.stringify(collect()));
+  fd.append('guided', 'true');
+  const aiKey = document.getElementById('ai-key').value.trim();
+  if(aiKey) fd.append('ai_api_key', aiKey);
+  const r = await fetch('/api/v1/templates/'+encodeURIComponent(current.template_id)+'/fill', {
+    method:'POST', headers: authHeaders(), body: fd, credentials: 'same-origin',
+  });
+  if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${r.status}`); }
+  const result = await r.json();
+  const downloadUrl = result.download_url;
+  const pdfResp = await fetch(downloadUrl, { headers: authHeaders(), credentials: 'same-origin' });
+  if(!pdfResp.ok) throw new Error('Could not download filled PDF for preview');
+  const filledBlob = await pdfResp.blob();
+  const arrayBuffer = await filledBlob.arrayBuffer();
+  return { result, filledBlob, arrayBuffer, downloadUrl };
+}
+
+/** Map current form answers → AcroForm widgets with placements for client overlay. */
+function buildLiveFieldOverlays(){
+  const places = (current && current.widget_placements) || {};
+  const intake = (current && current.intake) || {};
+  const data = collect();
+  const out = [];
+  const seen = new Set();
+
+  function pushWidget(acroName, text, kind){
+    if(!acroName || text == null || text === '') return;
+    const base = String(acroName).split('::')[0];
+    const place = places[acroName] || places[base];
+    if(!place) return;
+    const key = base + '|' + String(text);
+    if(seen.has(key)) return;
+    seen.add(key);
+    out.push({
+      field: base,
+      text: Array.isArray(text) ? text.join(', ') : String(text),
+      kind: kind || 'text',
+      placement: place,
+    });
+  }
+
+  // Canonical → form_fields from schema
+  const canon = intake.canonical || current.schema || {};
+  const canonFields = [
+    ...(canon.fields || []),
+    ...((canon.groups || []).flatMap(g => g.fields || [])),
+  ];
+  canonFields.forEach(f=>{
+    const path = f.canonical;
+    const val = data[path];
+    if(val == null || val === '') return;
+    const names = f.form_fields || [];
+    if(Array.isArray(val)){
+      val.forEach((v, i)=>{
+        const name = names[i] || names[0];
+        pushWidget(name, v, 'text');
+      });
+    } else {
+      // Prefer a single plain widget (not name::export)
+      const plain = names.find(n => !String(n).includes('::')) || names[0];
+      pushWidget(plain, val, 'text');
+    }
+  });
+
+  // Questions → option widgets
+  (intake.questions || []).forEach(q=>{
+    const val = data['q:'+q.id];
+    if(val == null || val === '') return;
+    const vals = Array.isArray(val) ? val : [val];
+    vals.forEach(v=>{
+      const opt = (q.options || []).find(o =>
+        String(o.label||'').toLowerCase() === String(v).toLowerCase()
+        || String(o.export||'').toLowerCase() === String(v).toLowerCase()
+        || String(o.field||'') === String(v)
+      );
+      if(opt){
+        pushWidget(opt.field, opt.export || 'Yes', 'checkbox');
+      }
+    });
+  });
+
+  // Narratives / extras / signature dates → t:<field>
+  [...(intake.narratives||[]), ...(intake.extras||[]), ...(intake.signatures||[])].forEach(n=>{
+    const field = n.field || n.acro_field;
+    if(!field) return;
+    const val = data['t:'+field];
+    if(val == null || val === '') return;
+    const kind = (n.kind === 'checkbox') ? 'checkbox' : 'text';
+    pushWidget(n.acro_field || field, val, kind);
+  });
+
+  // Tables: each cell is t:<acro>
+  (intake.tables || []).forEach(t=>{
+    (t.columns || []).forEach(c=>{
+      (c.fields || []).forEach(field=>{
+        const val = data['t:'+field];
+        if(val == null || val === '') return;
+        pushWidget(field, val, 'text');
+      });
+    });
+  });
+
+  return out;
+}
+
+/**
+ * Instant preview: draw typed values (+ optional signatures) on the blank PDF.
+ * Used before Fill so staff can check placement without a server dry-run.
+ */
+async function previewLiveOverlay(){
+  if(!current || !current.template_id){ showErr('Select a form first.'); return; }
+  clearErr();
+  const fieldOverlays = buildLiveFieldOverlays();
+  if(!fieldOverlays.length){
+    const places = Object.keys(current.widget_placements || {}).length;
+    if(!places){
+      showErr('No widget placements for this form yet. Re-open the form (schema refresh) and try again.');
+    } else {
+      showErr('Enter at least one field value first, then Preview on PDF again.');
+    }
+    return;
+  }
+  const btn = document.getElementById('live-overlay-btn');
+  const prev = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Rendering…'; }
+  try {
+    let buf = null;
+    if(blankPdfCache.templateId === current.template_id && blankPdfCache.buffer){
+      buf = blankPdfCache.buffer;
+    } else {
+      await ensureBlankPdfDoc();
+      buf = blankPdfCache.buffer;
+    }
+    if(!buf){
+      const r = await fetch('/api/v1/templates/'+encodeURIComponent(current.template_id)+'/pdf', {
+        headers: authHeaders(), credentials: 'same-origin',
+      });
+      if(!r.ok) throw new Error('Could not load blank template PDF.');
+      buf = await r.arrayBuffer();
+    }
+    const prepared = await collectPreparedSignatures();
+    await openGfPreview({
+      mode: 'live-overlay',
+      arrayBuffer: buf,
+      overlays: prepared,
+      fieldOverlays,
+      title: 'Preview on PDF',
+      sub: (current.name || current.template_id) +
+        ` · ${fieldOverlays.length} value(s)` +
+        (prepared.length ? ` · ${prepared.length} signature(s)` : '') +
+        ' · close to keep editing',
+      showConfirm: false,
+      pending: null,
+    });
+  } catch(e){
+    showErr(e.message || String(e));
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = prev || 'Preview on PDF'; }
+  }
+}
+
+function finishFillSuccess({ result, downloadUrl, downloadName, lastCert, signedCount, preparedLen }){
+  wireDownload(downloadUrl, downloadName, document.getElementById('dl-btn'));
+  const certBtn = document.getElementById('cert-btn');
+  if(lastCert){
+    certBtn.classList.remove('hidden');
+    wireDownload(lastCert, 'signature_certificate.pdf', certBtn);
+  } else {
+    certBtn.classList.add('hidden');
+  }
+
+  const apprBtn = document.getElementById('approval-btn');
+  if (apprBtn) {
+    let serverName = (result.filename || '').split('/').pop();
+    if (!serverName && downloadUrl) {
+      const m = String(downloadUrl).match(/\/(?:download|batch\/download)\/([^/?#]+)/);
+      if (m) serverName = decodeURIComponent(m[1]);
+    }
+    if (!serverName) serverName = (downloadName || '').split('/').pop();
+    // After signing, prefer the signed output filename when available.
+    if (signedCount && downloadName && String(downloadName).endsWith('.pdf')) {
+      // keep downloadName for local save; approval needs server file — use result or signed from URL
+    }
+    const qs = new URLSearchParams();
+    if (serverName) qs.set('pdf', serverName);
+    if (current && current.template_id) qs.set('title', current.template_id);
+    // If we signed, try to extract signed filename from downloadUrl
+    if (signedCount && downloadUrl) {
+      const m2 = String(downloadUrl).match(/\/(?:download|batch\/download)\/([^/?#]+)/);
+      if (m2) qs.set('pdf', decodeURIComponent(m2[1]));
+    }
+    apprBtn.href = '/ui/approvals.html' + (qs.toString() ? ('?' + qs.toString()) : '');
+  }
+
+  const badge = document.getElementById('locked-badge');
+  badge.classList.toggle('hidden', !result.canonical_map_reviewed);
+  badge.classList.toggle('flex', !!result.canonical_map_reviewed);
+  const msg = document.getElementById('fill-success-msg');
+  msg.textContent = signedCount
+    ? `PDF filled and ${signedCount} signature(s) applied.`
+    : 'PDF filled successfully!';
+  try { saveFormRecipe({ quiet: true }); } catch(_){}
+  document.getElementById('fill-success').classList.remove('hidden');
+}
+
+async function confirmGfPreview(){
+  const pending = gfPreview.pending;
+  if(!pending){ closeGfPreview(); return; }
+  const btn = document.getElementById('gf-preview-confirm');
+  const fillBtn = document.getElementById('fill-btn');
+  btn.disabled = true;
+  const prevLabel = btn.textContent;
+  btn.textContent = 'Working…';
+  try {
+    let downloadUrl = pending.downloadUrl;
+    let downloadName = pending.downloadName;
+    let lastCert = null;
+    let signedCount = 0;
+    let pdfBlob = pending.filledBlob;
+    const prepared = pending.prepared || [];
+
+    if(prepared.length){
+      btn.textContent = 'Applying signature(s)…';
+      for(const prep of prepared){
+        const signed = await applySignatureToPdf(pdfBlob, prep);
+        downloadUrl = signed.download_url;
+        downloadName = signed.filename || downloadName;
+        lastCert = signed.certificate_url || lastCert;
+        signedCount += 1;
+        const pdfResp = await fetch(downloadUrl, { headers: authHeaders(), credentials: 'same-origin' });
+        if(!pdfResp.ok) throw new Error('Could not download intermediate signed PDF');
+        pdfBlob = await pdfResp.blob();
+      }
+    }
+
+    finishFillSuccess({
+      result: pending.result,
+      downloadUrl,
+      downloadName,
+      lastCert,
+      signedCount,
+      preparedLen: prepared.length,
+    });
+    closeGfPreview();
+    gfPreview.pending = null;
+    // Auto-download after confirm for fewer clicks
+    document.getElementById('dl-btn').click();
+  } catch(e){
+    showErr(e.message || String(e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prevLabel;
+    fillBtn.disabled = false;
+    fillBtn.textContent = defaultFillBtnLabel();
+  }
 }
 
 async function fillForm(){
@@ -1385,71 +2659,47 @@ async function fillForm(){
   if(prepared.length){
     const consent = document.getElementById('esign-consent');
     if(!consent || !consent.checked){
-      showErr('Check the electronic signature consent box before Fill & Sign.');
+      showErr('Check the electronic signature consent box (below Signatures) before Fill & Sign.');
+      const row = document.getElementById('esign-consent-row');
+      if(row){
+        row.classList.add('ring-2', 'ring-amber-400');
+        row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
       return;
     }
   }
 
   btn.disabled = true;
-  btn.textContent = prepared.length ? 'Filling…' : 'Filling…';
+  btn.textContent = 'Filling…';
   document.getElementById('fill-success').classList.add('hidden');
   document.getElementById('cert-btn').classList.add('hidden');
 
   try {
-    const fd = new FormData();
-    fd.append('user_data', JSON.stringify(collect()));
-    fd.append('guided', 'true');
-    const aiKey = document.getElementById('ai-key').value.trim();
-    if(aiKey) fd.append('ai_api_key', aiKey);
-    const r = await fetch('/api/v1/templates/'+encodeURIComponent(current.template_id)+'/fill', {
-      method:'POST', headers:{ 'X-API-Key': getKey() }, body: fd,
+    const { result, filledBlob, arrayBuffer, downloadUrl } = await requestGuidedFill();
+    const downloadName = current.template_id + (prepared.length ? '_signed.pdf' : '_filled.pdf');
+
+    btn.textContent = 'Loading preview…';
+    // PDF.js often won't paint AcroForm /V after we clear /AP — overlay values so
+    // the confirm modal matches what Live Preview showed.
+    const fieldOverlays = buildLiveFieldOverlays();
+    await openGfPreview({
+      mode: 'filled',
+      arrayBuffer,
+      overlays: prepared,
+      fieldOverlays,
+      title: prepared.length
+        ? 'Filled PDF + signature preview'
+        : 'Filled PDF preview',
+      sub: (current.name || current.template_id) +
+        (fieldOverlays.length ? ` · ${fieldOverlays.length} field(s)` : '') +
+        (prepared.length ? ` · ${prepared.length} signature(s)` : ' · review then confirm'),
+      showConfirm: true,
+      pending: { result, filledBlob, prepared, downloadUrl, downloadName },
     });
-    if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${r.status}`); }
-    const result = await r.json();
-
-    let downloadUrl = result.download_url;
-    let downloadName = current.template_id + (prepared.length ? '_signed.pdf' : '_filled.pdf');
-    let lastCert = null;
-    let signedCount = 0;
-
-    if(prepared.length){
-      btn.textContent = 'Signing…';
-      let pdfResp = await fetch(downloadUrl, { headers: { 'X-API-Key': getKey() } });
-      if(!pdfResp.ok) throw new Error('Could not download filled PDF for signing');
-      let pdfBlob = await pdfResp.blob();
-
-      for(const prep of prepared){
-        const signed = await applySignatureToPdf(pdfBlob, prep);
-        downloadUrl = signed.download_url;
-        downloadName = signed.filename || downloadName;
-        lastCert = signed.certificate_url || lastCert;
-        signedCount += 1;
-        // Chain: next signature stamps the already-signed PDF.
-        pdfResp = await fetch(downloadUrl, { headers: { 'X-API-Key': getKey() } });
-        if(!pdfResp.ok) throw new Error('Could not download intermediate signed PDF');
-        pdfBlob = await pdfResp.blob();
-      }
-    }
-
-    wireDownload(downloadUrl, downloadName, document.getElementById('dl-btn'));
-    const certBtn = document.getElementById('cert-btn');
-    if(lastCert){
-      certBtn.classList.remove('hidden');
-      wireDownload(lastCert, 'signature_certificate.pdf', certBtn);
-    }
-
-    const badge = document.getElementById('locked-badge');
-    badge.classList.toggle('hidden', !result.canonical_map_reviewed);
-    badge.classList.toggle('flex', !!result.canonical_map_reviewed);
-    const msg = document.getElementById('fill-success-msg');
-    msg.textContent = signedCount
-      ? `PDF filled and ${signedCount} signature(s) applied.`
-      : 'PDF filled successfully!';
-    // Remember non-PHI clinical/question answers for next time on this form.
-    try { saveFormRecipe({ quiet: true }); } catch(_){}
-    document.getElementById('fill-success').classList.remove('hidden');
   } catch(e){ showErr(e.message); }
-  finally { btn.disabled=false; btn.textContent=defaultFillBtnLabel(); }
+  finally {
+    btn.disabled=false; btn.textContent=defaultFillBtnLabel();
+  }
 }
 
 async function downloadCsv(){
@@ -1491,10 +2741,21 @@ function useSample(){
     // Multi-row textareas take a list (one value per line); scalars just set.
     el.value = Array.isArray(v) ? (el.getAttribute('data-rows')==='1' ? v.join('\n') : v[0]) : v;
   });
+  scheduleLiveOverlay();
 }
 
-if(!getKey()) document.getElementById('no-key').classList.remove('hidden');
-loadTemplates();
+(async function bootFill(){
+  await (window.fmpAuthReady || Promise.resolve());
+  if (window.fmpPaintNavAuth) fmpPaintNavAuth('nav-auth');
+  const ok = await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey()));
+  if(!ok) document.getElementById('no-key').classList.remove('hidden');
+  else document.getElementById('no-key').classList.add('hidden');
+  setProfileBarOpen(lsPanelOpen(LS_GF_PROFILE, false));
+  setSignOptsOpen(lsPanelOpen(LS_GF_SIGNOPTS, false));
+  updateProfileSummary();
+  initFillLayout();
+  loadTemplates();
+})();
 </script>
 </body>
 </html>

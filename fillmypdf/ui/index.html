@@ -5,266 +5,357 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FillMyPDF — Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; }
-    .card:hover { transform: translateY(-2px); transition: transform .15s ease; }
+    body { font-family: system-ui, -apple-system, sans-serif; background:#f9fafb; color:#1f2937; }
+    .dash-tab { border-bottom: 2px solid transparent; color:#6b7280; }
+    .dash-tab.is-active { border-bottom-color: #4f46e5; color: #3730a3; font-weight: 600; }
+    .style-switch { width: 36px; height: 20px; border-radius: 999px; background: #e5e7eb; position: relative; cursor: pointer; border: 0; padding: 0; }
+    .style-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 99px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.15); transition: transform .15s ease; }
+    .style-switch.is-on { background: #4f46e5; }
+    .style-switch.is-on::after { transform: translateX(16px); }
+    html[data-dash-style="operator"] .clinic-only { display: none !important; }
+    html[data-dash-style="clinic"] .operator-only { display: none !important; }
+    .stat-tile { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px 20px; }
+    .stat-tile .k { font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#9ca3af; }
+    .stat-tile .n { font-size:30px; font-weight:600; color:#111827; font-variant-numeric:tabular-nums; margin-top:4px; }
+    .stat-tile .s { font-size:12px; color:#6b7280; margin-top:4px; }
+    .q-console { position:relative; background:#fff; color:#1f2937; border:1px solid #e5e7eb; border-radius:12px; min-height:0; display:flex; flex-direction:column; overflow:hidden; font-feature-settings:"tnum"; }
+    .q-console.q-pad { padding:18px 20px 22px; }
+    .q-head { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; padding:16px 18px 12px; border-bottom:1px solid #e5e7eb; }
+    .q-kicker { font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#9ca3af; }
+    .q-summary { font-size:13px; color:#6b7280; margin-top:4px; }
+    .q-summary strong { color:#111827; font-weight:600; }
+    .q-filters { display:flex; gap:6px; }
+    .q-filters button { background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:5px 10px; cursor:pointer; font-family:inherit; }
+    .q-filters button.is-on { background:#eef2ff; color:#3730a3; border-color:#c7d2fe; }
+    .q-search { padding:10px 18px; border-bottom:1px solid #e5e7eb; }
+    .q-search input { width:100%; background:#fff; border:1px solid #d1d5db; color:#111827; border-radius:8px; padding:8px 12px; font-size:13px; outline:none; }
+    .q-search input::placeholder { color:#9ca3af; }
+    .q-search input:focus { border-color:#818cf8; box-shadow:0 0 0 2px rgba(79,70,229,.15); }
+    .q-body { display:flex; min-height:0; flex:1; align-items:flex-start; }
+    .q-table-wrap { flex:1; min-width:0; overflow:auto; }
+    .q-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    .q-table th { text-align:left; font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#9ca3af; padding:10px 12px; border-bottom:1px solid #e5e7eb; white-space:nowrap; }
+    .q-table th:nth-child(1), .q-row td:nth-child(1) { padding-left:18px; width:46%; }
+    .q-table th:nth-child(2), .q-row td:nth-child(2) { width:7.5rem; white-space:nowrap; }
+    .q-table th:nth-child(3), .q-row td:nth-child(3) { width:8.5rem; }
+    .q-table th:nth-child(4), .q-row td:nth-child(4) { width:4.5rem; }
+    .q-table th:nth-child(5), .q-row td:nth-child(5) { width:4rem; }
+    .q-row { cursor:pointer; }
+    .q-row td { padding:12px; border-bottom:1px solid #f3f4f6; vertical-align:middle; }
+    .q-row:hover td { background:#f9fafb; }
+    .q-row.is-selected td { background:#eef2ff; }
+    .q-row.is-selected td:first-child { box-shadow:inset 3px 0 0 #4f46e5; }
+    .q-idx { font-size:11px; color:#9ca3af; font-variant-numeric:tabular-nums; width:28px; flex-shrink:0; padding-top:2px; }
+    .q-form { display:flex; align-items:flex-start; gap:8px; min-width:0; }
+    .q-name { min-width:0; flex:1; }
+    .q-title { font-size:13px; font-weight:600; color:#111827; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; word-break:normal; overflow-wrap:normal; }
+    .q-sub { font-size:11px; color:#6b7280; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; word-break:normal; overflow-wrap:normal; }
+    .q-badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:3px 7px; border-radius:4px; border:1px solid transparent; white-space:nowrap; }
+    .q-badge.needs_map { color:#c2410c; background:#ffedd5; border-color:#fdba74; }
+    .q-badge.ready { color:#047857; background:#d1fae5; border-color:#6ee7b7; }
+    .q-badge.waiting { color:#0369a1; background:#e0f2fe; border-color:#7dd3fc; }
+    .q-badge.draft { color:#4b5563; background:#f3f4f6; border-color:#e5e7eb; }
+    .q-badge.queued { color:#4338ca; background:#eef2ff; border-color:#c7d2fe; }
+    .q-badge.done { color:#047857; background:#d1fae5; border-color:#6ee7b7; }
+    .q-badge.failed { color:#b91c1c; background:#fee2e2; border-color:#fca5a5; }
+    .q-fields { display:flex; align-items:center; gap:8px; min-width:110px; }
+    .q-bar { flex:1; height:3px; background:#e5e7eb; border-radius:99px; overflow:hidden; min-width:56px; }
+    .q-bar > i { display:block; height:100%; background:#4f46e5; }
+    .q-bar.is-needs > i { background:#f59e0b; }
+    .q-bar.is-wait > i { background:#0ea5e9; }
+    .q-frac { font-size:11px; color:#6b7280; font-variant-numeric:tabular-nums; }
+    .q-owner { font-size:11px; font-weight:600; color:#4b5563; letter-spacing:.04em; }
+    .q-age { font-size:11px; color:#9ca3af; font-variant-numeric:tabular-nums; }
+    .q-detail { display:none; width:240px; flex:0 0 240px; align-self:flex-start; margin:12px 12px 12px 0; border:1px solid #e5e7eb; border-radius:10px; padding:14px 16px 16px; background:#fff; overflow:auto; max-height:min(70vh, 420px); box-sizing:border-box; }
+    .q-console.q-has-sel .q-detail { display:block; }
+    .q-detail h3 { overflow-wrap:normal; word-break:normal; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .q-detail-empty { color:#9ca3af; font-size:13px; padding:8px 2px; line-height:1.45; }
+    .q-ticks { display:flex; gap:2px; height:6px; margin:8px 0 12px; }
+    .q-ticks i { flex:1; border-radius:1px; background:#e5e7eb; }
+    .q-ticks i.ok { background:#34d399; }
+    .q-ticks i.rev { background:#fbbf24; }
+    .q-unres { display:flex; justify-content:space-between; gap:8px; font-size:12px; padding:6px 0; border-bottom:1px solid #f3f4f6; color:#374151; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+    .q-cta { display:block; text-align:center; margin-top:14px; background:#4f46e5; color:#fff; border-radius:8px; padding:8px 12px; font-size:13px; font-weight:600; text-decoration:none; }
+    .q-cta:hover { background:#4338ca; }
+    .tab-count { font-size:10px; font-weight:700; background:#eef2ff; color:#4338ca; border-radius:99px; padding:1px 6px; margin-left:4px; vertical-align:middle; }
+    .act-card { display:block; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:18px; text-decoration:none; color:inherit; transition:border-color .15s ease, background .15s ease; }
+    .act-card:hover { border-color:#818cf8; background:#fafaff; }
+    .act-card.is-primary { border-color:#c7d2fe; box-shadow:inset 3px 0 0 #4f46e5; }
+    .act-ico { width:36px; height:36px; border-radius:8px; background:#eef2ff; border:1px solid #e0e7ff; color:#4f46e5; display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+    .act-card h3 { font-size:14px; font-weight:600; color:#111827; }
+    .act-card p { font-size:13px; color:#6b7280; margin:6px 0 14px; }
+    .act-card .go { font-size:13px; font-weight:600; color:#4f46e5; }
+    .launch-grid { display:grid; grid-template-columns: minmax(0,1fr) 260px; gap:16px; align-items:start; }
+    .queue-grid { grid-template-columns: minmax(0,1fr) 220px; }
+    .ln-main { min-height:0; }
+    .ln-h { font-size:22px; font-weight:650; color:#111827; letter-spacing:-.02em; line-height:1.25; margin:4px 0 0; }
+    .ln-search { position:relative; margin:16px 0 14px; }
+    .ln-search svg { position:absolute; left:14px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:#9ca3af; pointer-events:none; }
+    .ln-search input { width:100%; background:#fff; border:1px solid #d1d5db; color:#111827; border-radius:999px; padding:10px 16px 10px 40px; font-size:13px; outline:none; font-family:inherit; }
+    .ln-search input::placeholder { color:#9ca3af; }
+    .ln-search input:focus { border-color:#818cf8; box-shadow:0 0 0 2px rgba(79,70,229,.15); }
+    .ln-list { max-height:560px; overflow:auto; }
+    .ln-item { display:flex; align-items:center; gap:12px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:12px 14px; margin-bottom:8px; cursor:pointer; }
+    .ln-item:hover { border-color:#c7d2fe; }
+    .ln-item.is-on { border-color:#818cf8; box-shadow:0 0 0 1px rgba(79,70,229,.2); }
+    .ln-item .nm { font-size:14px; font-weight:600; color:#111827; }
+    .ln-item .meta { font-size:12px; color:#6b7280; margin-top:2px; }
+    .ln-item .acts { margin-left:auto; display:flex; align-items:center; gap:8px; flex-shrink:0; }
+    @media(max-width:720px){
+      .ln-item { flex-wrap:wrap; }
+      .ln-item .acts { margin-left:0; width:100%; justify-content:flex-end; }
+    }
+    .ln-btn { background:#fff; color:#374151; border:1px solid #d1d5db; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:600; text-decoration:none; font-family:inherit; }
+    .ln-btn:hover { border-color:#818cf8; color:#4f46e5; }
+    .ln-btn.is-off { opacity:.38; pointer-events:none; }
+    .ln-empty { color:#9ca3af; font-size:13px; padding:28px 8px; }
+    .ln-csv { background:#eef2ff; border:1px solid #c7d2fe; border-radius:12px; padding:18px; }
+    .ln-csv .q-kicker { color:#4f46e5; }
+    .ln-csv h3 { font-size:15px; font-weight:650; color:#312e81; margin:6px 0 6px; }
+    .ln-csv p { font-size:13px; color:#6b7280; line-height:1.45; }
+    .ln-drop { margin-top:14px; border:1px dashed #a5b4fc; border-radius:10px; padding:16px 12px; text-align:center; font-size:13px; color:#4f46e5; cursor:pointer; background:rgba(255,255,255,.55); }
+    .ln-drop:hover, .ln-drop.is-drag { background:#fff; border-color:#4f46e5; }
+    .ln-drop .muted { color:#9ca3af; font-size:12px; margin-top:4px; }
+    .ln-shorts { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px 18px; }
+    .ln-shorts + .ln-shorts { margin-top:12px; }
+    .ln-csv + .ln-shorts { margin-top:12px; }
+    .ln-shorts h3 { font-size:14px; font-weight:650; color:#111827; margin-bottom:2px; }
+    .ln-shorts .fmp-fast a, .ln-shorts .fmp-fast button { border-bottom-color:#f3f4f6; }
+    #style-label { color:#4b5563; }
+    @media(max-width:1280px){ .queue-grid{grid-template-columns:1fr} }
+    @media(max-width:960px){ .launch-grid{grid-template-columns:1fr} }
+    @media(max-width:1200px){
+      .q-body{flex-direction:column}
+      .q-console.q-has-sel .q-detail{display:block;position:static;inset:auto;width:min(100% - 24px, 360px);flex:none;max-width:360px;max-height:none;align-self:flex-start;margin:12px 18px 16px;border:1px solid #e5e7eb;border-radius:10px;z-index:auto}
+    }
   </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="min-h-screen bg-gray-50">
 
-  <!-- Nav -->
-  <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-    <span class="text-xl font-bold text-indigo-700">FillMyPDF</span>
-    <div class="flex items-center gap-4">
-      <span id="ai-provider-badge" class="hidden text-xs font-medium px-3 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-200" title="Active LLM provider"></span>
-      <button onclick="showKeyModal()" class="text-sm text-gray-500 hover:text-indigo-600 flex items-center gap-1">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-        API Key
-      </button>
-      <a href="/ui/billing.html" class="text-sm text-gray-500 hover:text-indigo-600">Billing</a>
-      <a href="/docs" target="_blank" class="text-sm text-gray-500 hover:text-indigo-600">Docs</a>
+  <main class="max-w-[1400px] mx-auto px-6 py-8 lg:px-8 lg:py-10">
+    <div id="dash-chrome">
+    <header class="mb-6">
+      <p class="q-kicker mb-1">FillMyPDF</p>
+      <h1 class="text-2xl font-semibold text-gray-900 tracking-tight" id="dash-title">Dashboard</h1>
+      <p class="text-sm text-gray-500 mt-1" id="dash-sub">Deterministic fills for Ready templates — no AI guessing on clinical fields.</p>
+    </header>
+
+    <!-- Stats -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div class="stat-tile">
+        <p class="k">Filled today</p>
+        <p class="n" id="stat-today">—</p>
+        <p class="s" id="stat-today-sub">of — total fills</p>
+      </div>
+      <div class="stat-tile">
+        <p class="k">Ready templates</p>
+        <p class="n" id="stat-ready">—</p>
+        <p class="s"><span class="q-badge ready">Locked mappings</span></p>
+      </div>
+      <div class="stat-tile">
+        <p class="k">Needs mapping</p>
+        <p class="n" style="color:#d97706" id="stat-needs">—</p>
+        <a href="/ui/templates.html" id="stat-needs-link" class="s" style="color:#4f46e5">Review now →</a>
+      </div>
+      <div class="stat-tile">
+        <p class="k">In queue</p>
+        <p class="n" id="stat-queue">—</p>
+        <p class="s">Open jobs, signatures, approvals</p>
+      </div>
+    </section>
     </div>
-  </nav>
 
-  <main class="max-w-5xl mx-auto px-6 py-12">
-    <h1 class="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-    <p class="text-gray-500 mb-8">Fill reviewed clinic forms, manage profiles, or run ad-hoc PDF batches.</p>
+    <!-- Tabs -->
+    <div class="flex items-end justify-between gap-4 border-b border-gray-200 mb-6">
+      <div class="flex gap-1" role="tablist">
+        <button type="button" class="dash-tab is-active px-3 py-2.5 text-sm" data-tab="action" role="tab">Action cards</button>
+        <button type="button" class="dash-tab px-3 py-2.5 text-sm" data-tab="queue" role="tab">Queue <span class="tab-count hidden" id="tab-queue-badge">0</span></button>
+        <button type="button" class="dash-tab px-3 py-2.5 text-sm" data-tab="launcher" role="tab">Launcher</button>
+      </div>
+      <div class="hidden sm:flex items-center gap-2 pb-2">
+        <span class="q-kicker">Style</span>
+        <button type="button" id="style-switch" class="style-switch is-on" aria-label="Toggle clinic style" title="Clinic style shows fill-first cards; Operator adds prep tools"></button>
+        <span class="text-xs font-medium" id="style-label">Clinic</span>
+      </div>
+    </div>
 
-    <!-- Primary: clinic workflow -->
-    <div class="mb-3 flex items-end justify-between gap-3">
+    <!-- ACTION CARDS -->
+    <section id="view-action" data-view="action">
+      <div class="launch-grid">
+      <div class="q-console q-pad">
+        <div class="flex items-center gap-2 mb-1">
+          <h2 class="text-base font-semibold text-gray-900">Clinic fill</h2>
+          <span class="q-badge ready">Locked mappings</span>
+        </div>
+        <p class="text-sm text-gray-500 mb-5">Deterministic fills for Ready templates — no AI guessing on clinical fields.</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <a href="/ui/form_fill.html" class="act-card is-primary">
+            <div class="act-ico">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+            <h3>Guided Fill</h3>
+            <p>Fill one reviewed PA form in a clean web UI, field by field.</p>
+            <span class="go">Open →</span>
+          </a>
+          <a href="/ui/guided_batch.html" class="act-card">
+            <div class="act-ico">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M4 6h16M4 10h16M4 14h10M4 18h10"/></svg>
+            </div>
+            <h3>Guided Batch</h3>
+            <p>CSV in, ZIP of PDFs out. Profiles apply to every row.</p>
+            <span class="go">Open →</span>
+          </a>
+          <a href="/ui/templates.html" class="act-card">
+            <div class="act-ico">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+            </div>
+            <h3>Template Library</h3>
+            <p id="card-templates-copy">Browse Ready vs Needs-mapping forms. Open a fill or a review.</p>
+            <span class="go">Browse →</span>
+          </a>
+        </div>
+      </div>
       <div>
-        <h2 class="text-sm font-semibold text-gray-800 uppercase tracking-wide">Clinic fill</h2>
-        <p class="text-xs text-gray-400 mt-0.5">Locked mappings — deterministic fills for Ready templates.</p>
+        <div class="ln-shorts">
+          <h3>Shortcuts</h3>
+          <nav class="fmp-fast">
+            <a href="/ui/templates.html" data-fast="map">Templates<span class="fmp-badge is-off" data-fast-badge="needs"></span></a>
+            <a href="/ui/profiles.html">Profiles &amp; encounter packs</a>
+            <button type="button" data-fast="last-batch" class="is-off">Download last batch</button>
+          </nav>
+        </div>
+        <div class="ln-shorts">
+          <h3>Tools</h3>
+          <nav class="fmp-fast">
+            <a href="/ui/approvals.html">Approvals</a>
+            <a href="/ui/make_fillable.html">Make Fillable</a>
+            <a href="/ui/sign.html">E-Signature</a>
+            <a href="/ui/jobs.html">Fill History</a>
+            <a href="/ui/pdftools.html">PDF Tools</a>
+          </nav>
+        </div>
+        <div class="ln-shorts operator-only admin-only hidden">
+          <h3>Operator prep</h3>
+          <nav class="fmp-fast">
+            <a href="/ui/batch.html">Ad-hoc Batch</a>
+            <a href="/ui/keys.html">API key &amp; docs</a>
+          </nav>
+        </div>
       </div>
-    </div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
+      </div>
+    </section>
 
-      <a href="/ui/form_fill.html" class="card bg-white rounded-xl border-2 border-indigo-200 p-6 shadow-sm hover:shadow-md block ring-1 ring-indigo-50">
-        <div class="w-11 h-11 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-          </svg>
+    <!-- QUEUE -->
+    <section id="view-queue" data-view="queue" class="hidden">
+      <div class="launch-grid queue-grid">
+      <div class="q-console" id="q-console">
+        <div class="q-head">
+          <div>
+            <div class="q-kicker">Work queue</div>
+            <div class="q-summary" id="q-summary">Loading…</div>
+          </div>
+          <div class="q-filters" id="q-filters">
+            <button type="button" data-qfilter="all" class="is-on">All <span id="q-n-all">0</span></button>
+            <button type="button" data-qfilter="mine">Mine <span id="q-n-mine">0</span></button>
+            <button type="button" data-qfilter="blocked">Blocked <span id="q-n-blocked">0</span></button>
+          </div>
         </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Guided Fill</h2>
-        <p class="text-sm text-gray-500">Fill a reviewed PA form in a clean web UI. Locked mapping — no AI guessing.</p>
-      </a>
-
-      <a href="/ui/guided_batch.html" class="card bg-white rounded-xl border-2 border-indigo-200 p-6 shadow-sm hover:shadow-md block ring-1 ring-indigo-50">
-        <div class="w-11 h-11 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h10M4 18h10"/>
-          </svg>
+        <div class="q-search">
+          <input id="q-search" type="search" placeholder="Filter forms, jobs, patients…" autocomplete="off" />
         </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Guided Batch</h2>
-        <p class="text-sm text-gray-500">Same Ready forms, CSV in → ZIP of PDFs out. Profiles apply to every row.</p>
-      </a>
-
-      <a href="/ui/templates.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-          </svg>
+        <div class="q-body">
+          <div class="q-table-wrap">
+            <table class="q-table">
+              <thead>
+                <tr>
+                  <th>Form · Patient</th>
+                  <th>State</th>
+                  <th>Fields</th>
+                  <th>Owner</th>
+                  <th>Age</th>
+                </tr>
+              </thead>
+              <tbody id="q-tbody">
+                <tr><td colspan="5" class="q-detail-empty" style="padding:48px 18px">Loading queue…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <aside class="q-detail" id="q-detail">
+            <p class="q-detail-empty">Select a row for mapping progress, blockers, and the next action.</p>
+          </aside>
         </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Template Library</h2>
-        <p class="text-sm text-gray-500">Browse Ready vs Needs-mapping forms; open Guided Fill or Mapping Review.</p>
-      </a>
-
-      <a href="/ui/profiles.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-          </svg>
+      </div>
+      <div>
+        <div class="ln-shorts">
+          <h3>Shortcuts</h3>
+          <nav class="fmp-fast">
+            <a href="/ui/templates.html" data-fast="map">Templates<span class="fmp-badge is-off" data-fast-badge="needs"></span></a>
+            <a href="/ui/profiles.html">Profiles &amp; encounter packs</a>
+            <button type="button" data-fast="last-batch" class="is-off">Download last batch</button>
+          </nav>
         </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Profiles</h2>
-        <p class="text-sm text-gray-500">Patients, providers, facilities, pharmacies, and encounter packs for autofill.</p>
-      </a>
-
-    </div>
-
-    <!-- Secondary: prep & power -->
-    <div class="mb-3">
-      <h2 class="text-sm font-semibold text-gray-800 uppercase tracking-wide">Prep &amp; power tools</h2>
-      <p class="text-xs text-gray-400 mt-0.5">New forms, ad-hoc batches, signing, and utilities.</p>
-    </div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-
-      <a href="/ui/mapping_review.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-amber-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
-          </svg>
+        <div class="ln-shorts">
+          <h3>Jump</h3>
+          <nav class="fmp-fast">
+            <a href="/ui/form_fill.html">Guided Fill</a>
+            <a href="/ui/guided_batch.html">Guided Batch</a>
+            <a href="/ui/jobs.html">Fill History</a>
+          </nav>
         </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Mapping Review</h2>
-        <p class="text-sm text-gray-500">Lock canonical field maps so Guided Fill stays trustworthy.</p>
-      </a>
+      </div>
+      </div>
+    </section>
 
-      <a href="/ui/make_fillable.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-teal-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-teal-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-          </svg>
+    <!-- LAUNCHER -->
+    <section id="view-launcher" data-view="launcher" class="hidden">
+      <div class="launch-grid">
+        <div class="q-console q-pad ln-main">
+          <p class="q-kicker">Start a fill</p>
+          <h2 class="ln-h">Pick a template, then how you want to fill it</h2>
+          <div class="ln-search">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z"/></svg>
+            <input id="launch-search" type="search" placeholder="Search templates — payer, form number, or nickname." autocomplete="off" />
+          </div>
+          <div class="ln-list" id="launch-list">
+            <p class="ln-empty">Loading templates…</p>
+          </div>
         </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Make Fillable</h2>
-        <p class="text-sm text-gray-500">Convert a static PDF to AcroForm with CommonForms field detection.</p>
-      </a>
-
-      <a href="/ui/pdftools.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-red-50 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
-          </svg>
-        </div>
-        <h2 class="font-semibold text-gray-900 mb-1">PDF Tools</h2>
-        <p class="text-sm text-gray-500">Merge multiple PDFs or split one into pages and ranges.</p>
-      </a>
-
-      <a href="/ui/approvals.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-amber-50 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-        </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Approvals</h2>
-        <p class="text-sm text-gray-500">Send a filled PDF for review before it leaves the clinic.</p>
-      </a>
-
-      <a href="/ui/batch.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-slate-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-          </svg>
-        </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Ad-hoc Batch</h2>
-        <p class="text-sm text-gray-500">Any PDF + spreadsheet — AI mapping. Use when the form isn’t Ready yet.</p>
-      </a>
-
-      <a href="/ui/sign.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
-          </svg>
-        </div>
-        <h2 class="font-semibold text-gray-900 mb-1">E-Signature</h2>
-        <p class="text-sm text-gray-500">Draw or type your signature and apply it to any PDF with ESIGN compliance.</p>
-      </a>
-
-      <a href="/ui/multisign.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-violet-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-          </svg>
-        </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Multi-Party Signing</h2>
-        <p class="text-sm text-gray-500">Sequential signing sessions — multiple people sign one document in order.</p>
-      </a>
-
-      <a href="/ui/jobs.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-          </svg>
-        </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Fill History</h2>
-        <p class="text-sm text-gray-500">Track async jobs, download results, and retry webhooks.</p>
-      </a>
-
-      <a href="/ui/extract.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-rose-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-          </svg>
-        </div>
-        <h2 class="font-semibold text-gray-900 mb-1">Extract Fields</h2>
-        <p class="text-sm text-gray-500">Reverse a filled PDF — pull all field values out to JSON or CSV.</p>
-      </a>
-
-      <a href="/ui/keys.html" class="card bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-md block">
-        <div class="w-11 h-11 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-          <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
-          </svg>
-        </div>
-        <h2 class="font-semibold text-gray-900 mb-1">API Keys</h2>
-        <p class="text-sm text-gray-500">Create, revoke, and manage access keys for the REST API.</p>
-      </a>
-
-    </div>
-
-    <!-- Account / Tier Banner -->
-    <div id="account-banner" class="mt-10 hidden bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-5 text-white shadow-lg">
-      <div class="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <p class="text-xs text-indigo-200 mb-0.5">Signed in with API key</p>
-          <p class="font-mono font-bold text-lg" id="banner-prefix">—</p>
-        </div>
-        <div class="flex items-center gap-3">
-          <span id="banner-tier" class="px-3 py-1 rounded-full text-xs font-bold bg-white/20 text-white capitalize"></span>
-          <button onclick="showKeyModal()" class="text-xs text-indigo-200 hover:text-white underline">Change key</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Stats tiles -->
-    <div id="stats" class="mt-6 hidden">
-      <h3 class="text-sm font-semibold text-gray-700 mb-3">Usage Overview</h3>
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
-          <p class="text-2xl font-bold text-indigo-600" id="stat-total">—</p>
-          <p class="text-xs text-gray-400 mt-1">Total Requests</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
-          <p class="text-2xl font-bold text-green-600" id="stat-today">—</p>
-          <p class="text-xs text-gray-400 mt-1">Today</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
-          <p class="text-2xl font-bold text-blue-600" id="stat-profiles">—</p>
-          <p class="text-xs text-gray-400 mt-1">Profiles</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
-          <p class="text-2xl font-bold text-purple-600" id="stat-templates">—</p>
-          <p class="text-xs text-gray-400 mt-1">Templates</p>
-        </div>
-        <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
-          <p class="text-2xl font-bold text-orange-500" id="stat-sessions">—</p>
-          <p class="text-xs text-gray-400 mt-1">Sign Sessions</p>
+          <div class="ln-csv">
+            <p class="q-kicker">Drop a CSV</p>
+            <h3>Run a batch against any Ready template</h3>
+            <p>Profiles fill patient, provider, and facility columns.</p>
+            <div class="ln-drop" id="launch-drop" tabindex="0">
+              Drop CSV here or browse
+              <div class="muted" id="launch-drop-hint">Select a Ready template first</div>
+            </div>
+            <input id="launch-csv" type="file" accept=".csv,text/csv" class="hidden" />
+          </div>
+          <div class="ln-shorts">
+            <h3>Shortcuts</h3>
+            <nav class="fmp-fast">
+              <a href="/ui/templates.html" data-fast="map">Templates<span class="fmp-badge is-off" data-fast-badge="needs"></span></a>
+              <a href="/ui/profiles.html">Profiles &amp; encounter packs</a>
+              <button type="button" data-fast="last-batch" class="is-off">Download last batch</button>
+            </nav>
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- Activity row: recent fills + recent signing sessions -->
-    <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-      <!-- Recent Fills -->
-      <div id="recent-jobs-section" class="hidden">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold text-gray-700">Recent Fills</h3>
-          <a href="/ui/jobs.html" class="text-xs text-indigo-600 hover:underline">View all →</a>
-        </div>
-        <div id="recent-jobs" class="space-y-2"></div>
-      </div>
-
-      <!-- Recent Signing Sessions -->
-      <div id="recent-sessions-section" class="hidden">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold text-gray-700">Recent Signing Sessions</h3>
-          <a href="/ui/multisign.html" class="text-xs text-indigo-600 hover:underline">View all →</a>
-        </div>
-        <div id="recent-sessions" class="space-y-2"></div>
-      </div>
-
-    </div>
-
+    </section>
   </main>
 
-  <!-- API Key Modal -->
   <div id="key-modal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4">
-      <h2 class="text-lg font-bold text-gray-900 mb-2">Enter API Key</h2>
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-xl p-6 w-full max-w-sm mx-4">
+      <h2 class="text-base font-semibold text-gray-900 mb-2">Enter API Key</h2>
       <p class="text-sm text-gray-500 mb-4">Your key is stored locally in the browser and never sent to any third party.</p>
-      <input id="key-input" type="password" placeholder="fmp_live_..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      <input id="key-input" type="password" placeholder="fmp_live_..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
       <div class="flex gap-2">
-        <button onclick="saveKey()" class="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700">Save</button>
-        <button onclick="closeKeyModal()" class="flex-1 bg-gray-100 text-gray-700 rounded-lg py-2 text-sm font-medium hover:bg-gray-200">Cancel</button>
+        <button onclick="saveKey()" class="flex-1 q-cta mt-0">Save</button>
+        <button onclick="closeKeyModal()" class="flex-1 bg-gray-100 text-gray-700 border border-gray-200 rounded-lg py-2 text-sm font-medium">Cancel</button>
       </div>
     </div>
   </div>
@@ -275,166 +366,712 @@
     document.getElementById('key-input').value = getKey();
     document.getElementById('key-modal').classList.remove('hidden');
   }
+  window.showKeyModal = showKeyModal;
   function closeKeyModal() { document.getElementById('key-modal').classList.add('hidden'); }
   function saveKey() {
     const k = document.getElementById('key-input').value.trim();
     if (k) localStorage.setItem('fmp_api_key', k);
     closeKeyModal();
-    loadStats();
-    loadRecentJobs();
-    loadRecentSessions();
+    bootData();
+    if (window.fmpPaintSidebar) fmpPaintSidebar();
   }
 
-  const TIER_COLORS = {
-    free: 'bg-gray-500/30',
-    pro: 'bg-blue-500/30',
-    business: 'bg-purple-500/30',
-    admin: 'bg-red-500/30',
-  };
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmtDate(s) { try { return new Date(s).toLocaleString(); } catch { return s||'—'; } }
 
-  async function loadStats() {
-    const key = getKey();
-    // Load usage stats (no auth needed)
-    try {
-      const r = await fetch('/usage');
-      if (r.ok) {
-        const d = await r.json();
-        document.getElementById('stat-total').textContent = d.total_requests.toLocaleString();
-        document.getElementById('stat-today').textContent = d.requests_today.toLocaleString();
-        document.getElementById('stat-profiles').textContent = d.profiles_created.toLocaleString();
-        document.getElementById('stats').classList.remove('hidden');
-      }
-    } catch {}
-
-    if (!key) return;
-
-    // Load API key info for tier banner
-    try {
-      const r = await fetch('/api/v1/keys', { headers: { 'X-API-Key': key } });
-      if (r.ok) {
-        const d = await r.json();
-        const keys = d.keys || [];
-        const prefix = key.substring(0, 16) + '…';
-        // Try to find the current key in the list
-        const currentKey = keys.find(k => key.startsWith(k.prefix)) || null;
-        const tier = currentKey?.tier || 'unknown';
-        document.getElementById('banner-prefix').textContent = currentKey?.prefix ? currentKey.prefix + '…' : prefix;
-        const tierEl = document.getElementById('banner-tier');
-        tierEl.textContent = tier;
-        tierEl.className = `px-3 py-1 rounded-full text-xs font-bold capitalize ${TIER_COLORS[tier] || 'bg-white/20'} text-white`;
-        document.getElementById('account-banner').classList.remove('hidden');
-      }
-    } catch {}
-
-    // Load template count
-    try {
-      const r = await fetch('/api/v1/templates', { headers: { 'X-API-Key': key } });
-      if (r.ok) {
-        const d = await r.json();
-        document.getElementById('stat-templates').textContent = (d.total || (d.templates||[]).length).toLocaleString();
-      }
-    } catch {}
-
-    // Load signing session count
-    try {
-      const r = await fetch('/api/v1/signing-sessions?limit=100', { headers: { 'X-API-Key': key } });
-      if (r.ok) {
-        const d = await r.json();
-        document.getElementById('stat-sessions').textContent = (d.total || (d.sessions||[]).length).toLocaleString();
-      }
-    } catch {}
+  const VIEWS = ['action', 'queue', 'launcher'];
+  function currentView() {
+    const hash = (location.hash || '').replace('#', '');
+    if (VIEWS.indexOf(hash) >= 0) return hash;
+    const stored = localStorage.getItem('fmp_dash_view');
+    return VIEWS.indexOf(stored) >= 0 ? stored : 'action';
+  }
+  function setView(name) {
+    if (VIEWS.indexOf(name) < 0) name = 'action';
+    document.querySelectorAll('[data-view]').forEach(el => {
+      el.classList.toggle('hidden', el.getAttribute('data-view') !== name);
+    });
+    document.querySelectorAll('[data-tab]').forEach(el => {
+      el.classList.toggle('is-active', el.getAttribute('data-tab') === name);
+    });
+    localStorage.setItem('fmp_dash_view', name);
+    if (location.hash.replace('#', '') !== name) history.replaceState(null, '', '#' + name);
+    if (name === 'launcher') {
+      const q = document.getElementById('launch-search');
+      if (q) setTimeout(() => q.focus(), 0);
+    }
   }
 
-  const STATUS_STYLE = {
-    queued:    'bg-yellow-100 text-yellow-700',
-    running:   'bg-blue-100 text-blue-700',
-    done:      'bg-green-100 text-green-700',
-    failed:    'bg-red-100 text-red-700',
-    cancelled: 'bg-gray-100 text-gray-500',
+  function currentStyle() {
+    return localStorage.getItem('fmp_dash_style') === 'operator' ? 'operator' : 'clinic';
+  }
+  function setStyle(name) {
+    const style = name === 'operator' ? 'operator' : 'clinic';
+    localStorage.setItem('fmp_dash_style', style);
+    document.documentElement.setAttribute('data-dash-style', style);
+    const sw = document.getElementById('style-switch');
+    const lab = document.getElementById('style-label');
+    if (sw) sw.classList.toggle('is-on', style === 'clinic');
+    if (lab) lab.textContent = style === 'clinic' ? 'Clinic' : 'Operator';
+  }
+
+  const STATE_LABEL = {
+    needs_map: 'Needs map', ready: 'Ready', waiting: 'Waiting',
+    draft: 'Draft', queued: 'Queued', done: 'Done', failed: 'Failed',
   };
   const KIND_LABEL = {
     batch_fill: 'Batch Fill', batch_fill_xlsx: 'Excel Batch',
     template_fill: 'Template Fill', extract_pdf: 'Extraction',
   };
 
-  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-  function fmtDate(s) { try { return new Date(s).toLocaleString(); } catch { return s||'—'; } }
+  let queueItems = [];
+  let queueFilter = 'all';
+  let queueQuery = '';
+  let selectedQueueId = null;
+  let myInitials = '—';
+  let launcherCatalog = [];
+  let launcherQuery = '';
+  let selectedLaunchId = null;
+  let lastBatchJob = null;
+
+  function ownerInitials() {
+    const u = window.fmpUser || {};
+    const raw = u.name || u.clinic_name || (u.email || '').split('@')[0] || '';
+    const parts = String(raw).replace(/[^A-Za-z0-9\s._-]/g, ' ').split(/[\s._-]+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    if (parts[0] && parts[0].length >= 2) return parts[0].slice(0, 2).toUpperCase();
+    return parts[0] ? (parts[0][0] + 'X').toUpperCase() : '—';
+  }
+
+  function ageLabel(iso) {
+    if (!iso) return '—';
+    const ms = Date.now() - new Date(iso).getTime();
+    if (!isFinite(ms) || ms < 0) return '—';
+    const m = Math.floor(ms / 60000);
+    if (m < 1) return 'now';
+    if (m < 60) return m + 'm';
+    const h = Math.floor(m / 60);
+    if (h < 48) return h + 'h';
+    return Math.floor(h / 24) + 'd';
+  }
+
+  function apiGet(url) {
+    return fetch(url, { headers: fmpAuthHeaders(), credentials: 'same-origin' });
+  }
+
+  // Shared with the sidebar badge so the dashboard fetches readiness once.
+  function getReadiness() {
+    if (window.fmpReadiness) return fmpReadiness();
+    return apiGet('/api/v1/templates/readiness')
+      .then(r => r.ok ? r.json() : { items: [], ready_count: 0, total: 0 })
+      .catch(() => ({ items: [], ready_count: 0, total: 0 }));
+  }
+
+  async function loadStats() {
+    const headers = window.fmpAuthHeaders ? fmpAuthHeaders() : { 'X-API-Key': getKey() };
+    const authed = await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey()));
+    if (!authed) return;
+    try {
+      const r = await fetch('/api/v1/account/overview', { headers, credentials: 'same-origin' });
+      if (r.ok) {
+        const d = await r.json();
+        document.getElementById('stat-today').textContent = (d.fills_today || 0).toLocaleString();
+        document.getElementById('stat-today-sub').textContent = 'of ' + (d.fills || 0).toLocaleString() + ' total fills';
+      }
+    } catch {}
+    try {
+      const d = await getReadiness();
+      const ready = d.ready_count || 0;
+      const total = d.total || (d.items || []).length;
+      const needs = Math.max(0, total - ready);
+      document.getElementById('stat-ready').textContent = ready.toLocaleString();
+      document.getElementById('stat-needs').textContent = needs.toLocaleString();
+      const copy = document.getElementById('card-templates-copy');
+      if (copy) copy.textContent = ready + ' Ready, ' + needs + ' Needs-mapping. Open a fill or a review.';
+      const link = document.getElementById('stat-needs-link');
+      if (link && window.fmpIsAdmin && fmpIsAdmin()) link.href = '/ui/mapping_review.html';
+      if (window.fmpSetNeedsMapping) fmpSetNeedsMapping(needs);
+      paintFastLinks();
+    } catch {}
+  }
 
   async function loadRecentJobs() {
-    const key = getKey();
-    if (!key) return;
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) return [];
     try {
-      const r = await fetch('/api/v1/jobs?limit=5', { headers: {'X-API-Key': key} });
-      if (!r.ok) return;
-      const data = await r.json();
-      const jobs = data.jobs || [];
-      if (!jobs.length) return;
-      const container = document.getElementById('recent-jobs');
-      container.innerHTML = jobs.map(j => `
-        <a href="/ui/jobs.html" class="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-4 py-3 hover:shadow-sm transition">
-          <span class="text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[j.status]||'bg-gray-100 text-gray-500'}">${j.status}</span>
-          <span class="text-sm text-gray-700 flex-1 truncate">${KIND_LABEL[j.kind]||j.kind}${j.template_id ? ' · <span class="font-mono text-xs text-gray-400">'+esc(j.template_id)+'</span>' : ''}</span>
-          <span class="text-xs text-gray-400 flex-shrink-0">${fmtDate(j.created_at)}</span>
-        </a>`).join('');
-      document.getElementById('recent-jobs-section').classList.remove('hidden');
-    } catch {}
+      const r = await apiGet('/api/v1/jobs?limit=20');
+      if (!r.ok) return [];
+      return (await r.json()).jobs || [];
+    } catch { return []; }
   }
-
-  const SESSION_STATUS_STYLE = {
-    pending: 'bg-yellow-100 text-yellow-700',
-    in_progress: 'bg-blue-100 text-blue-700',
-    complete: 'bg-green-100 text-green-700',
-    cancelled: 'bg-gray-100 text-gray-500',
-  };
-
   async function loadRecentSessions() {
-    const key = getKey();
-    if (!key) return;
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) return [];
     try {
-      const r = await fetch('/api/v1/signing-sessions?limit=5', { headers: { 'X-API-Key': key } });
-      if (!r.ok) return;
-      const data = await r.json();
-      const sessions = data.sessions || [];
-      if (!sessions.length) return;
-      const container = document.getElementById('recent-sessions');
-      container.innerHTML = sessions.map(s => `
-        <a href="/ui/multisign.html?session_id=${s.session_id}" class="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-4 py-3 hover:shadow-sm transition">
-          <span class="text-xs px-2 py-0.5 rounded-full font-medium ${SESSION_STATUS_STYLE[s.status]||'bg-gray-100 text-gray-500'}">${s.status.replace('_',' ')}</span>
-          <span class="text-sm text-gray-700 flex-1 truncate">${esc(s.title)}</span>
-          <span class="text-xs text-gray-400 shrink-0">${s.current_signer_index}/${s.total_signers} signed</span>
-        </a>`).join('');
-      document.getElementById('recent-sessions-section').classList.remove('hidden');
-    } catch {}
+      const r = await apiGet('/api/v1/signing-sessions?limit=20');
+      if (!r.ok) return [];
+      return (await r.json()).sessions || [];
+    } catch { return []; }
+  }
+  async function loadApprovals() {
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) return [];
+    try {
+      const r = await apiGet('/api/v1/approvals?limit=50');
+      if (!r.ok) return [];
+      return (await r.json()).approvals || [];
+    } catch { return []; }
   }
 
-  // ── AI Provider badge ──────────────────────────────────────────────────────
-  async function loadProviderBadge() {
+  function visibleQueue() {
+    let rows = queueItems;
+    if (queueFilter === 'mine') rows = rows.filter(x => x.mine);
+    if (queueFilter === 'blocked') rows = rows.filter(x => x.blocked);
+    const q = queueQuery.trim().toLowerCase();
+    if (q) rows = rows.filter(x => (x.title + ' ' + x.subtitle + ' ' + x.state).toLowerCase().includes(q));
+    return rows;
+  }
+
+  function renderQueue() {
+    const rows = visibleQueue();
+    const tb = document.getElementById('q-tbody');
+    const allN = queueItems.length;
+    const mineN = queueItems.filter(x => x.mine).length;
+    const blockedN = queueItems.filter(x => x.blocked).length;
+    const openN = queueItems.filter(x => x.state !== 'done').length;
+    document.getElementById('q-n-all').textContent = allN;
+    document.getElementById('q-n-mine').textContent = mineN;
+    document.getElementById('q-n-blocked').textContent = blockedN;
+    document.getElementById('q-summary').innerHTML =
+      '<strong>' + openN + ' open</strong> · ' + blockedN + ' blocked';
+    const badge = document.getElementById('tab-queue-badge');
+    if (badge) {
+      badge.textContent = String(openN);
+      badge.classList.toggle('hidden', !openN);
+    }
+    document.getElementById('stat-queue').textContent = openN.toLocaleString();
+
+    if (!rows.length) {
+      tb.innerHTML = '<tr><td colspan="5" class="q-detail-empty" style="padding:48px 18px">Nothing in this queue.</td></tr>';
+      return;
+    }
+    tb.innerHTML = rows.map((item, i) => {
+      const pct = item.fieldsTotal ? Math.round(100 * item.fieldsDone / item.fieldsTotal) : 0;
+      const barCls = item.state === 'needs_map' || item.state === 'draft' ? 'is-needs' : (item.state === 'waiting' ? 'is-wait' : '');
+      const frac = item.fieldsTotal ? (item.fieldsDone + '/' + item.fieldsTotal) : '—';
+      return `<tr class="q-row${item.id === selectedQueueId ? ' is-selected' : ''}" data-qid="${esc(item.id)}" tabindex="0">
+        <td><div class="q-form"><span class="q-idx">${String(i + 1).padStart(2,'0')}</span>
+          <div class="q-name">
+            <div class="q-title" title="${esc(item.title)}">${esc(item.title)}</div>
+            <div class="q-sub" title="${esc(item.subtitle)}">${esc(item.subtitle)}</div>
+          </div></div>
+        </td>
+        <td><span class="q-badge ${item.state}">${STATE_LABEL[item.state] || item.state}</span></td>
+        <td><div class="q-fields"><span class="q-bar ${barCls}"><i style="width:${pct}%"></i></span><span class="q-frac">${frac}</span></div></td>
+        <td class="q-owner">${esc(item.owner)}</td>
+        <td class="q-age">${esc(item.age)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function paintDetailPlaceholder(item) {
+    const el = document.getElementById('q-detail');
+    if (!item) {
+      el.innerHTML = '<p class="q-detail-empty">Select a row for mapping progress, blockers, and the next action.</p>';
+      document.getElementById('q-console').classList.remove('q-has-sel');
+      return;
+    }
+    document.getElementById('q-console').classList.add('q-has-sel');
+    const blocked = item.blocked ? '<span class="q-badge needs_map">Blocked</span>' : `<span class="q-badge ${item.state}">${STATE_LABEL[item.state]||item.state}</span>`;
+    const frac = item.fieldsTotal ? `${item.fieldsDone} / ${item.fieldsTotal} fields` : 'No field census yet';
+    const ticks = item.fieldsTotal
+      ? Array.from({length: Math.min(item.fieldsTotal, 34)}, (_, i) => {
+          const cls = i < item.fieldsDone ? 'ok' : (item.blocked || item.state === 'needs_map' ? 'rev' : '');
+          return '<i class="'+cls+'"></i>';
+        }).join('')
+      : '';
+    el.innerHTML =
+      `<div class="flex items-center justify-between gap-2 mb-2">
+        ${blocked}
+        <span class="text-[11px] text-slate-500">selected</span>
+      </div>
+      <h3 class="text-base font-semibold text-gray-900 leading-snug">${esc(item.title)}</h3>
+      <p class="text-xs text-slate-500 mt-1 mb-3">${esc(item.subtitle)}</p>
+      <p class="q-kicker">Progress</p>
+      <p class="text-lg font-semibold text-gray-900 mt-1">${esc(frac)}</p>
+      <div class="q-ticks">${ticks}</div>
+      ${item.detail ? `<p class="text-xs text-slate-500 mb-1">${esc(item.detail)}</p>` : ''}
+      <a class="q-cta" href="${esc(item.href)}">${esc(item.cta || 'Open →')}</a>`;
+  }
+
+  async function selectQueueItem(id) {
+    selectedQueueId = id;
+    renderQueue();
+    const item = queueItems.find(x => x.id === id);
+    paintDetailPlaceholder(item);
+    if (!item || !item.fingerprint || !(window.fmpIsAdmin && fmpIsAdmin())) return;
     try {
-      const r = await fetch('/ai-provider');
+      const r = await apiGet('/api/v1/mappings/' + encodeURIComponent(item.fingerprint));
       if (!r.ok) return;
       const d = await r.json();
-      const badge = document.getElementById('ai-provider-badge');
-      if (!badge) return;
-      if (d.ai_provider === 'local') {
-        badge.textContent = d.hipaa_mode ? '🔒 Local Qwen · HIPAA Mode' : '🏠 Local Qwen (' + (d.local_model || '') + ')';
-        badge.className = 'text-xs font-medium px-3 py-1 rounded-full bg-green-100 text-green-800 border border-green-200';
-      } else {
-        badge.textContent = '☁️ Gemini Cloud (' + (d.cloud_model || '') + ')';
-        badge.className = 'text-xs font-medium px-3 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-200';
-      }
-      badge.title = d.hipaa_mode
-        ? 'HIPAA Mode: all LLM calls are on-prem, no PHI leaves this server.'
-        : 'Cloud mode: form field mapping is sent to the configured AI provider.';
-      badge.classList.remove('hidden');
+      const rows = (d.rows || []).filter(row => !row.canonical || row.canonical === 'other');
+      rows.sort((a,b) => (b.confidence||0) - (a.confidence||0));
+      const unresolved = rows.slice(0, 8).map(row => {
+        const conf = row.confidence != null ? Math.round(Number(row.confidence) * (Number(row.confidence) <= 1 ? 100 : 1)) : null;
+        const confHtml = conf != null
+          ? `<span style="color:${conf>=85?'#34d399':conf>=70?'#fbbf24':'#f87171'}">${conf}%</span>`
+          : '';
+        return `<div class="q-unres"><span>${esc(row.field)}</span><span>${esc(row.field_type || '')} ${confHtml}</span></div>`;
+      }).join('');
+      const top = rows[0];
+      const topHtml = top && top.canonical
+        ? ''
+        : (top ? `<div style="margin-top:14px;border:1px solid #e5e7eb;border-radius:8px;padding:10px">
+            <div class="q-kicker">Top unresolved</div>
+            <div class="text-sm text-gray-900 mt-1 font-mono">${esc(top.field)}</div>
+            <div class="text-xs text-slate-500 mt-0.5">${esc(top.label || '')}</div>
+          </div>` : '');
+      const el = document.getElementById('q-detail');
+      const mapped = d.mapped_count || item.fieldsDone;
+      const total = d.field_count || item.fieldsTotal;
+      const ticks = total ? Array.from({length: Math.min(total, 34)}, (_, i) =>
+        `<i class="${i < mapped ? 'ok' : 'rev'}"></i>`).join('') : '';
+      el.innerHTML =
+        `<div class="flex items-center justify-between gap-2 mb-2">
+          <span class="q-badge needs_map">${d.reviewed ? 'Locked' : 'Needs map'}</span>
+          <span class="text-[11px] text-slate-500">${mapped}/${total}</span>
+        </div>
+        <h3 class="text-base font-semibold text-gray-900 leading-snug">${esc(d.form_label || item.title)}</h3>
+        <p class="text-xs text-slate-500 mt-1 mb-4">${esc(item.subtitle)}</p>
+        <p class="q-kicker">Mapping progress</p>
+        <p class="text-lg font-semibold text-gray-900 mt-1">${mapped} / ${total} fields confirmed</p>
+        <div class="q-ticks">${ticks}</div>
+        <p class="q-kicker" style="margin-top:8px">Unresolved fields</p>
+        ${unresolved || '<p class="text-xs text-slate-500 mt-2">No unresolved canonical fields.</p>'}
+        ${topHtml}
+        <a class="q-cta" href="${esc(item.href)}">${esc(item.cta)}</a>`;
     } catch {}
   }
 
-  // Auto-prompt for key on first visit
-  if (!getKey()) showKeyModal();
-  loadStats();
-  loadRecentJobs();
-  loadRecentSessions();
-  loadProviderBadge();
+  async function bootData() {
+    myInitials = ownerInitials();
+    await loadStats();
+    const [jobs, sessions, approvals, tmplRes, readyRes, mapsRes] = await Promise.all([
+      loadRecentJobs(),
+      loadRecentSessions(),
+      loadApprovals(),
+      apiGet('/api/v1/templates').then(r => r.ok ? r.json() : {templates:[]}).catch(() => ({templates:[]})),
+      getReadiness(),
+      (window.fmpIsAdmin && fmpIsAdmin())
+        ? apiGet('/api/v1/mappings').then(r => r.ok ? r.json() : {mappings:[]}).catch(() => ({mappings:[]}))
+        : Promise.resolve({mappings:[]}),
+    ]);
+
+    const templates = tmplRes.templates || [];
+    const byId = {};
+    templates.forEach(t => { byId[t.id] = t; });
+    const readyBy = {};
+    (readyRes.items || []).forEach(x => { readyBy[x.template_id] = x; });
+    const maps = mapsRes.mappings || [];
+    const mapByFp = {};
+    maps.forEach(m => { mapByFp[m.fingerprint] = m; });
+
+    const items = [];
+    const usedFp = new Set();
+
+    templates.forEach(t => {
+      const rdy = readyBy[t.id] || {};
+      const fp = rdy.fingerprint;
+      const map = fp ? mapByFp[fp] : null;
+      if (fp) usedFp.add(fp);
+      const isAdmin = window.fmpIsAdmin && fmpIsAdmin();
+      const ready = !!rdy.ready;
+      const mapped = map ? (map.mapped_count || 0) : (ready ? 1 : 0);
+      const total = map ? (map.total_fields || map.field_count || 0) : 0;
+      const unmapped = map ? (map.unmapped_count || 0) : (ready ? 0 : 1);
+      const crit = map ? (map.critical_unmapped || 0) : 0;
+      const state = ready ? 'ready' : (fp ? 'needs_map' : 'draft');
+      if (ready && templates.length > 12) return;
+      const payer = t.payer && t.payer.name ? t.payer.name + ' · ' : '';
+      const mapHref = (fp && isAdmin)
+        ? '/ui/mapping_review.html?fp=' + encodeURIComponent(fp)
+        : '/ui/templates.html';
+      items.push({
+        id: 'tmpl-' + t.id,
+        kind: 'template',
+        title: t.name || t.id,
+        subtitle: ready
+          ? (payer + 'locked mapping · ready to fill')
+          : (unmapped ? 'needs mapping · ' + unmapped + ' fields open' : 'needs mapping'),
+        state,
+        blocked: !ready && (crit > 0 || unmapped > 0 || !fp),
+        mine: false,
+        fieldsDone: mapped,
+        fieldsTotal: total,
+        owner: '—',
+        age: ageLabel(t.updated_at || t.created_at),
+        created_at: t.updated_at || t.created_at,
+        href: ready ? '/ui/form_fill.html?template_id=' + encodeURIComponent(t.id) : mapHref,
+        cta: ready ? 'Open Guided Fill →' : (isAdmin ? 'Review mapping →' : 'Open library →'),
+        fingerprint: fp || null,
+        detail: crit ? crit + ' critical fields still uncovered.' : '',
+      });
+    });
+
+    maps.forEach(m => {
+      if (usedFp.has(m.fingerprint)) return;
+      const ready = !!m.reviewed;
+      const unmapped = m.unmapped_count || 0;
+      items.push({
+        id: 'map-' + m.fingerprint,
+        kind: 'map',
+        title: m.form_label || ('Map ' + String(m.fingerprint).slice(0, 8)),
+        subtitle: ready ? 'locked mapping' : ('needs mapping · ' + unmapped + ' fields open'),
+        state: ready ? 'ready' : (m.mapped_count ? 'needs_map' : 'draft'),
+        blocked: !ready && ((m.critical_unmapped || 0) > 0 || unmapped > 0),
+        mine: false,
+        fieldsDone: m.mapped_count || 0,
+        fieldsTotal: m.total_fields || m.field_count || 0,
+        owner: '—',
+        age: ageLabel(m.updated_at || m.cached_at),
+        href: '/ui/mapping_review.html?fp=' + encodeURIComponent(m.fingerprint),
+        cta: 'Review mapping →',
+        fingerprint: m.fingerprint,
+        detail: (m.critical_unmapped || 0) ? m.critical_unmapped + ' critical fields still uncovered.' : '',
+      });
+    });
+
+    jobs.forEach(j => {
+      const tmpl = j.template_id && byId[j.template_id];
+      const state = j.status === 'done' ? 'done' : (j.status === 'failed' ? 'failed' : (j.status === 'running' ? 'queued' : (j.status === 'queued' ? 'queued' : 'draft')));
+      items.push({
+        id: 'job-' + j.id,
+        kind: 'job',
+        title: tmpl ? tmpl.name : (KIND_LABEL[j.kind] || j.kind),
+        subtitle: (KIND_LABEL[j.kind] || j.kind) + (j.record_count ? ' · ' + j.record_count + ' rows' : ''),
+        state,
+        blocked: j.status === 'failed',
+        mine: true,
+        fieldsDone: j.successful || j.completed || 0,
+        fieldsTotal: j.record_count || 0,
+        owner: myInitials,
+        age: ageLabel(j.created_at),
+        href: '/ui/jobs.html',
+        cta: 'Open fill history →',
+        detail: j.error || '',
+      });
+    });
+
+    sessions.forEach(s => {
+      const open = s.status === 'pending' || s.status === 'in_progress';
+      items.push({
+        id: 'sig-' + s.session_id,
+        kind: 'session',
+        title: s.title || 'Signing session',
+        subtitle: (s.current_signer_index || 0) + '/' + (s.total_signers || 0) + ' signed',
+        state: open ? 'waiting' : (s.status === 'complete' ? 'done' : 'draft'),
+        blocked: false,
+        mine: true,
+        fieldsDone: s.current_signer_index || 0,
+        fieldsTotal: s.total_signers || 0,
+        owner: myInitials,
+        age: ageLabel(s.created_at),
+        href: '/ui/multisign.html?session_id=' + encodeURIComponent(s.session_id),
+        cta: 'Open signing →',
+      });
+    });
+
+    approvals.forEach(a => {
+      const st = a.status || 'pending';
+      items.push({
+        id: 'appr-' + (a.approval_id || a.id),
+        kind: 'approval',
+        title: a.title || a.filename || a.approval_id || 'Approval',
+        subtitle: 'document review',
+        state: st === 'pending' ? 'waiting' : (st === 'approved' ? 'done' : 'draft'),
+        blocked: false,
+        mine: true,
+        fieldsDone: st === 'pending' ? 0 : 1,
+        fieldsTotal: 1,
+        owner: myInitials,
+        age: ageLabel(a.created_at),
+        href: '/ui/approvals.html',
+        cta: 'Open approvals →',
+      });
+    });
+
+    const rank = { needs_map: 0, failed: 1, queued: 2, waiting: 3, draft: 4, ready: 5, done: 6 };
+    items.sort((a, b) => (rank[a.state] ?? 9) - (rank[b.state] ?? 9) || String(b.created_at||'').localeCompare(String(a.created_at||'')));
+    queueItems = items;
+    renderQueue();
+    if (selectedQueueId && queueItems.some(x => x.id === selectedQueueId)) selectQueueItem(selectedQueueId);
+
+    const usage = {};
+    jobs.forEach(j => {
+      if (!j.template_id) return;
+      const n = (j.record_count && j.record_count > 1) ? j.record_count : 1;
+      usage[j.template_id] = (usage[j.template_id] || 0) + n;
+    });
+    lastBatchJob = jobs
+      .filter(j => j.status === 'done' && j.download_url && (String(j.kind || '').indexOf('batch') >= 0 || (j.record_count || 0) > 1))
+      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))[0] || null;
+
+    const isAdmin = window.fmpIsAdmin && fmpIsAdmin();
+    launcherCatalog = templates.map(t => {
+      const rdy = readyBy[t.id] || {};
+      const ready = !!rdy.ready;
+      const fp = rdy.fingerprint;
+      const used = usage[t.id] || 0;
+      const payer = t.payer_name || (t.payer && t.payer.name) || '';
+      const formNo = (t.custom && (t.custom.form_number || t.custom.acord_number)) || '';
+      const hay = [t.name, t.id, payer, t.drug_name, t.category, formNo, t.specialty]
+        .concat(t.tags || []).join(' ').toLowerCase();
+      return {
+        id: t.id,
+        name: t.name || t.id,
+        ready,
+        used,
+        hay,
+        meta: (used ? ('Used ' + used + ' times') : 'No fills yet') + ' · ' + (ready ? 'locked mapping' : 'mapping incomplete'),
+        fillHref: ready
+          ? '/ui/form_fill.html?template_id=' + encodeURIComponent(t.id)
+          : ((fp && isAdmin) ? '/ui/mapping_review.html?fp=' + encodeURIComponent(fp) : '/ui/templates.html'),
+        batchHref: ready ? '/ui/guided_batch.html?template_id=' + encodeURIComponent(t.id) : '',
+      };
+    });
+    launcherCatalog.sort((a, b) => (b.ready - a.ready) || (b.used - a.used) || a.name.localeCompare(b.name));
+    if (!selectedLaunchId || !launcherCatalog.some(x => x.id === selectedLaunchId)) {
+      const firstReady = launcherCatalog.find(x => x.ready);
+      selectedLaunchId = firstReady ? firstReady.id : (launcherCatalog[0] && launcherCatalog[0].id) || null;
+    }
+    const search = document.getElementById('launch-search');
+    if (search) {
+      const n = launcherCatalog.length;
+      search.placeholder = 'Search ' + n + ' template' + (n === 1 ? '' : 's') + ' — payer, form number, or nickname.';
+    }
+    renderLauncher();
+  }
+
+  function visibleLauncher() {
+    const q = launcherQuery.trim().toLowerCase();
+    if (!q) return launcherCatalog;
+    return launcherCatalog.filter(t => t.hay.indexOf(q) >= 0);
+  }
+
+  function selectedLaunch() {
+    return launcherCatalog.find(t => t.id === selectedLaunchId) || null;
+  }
+
+  function renderLauncher() {
+    const list = document.getElementById('launch-list');
+    const rows = visibleLauncher();
+    if (!list) return;
+    if (!launcherCatalog.length) {
+      list.innerHTML = '<p class="ln-empty">No templates yet. Open the library to add one.</p>';
+    } else if (!rows.length) {
+      list.innerHTML = '<p class="ln-empty">No templates match that search.</p>';
+    } else {
+      list.innerHTML = rows.map(t => {
+        const badge = t.ready
+          ? '<span class="q-badge ready">Ready</span>'
+          : '<span class="q-badge needs_map">Mapping</span>';
+        const fill = `<a class="ln-btn" href="${esc(t.fillHref)}">Fill</a>`;
+        const batch = t.ready
+          ? `<a class="ln-btn" href="${esc(t.batchHref)}">Batch</a>`
+          : '<span class="ln-btn is-off" title="Lock mapping first">Batch</span>';
+        return `<div class="ln-item${t.id === selectedLaunchId ? ' is-on' : ''}" data-tid="${esc(t.id)}">
+          <div class="min-w-0">
+            <div class="nm">${esc(t.name)}</div>
+            <div class="meta">${esc(t.meta)}</div>
+          </div>
+          <div class="acts">${badge}${fill}${batch}</div>
+        </div>`;
+      }).join('');
+    }
+    const hint = document.getElementById('launch-drop-hint');
+    const t = selectedLaunch();
+    if (hint) {
+      if (t && t.ready) hint.textContent = 'Will run on ' + t.name;
+      else if (t) hint.textContent = 'Lock mapping before batching this form';
+      else hint.textContent = 'Select a Ready template first';
+    }
+    paintFastLinks();
+  }
+
+  function paintFastLinks() {
+    const isAdmin = window.fmpIsAdmin && fmpIsAdmin();
+    document.querySelectorAll('a[data-fast="map"]').forEach(a => {
+      a.href = isAdmin ? '/ui/mapping_review.html' : '/ui/templates.html';
+      const text = [...a.childNodes].find(n => n.nodeType === 3);
+      if (text) text.textContent = isAdmin ? 'Mapping Review' : 'Templates';
+    });
+    if (window.fmpNeedsMapping != null && window.fmpSetNeedsMapping) {
+      fmpSetNeedsMapping(window.fmpNeedsMapping);
+    }
+    const n = lastBatchJob
+      ? (lastBatchJob.record_count || (lastBatchJob.progress && lastBatchJob.progress.successful) || 0)
+      : 0;
+    document.querySelectorAll('[data-fast="last-batch"]').forEach(btn => {
+      if (lastBatchJob && lastBatchJob.download_url) {
+        btn.textContent = n ? ('Download last batch (' + n + ' PDFs)') : 'Download last batch';
+        btn.classList.remove('is-off');
+      } else {
+        btn.textContent = 'No batch to download yet';
+        btn.classList.add('is-off');
+      }
+    });
+  }
+
+  async function runLaunchCsv(file) {
+    const t = selectedLaunch();
+    const hint = document.getElementById('launch-drop-hint');
+    if (!t || !t.ready) {
+      if (hint) hint.textContent = 'Select a Ready template first';
+      return;
+    }
+    if (!file || !/\.csv$/i.test(file.name || '')) {
+      if (hint) hint.textContent = 'Drop a .csv file';
+      return;
+    }
+    if (hint) hint.textContent = 'Uploading ' + file.name + '…';
+    const fd = new FormData();
+    fd.append('csv_file', file);
+    try {
+      const r = await fetch('/api/v1/templates/' + encodeURIComponent(t.id) + '/batch-csv', {
+        method: 'POST', headers: fmpAuthHeaders(), credentials: 'same-origin', body: fd,
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const msg = typeof d.detail === 'string' ? d.detail : (d.detail && d.detail[0] && d.detail[0].msg) || ('HTTP ' + r.status);
+        throw new Error(msg);
+      }
+      lastBatchJob = {
+        download_url: d.download_url,
+        record_count: d.successful || d.total_records || 0,
+        status: 'done',
+        kind: 'batch_fill',
+        created_at: new Date().toISOString(),
+      };
+      renderLauncher();
+      if (hint) hint.textContent = (d.successful || 0) + '/' + (d.total_records || 0) + ' filled — download from Shortcuts';
+    } catch (err) {
+      if (hint) hint.textContent = err.message || 'Batch failed';
+    }
+  }
+
+  async function downloadLastBatch() {
+    if (!lastBatchJob || !lastBatchJob.download_url) return;
+    const r = await fetch(lastBatchJob.download_url, { headers: fmpAuthHeaders(), credentials: 'same-origin' });
+    if (!r.ok) return;
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (lastBatchJob.download_url.split('/').pop() || 'batch.zip').split('?')[0];
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  document.querySelectorAll('[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => setView(btn.getAttribute('data-tab')));
+  });
+  document.getElementById('style-switch').addEventListener('click', () => {
+    setStyle(currentStyle() === 'clinic' ? 'operator' : 'clinic');
+  });
+  document.getElementById('q-filters').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-qfilter]');
+    if (!btn) return;
+    queueFilter = btn.getAttribute('data-qfilter');
+    document.querySelectorAll('[data-qfilter]').forEach(b => b.classList.toggle('is-on', b === btn));
+    renderQueue();
+  });
+  document.getElementById('q-search').addEventListener('input', (e) => {
+    queueQuery = e.target.value || '';
+    renderQueue();
+  });
+  document.getElementById('launch-search').addEventListener('input', (e) => {
+    launcherQuery = e.target.value || '';
+    renderLauncher();
+  });
+  document.getElementById('launch-list').addEventListener('click', (e) => {
+    if (e.target.closest('a')) return;
+    const row = e.target.closest('[data-tid]');
+    if (!row) return;
+    selectedLaunchId = row.getAttribute('data-tid');
+    renderLauncher();
+  });
+  const drop = document.getElementById('launch-drop');
+  const csvInput = document.getElementById('launch-csv');
+  drop.addEventListener('click', () => {
+    const t = selectedLaunch();
+    if (!t || !t.ready) {
+      const hint = document.getElementById('launch-drop-hint');
+      if (hint) hint.textContent = 'Select a Ready template first';
+      return;
+    }
+    csvInput.click();
+  });
+  drop.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drop.click(); }
+  });
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => {
+    e.preventDefault(); drop.classList.add('is-drag');
+  }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, () => drop.classList.remove('is-drag')));
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) runLaunchCsv(file);
+  });
+  csvInput.addEventListener('change', () => {
+    const file = csvInput.files && csvInput.files[0];
+    csvInput.value = '';
+    if (file) runLaunchCsv(file);
+  });
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-fast="last-batch"]');
+    if (!btn || btn.classList.contains('is-off')) return;
+    downloadLastBatch();
+  });
+  document.getElementById('q-tbody').addEventListener('click', (e) => {
+    const tr = e.target.closest('tr[data-qid]');
+    if (tr) selectQueueItem(tr.getAttribute('data-qid'));
+  });
+  document.getElementById('q-tbody').addEventListener('dblclick', (e) => {
+    const tr = e.target.closest('tr[data-qid]');
+    const item = tr && queueItems.find(x => x.id === tr.getAttribute('data-qid'));
+    if (item) location.href = item.href;
+  });
+  document.addEventListener('keydown', (e) => {
+    if (currentView() !== 'queue') return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) return;
+    const rows = visibleQueue();
+    if (!rows.length) return;
+    const idx = Math.max(0, rows.findIndex(x => x.id === selectedQueueId));
+    if (e.key === 'j' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectQueueItem(rows[Math.min(rows.length - 1, idx + (selectedQueueId ? 1 : 0))].id);
+    } else if (e.key === 'k' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectQueueItem(rows[Math.max(0, idx - 1)].id);
+    } else if (e.key === 'Enter' && selectedQueueId) {
+      const item = queueItems.find(x => x.id === selectedQueueId);
+      if (item) location.href = item.href;
+    }
+  });
+  window.addEventListener('hashchange', () => setView(currentView()));
+
+  (async function boot(){
+    await (window.fmpAuthReady || Promise.resolve());
+    if (window.fmpPaintNavAuth) fmpPaintNavAuth('nav-auth');
+    const u = window.fmpUser;
+    if (u && (u.clinic_name || u.name || u.email)) {
+      document.getElementById('dash-title').textContent = u.clinic_name || u.name || u.email;
+      document.getElementById('dash-sub').textContent = u.email && u.clinic_name
+        ? u.email + ' · deterministic fills for Ready templates.'
+        : 'Deterministic fills for Ready templates — no AI guessing on clinical fields.';
+    }
+    setStyle(currentStyle());
+    setView(currentView());
+    bootData();
+  })();
 </script>
 </body>
 </html>

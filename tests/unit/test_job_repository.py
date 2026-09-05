@@ -165,3 +165,23 @@ class TestToSummary:
         j = Job(id="x", record_count=0, progress=JobProgress(total=0))
         s = repo.to_summary(j)
         assert s.progress_pct == 0.0
+
+
+class TestCountForOwner:
+    def test_counts_only_this_key_and_today(self, repo):
+        repo.save(Job(id="mine_today", record_count=0, api_key_id="key_a"))
+        repo.save(
+            Job(
+                id="mine_old",
+                record_count=0,
+                api_key_id="key_a",
+                created_at="2020-01-01T00:00:00+00:00",
+            )
+        )
+        repo.save(Job(id="other", record_count=0, api_key_id="key_b"))
+        repo.save(Job(id="unowned", record_count=0))
+        total, today = repo.count_for_owner("key_a")
+        assert total == 2
+        assert today == 1
+        assert repo.count_for_owner("key_b") == (1, 1)
+        assert repo.count_for_owner("missing") == (0, 0)

@@ -12,6 +12,7 @@ signer's affirmative consent before submitting (checkbox in UI, boolean in API).
 
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +27,8 @@ from ...services.esign_service import ESignValidationError, apply_signature_over
 from ...services.sign_audit_service import SignAuditService
 from ...services.sign_certificate_service import generate_certificate
 from ...services.signature_detect_service import SignatureDetectService
+from ...services.signature_detect_cache import SignatureDetectCache
+from ...services.saved_signature_service import SavedSignatureService
 from ...services.ai_provider import prepare_ai_config
 from ..dependencies.auth import get_current_key_id, require_admin, require_api_key
 
@@ -41,6 +44,8 @@ MAX_SIGNATURE_PNG_BYTES = 4_194_304  # 4 MiB
 
 _audit = SignAuditService()
 _detect_svc = SignatureDetectService()
+_detect_cache = SignatureDetectCache()
+_saved_sigs = SavedSignatureService()
 
 
 def _unlink_if_exists(path: Path) -> None:
@@ -118,24 +123,32 @@ async def get_certificate(audit_id: str):
 )
 async def detect_signature_fields(
     file: UploadFile = File(..., description="PDF to analyse"),
-    ai_api_key: Optional[str] = Form(None, description="AI key — enables AI fallback when AcroForm yields nothing. Omit when ai_provider='local'."),
+    ai_api_key: Optional[str] = Form(
+        None,
+        description="Optional Gemini key for Strategy 2. Falls back to server GEMINI_API_KEY.",
+    ),
     ai_base_url: Optional[str] = Form(None, description="Custom AI base URL (leave blank to use server default)"),
     ai_model: Optional[str] = Form(None, description="AI model name (leave blank to use server default)"),
     ai_provider: Optional[str] = Form(None, description="'gemini' or 'local' — overrides server AI_PROVIDER for this request"),
     max_pages: int = Form(3, ge=1, le=10, description="Max pages to analyse with AI fallback"),
+    use_ai: bool = Form(
+        True,
+        description="If true, run Gemini vision when AcroForm finds no signature zones",
+    ),
+    force_refresh: bool = Form(
+        False,
+        description="If true, ignore signature-detect cache and re-run detection",
+    ),
 ):
     """
     Detects signature and date zones in a PDF.
 
     **Strategy:**
-    1. Reads AcroForm `/Sig` annotations and text fields with "sign"/"date"
-       labels — deterministic, no AI required.
-    2. If nothing found **and** `ai_api_key` is provided, renders each page
-       to an image and asks Gemini to locate signature zones visually.
+    1. Cache hit (same PDF bytes + options) returns prior zones — no AI.
+    2. AcroForm: ``/Sig`` widgets + clear signature-line labels only.
+    3. Gemini vision when needed, then printed-label heuristic.
 
-    Returns a list of suggested ``SignatureField`` objects with percentage
-    coordinates ready to paste into a template manifest or pass directly to
-    `POST /signatures/apply`.
+    Successful detections are cached under ``storage/signature_detect_cache/``.
     """
     if not (file.filename or "").lower().endswith(".pdf"):
         raise HTTPException(400, "File must be a PDF.")
@@ -155,12 +168,45 @@ async def detect_signature_fields(
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
-    detected = _detect_svc.detect(
+    if not (resolved_key or "").strip():
+        resolved_key = (settings.GEMINI_API_KEY or "").strip() or os.getenv("GEMINI_API_KEY", "")
+
+    cache_fp = _detect_cache.fingerprint(
+        raw, use_ai=use_ai, model=resolved_model or "", max_pages=max_pages
+    )
+    if not force_refresh:
+        cached = _detect_cache.get(cache_fp)
+        if cached:
+            meta = cached.get("meta") or {}
+            fields = cached.get("fields") or []
+            msg = cached.get("message") or "Loaded signature zones from cache."
+            return {
+                "total": len(fields),
+                "source": cached.get("source") or "cache",
+                "fields": fields,
+                "message": f"{msg} (cache hit — skipped AI).",
+                "acroform_count": meta.get("acroform_count", 0),
+                "acroform_signature_count": meta.get("acroform_signature_count", 0),
+                "acroform_date_count": meta.get("acroform_date_count", 0),
+                "ai_attempted": False,
+                "ai_count": 0,
+                "ai_signature_count": meta.get("ai_signature_count", 0),
+                "ai_available": bool((resolved_key or "").strip()),
+                "ai_skipped_reason": "cache_hit",
+                "ai_errors": [],
+                "heuristic_used": bool(meta.get("heuristic_used")),
+                "heuristic_count": meta.get("heuristic_count", 0),
+                "cache_hit": True,
+                "cache_fingerprint": cache_fp,
+            }
+
+    detected, meta = _detect_svc.detect_with_meta(
         raw,
         ai_api_key=resolved_key or None,
         ai_base_url=resolved_url or None,
         ai_model=resolved_model,
         max_pages_ai=max_pages,
+        use_ai=use_ai,
     )
 
     fields = [
@@ -173,22 +219,175 @@ async def detect_signature_fields(
             "width_pct": f.width_pct,
             "height_pct": f.height_pct,
             "source": f.source,
+            "kind": getattr(f, "kind", "signature") or "signature",
             "confidence": f.confidence,
             "description": f.description,
         }
         for f in detected
     ]
 
+    sources = {f["source"] for f in fields}
+    kinds = {f["kind"] for f in fields}
+    n_sig = sum(1 for f in fields if f["kind"] in ("signature", "initial"))
+    if not fields:
+        source = "none"
+    elif sources == {"acroform"}:
+        source = "acroform"
+    elif sources == {"ai"}:
+        source = "ai"
+    elif sources == {"heuristic"}:
+        source = "heuristic"
+    else:
+        source = "mixed"
+
+    skip = meta.get("ai_skipped_reason")
+    ai_errors = meta.get("ai_errors") or []
+    heuristic_used = bool(meta.get("heuristic_used"))
+
+    if fields and skip == "acroform_signature_found":
+        message = (
+            f"Detected {n_sig} AcroForm signature zone(s) (Strategy 1). "
+            "AI vision was not needed."
+        )
+    elif fields and any(f["source"] == "ai" for f in fields):
+        message = (
+            f"No true AcroForm signature widget — Gemini vision (Strategy 2) "
+            f"found {n_sig} signature zone(s)"
+            + (f" (+ {len(fields) - n_sig} date)" if len(fields) > n_sig else "")
+            + "."
+        )
+    elif fields and heuristic_used:
+        err_note = ""
+        if skip == "ai_parse_error" and ai_errors:
+            err_note = " Gemini replied but JSON was invalid, so "
+        elif meta.get("ai_attempted"):
+            err_note = " Gemini found none, so "
+        elif skip == "no_ai_key":
+            err_note = " No AI key, so "
+        elif skip == "use_ai_false":
+            err_note = " AI disabled, so "
+        else:
+            err_note = " "
+        message = (
+            f"No AcroForm signature widget.{err_note}"
+            f"used printed-label heuristic ({n_sig} zone(s))."
+        )
+    elif fields:
+        message = f"Detected {len(fields)} zone(s) ({source}; kinds={sorted(kinds)})."
+    elif skip == "no_ai_key":
+        message = (
+            "No AcroForm signature widget (ordinary date fields are ignored). "
+            "AI fallback unavailable — set GEMINI_API_KEY or pass ai_api_key. "
+            "Printed-label heuristic also found none."
+        )
+    elif skip == "use_ai_false":
+        message = (
+            "No AcroForm signature widget. AI fallback was disabled (use_ai=false). "
+            "Printed-label heuristic also found none."
+        )
+    elif skip == "ai_parse_error":
+        detail = (ai_errors[0] if ai_errors else "invalid JSON")
+        message = (
+            "No AcroForm signature widget. Gemini responded but the reply could not be "
+            f"parsed ({detail}). Printed-label heuristic also found none — "
+            "enter page/coordinates manually."
+        )
+    elif skip == "ai_found_none":
+        message = (
+            "No AcroForm signature widget and Gemini vision found none either. "
+            "Printed-label heuristic also found none. "
+            "Enter page/coordinates manually."
+        )
+    else:
+        message = "No signature zones detected. Enter coordinates manually."
+
+    if fields:
+        _detect_cache.save(
+            cache_fp,
+            fields=fields,
+            meta=meta,
+            source=source,
+            message=message,
+        )
+
     return {
         "total": len(fields),
-        "source": "acroform" if all(f["source"] == "acroform" for f in fields) else "mixed" if fields else "none",
+        "source": source,
         "fields": fields,
-        "message": (
-            f"Detected {len(fields)} signature zone(s)."
-            if fields else
-            "No signature zones detected. Try providing an ai_api_key for AI-based detection."
-        ),
+        "message": message,
+        "acroform_count": meta.get("acroform_count", 0),
+        "acroform_signature_count": meta.get("acroform_signature_count", 0),
+        "acroform_date_count": meta.get("acroform_date_count", 0),
+        "ai_attempted": bool(meta.get("ai_attempted")),
+        "ai_count": meta.get("ai_count", 0),
+        "ai_signature_count": meta.get("ai_signature_count", 0),
+        "ai_available": bool(meta.get("ai_available")),
+        "ai_skipped_reason": skip,
+        "ai_errors": ai_errors[:5],
+        "heuristic_used": heuristic_used,
+        "heuristic_count": meta.get("heuristic_count", 0),
+        "cache_hit": False,
+        "cache_fingerprint": cache_fp,
     }
+
+
+# ---------------------------------------------------------------------------
+# Saved signature (per API key) — reuse without re-drawing
+# ---------------------------------------------------------------------------
+
+@router.get("/saved", summary="Get metadata for the caller's saved signature")
+async def get_saved_signature_meta(request: Request):
+    key_id = get_current_key_id(request)
+    if not key_id:
+        raise HTTPException(401, "API key required.")
+    meta = _saved_sigs.get_meta(key_id)
+    if not meta:
+        return {"exists": False}
+    return meta
+
+
+@router.get("/saved/png", summary="Download the caller's saved signature PNG")
+async def get_saved_signature_png(request: Request):
+    key_id = get_current_key_id(request)
+    if not key_id:
+        raise HTTPException(401, "API key required.")
+    png = _saved_sigs.get_png(key_id)
+    if not png:
+        raise HTTPException(404, "No saved signature for this API key.")
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Content-Disposition": 'inline; filename="saved_signature.png"'},
+    )
+
+
+@router.put("/saved", summary="Save or replace the caller's signature PNG")
+async def put_saved_signature(
+    request: Request,
+    signature_png: UploadFile = File(..., description="PNG signature to save for this API key"),
+    mode: str = Form("draw"),
+    label: str = Form("My signature"),
+):
+    key_id = get_current_key_id(request)
+    if not key_id:
+        raise HTTPException(401, "API key required.")
+    raw = await signature_png.read()
+    if len(raw) > MAX_SIGNATURE_PNG_BYTES:
+        raise HTTPException(400, "Signature PNG exceeds 4 MiB.")
+    try:
+        meta = _saved_sigs.save(key_id, raw, mode=mode, label=label)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"ok": True, **meta}
+
+
+@router.delete("/saved", summary="Delete the caller's saved signature")
+async def delete_saved_signature(request: Request):
+    key_id = get_current_key_id(request)
+    if not key_id:
+        raise HTTPException(401, "API key required.")
+    removed = _saved_sigs.delete(key_id)
+    return {"ok": True, "deleted": removed}
 
 
 # ---------------------------------------------------------------------------
@@ -220,7 +419,7 @@ async def apply_visual_signature(
     x_pct: float = Form(55.0, ge=0, le=100, description="Left edge of signature box (% of page width)"),
     y_pct: float = Form(5.0, ge=0, le=100, description="Bottom edge of signature box (% of page height)"),
     width_pct: float = Form(40.0, ge=0.1, le=100),
-    height_pct: float = Form(12.0, ge=0.1, le=100),
+    height_pct: float = Form(4.0, ge=0.1, le=100),
     include_timestamp: bool = Form(True, description="Render a 'Signed: YYYY-MM-DD HH:MM UTC' line at the bottom of the signature box"),
 ):
     """

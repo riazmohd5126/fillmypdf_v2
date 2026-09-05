@@ -5,16 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>API Keys — FillMyPDF</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
   <style>body { font-family: system-ui,-apple-system,sans-serif; }</style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
   <!-- Nav -->
   <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
-    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-    </a>
     <span class="font-semibold text-gray-800">API Keys</span>
+    <span class="text-xs text-gray-400">Admin only</span>
     <button onclick="showCreateModal()" class="ml-auto flex items-center gap-1.5 bg-indigo-600 text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-indigo-700">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
       New Key
@@ -22,7 +22,7 @@
   </nav>
 
   <main class="max-w-3xl mx-auto px-4 py-8">
-    <p class="text-sm text-gray-500 mb-6">Keys are required for every API call via the <code class="bg-gray-100 px-1 rounded text-xs">X-API-Key</code> header.</p>
+    <p class="text-sm text-gray-500 mb-6">Clinic staff fill forms with email login — they do not need this page. Use it to see which clinic owns a <code class="bg-gray-100 px-1 rounded text-xs">pro</code> badge, revoke a leaked key, or mint a Zapier/admin key. Full secrets are shown once at creation; this list is status only.</p>
     <div id="key-list" class="space-y-3"></div>
     <div id="empty-state" class="hidden text-center py-16 text-gray-400">
       <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -81,13 +81,19 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
         </button>
       </div>
-      <button onclick="useThisKey()" class="w-full mb-2 bg-indigo-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-indigo-700">Use this key in UI</button>
-      <button onclick="closeRevealModal()" class="w-full bg-gray-100 text-gray-700 rounded-lg py-2 text-sm font-medium hover:bg-gray-200">Done</button>
+      <button onclick="closeRevealModal()" class="w-full mb-2 bg-indigo-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-indigo-700">Done</button>
+      <p class="text-[11px] text-gray-400 text-center">Copy the key for Zapier or scripts. Do not paste it into the dashboard while signed in.</p>
     </div>
   </div>
 
 <script>
   function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
+  function keyFetch(url, opts) {
+    opts = opts || {};
+    return (window.fmpFetch || fetch)(url, Object.assign({ credentials: 'same-origin' }, opts, {
+      headers: Object.assign({}, window.fmpAuthHeaders ? fmpAuthHeaders() : (getKey() ? {'X-API-Key': getKey()} : {}), opts.headers || {}),
+    }));
+  }
 
   const TIER_STYLE = {
     admin:    'bg-purple-100 text-purple-700',
@@ -97,15 +103,10 @@
   };
 
   async function loadKeys() {
-    const key = getKey();
     const list = document.getElementById('key-list');
     const empty = document.getElementById('empty-state');
-    if (!key) {
-      list.innerHTML = '<p class="text-red-500 text-sm text-center py-8">No API key set. <a href="/ui/index.html" class="underline">Set it on the dashboard.</a></p>';
-      return;
-    }
     try {
-      const r = await fetch('/api/v1/keys/', { headers: {'X-API-Key': key} });
+      const r = await keyFetch('/api/v1/keys/');
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const keys = await r.json();
       if (!keys.length) { list.innerHTML = ''; empty.classList.remove('hidden'); return; }
@@ -154,16 +155,14 @@
   function closeCreateModal() { document.getElementById('create-modal').classList.add('hidden'); }
 
   async function createKey() {
-    const apiKey = getKey();
-    if (!apiKey) return;
     const name  = document.getElementById('new-name').value.trim();
     const tier  = document.getElementById('new-tier').value;
     const owner = document.getElementById('new-owner').value.trim();
     if (!name) { alert('Name is required.'); return; }
     try {
-      const r = await fetch('/api/v1/keys/', {
+      const r = await keyFetch('/api/v1/keys/', {
         method: 'POST',
-        headers: {'X-API-Key': apiKey, 'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ name, tier, owner: owner || undefined })
       });
       if (!r.ok) { const d = await r.json(); alert('Error: ' + (d.detail || r.status)); return; }
@@ -180,33 +179,27 @@
     navigator.clipboard.writeText(val).then(() => alert('Copied!'));
   }
 
-  function useThisKey() {
-    const val = document.getElementById('reveal-key').textContent;
-    localStorage.setItem('fmp_api_key', val);
-    closeRevealModal();
-    alert('Key saved to browser. All UI pages will now use this key.');
-  }
-
   function closeRevealModal() { document.getElementById('reveal-modal').classList.add('hidden'); }
 
   async function revokeKey(id, name) {
     if (!confirm(`Revoke key "${name}"? It will stop working immediately.`)) return;
-    const apiKey = getKey();
-    const r = await fetch(`/api/v1/keys/${id}/revoke`, { method:'POST', headers:{'X-API-Key': apiKey} });
+    const r = await keyFetch(`/api/v1/keys/${id}/revoke`, { method:'POST' });
     if (r.ok) { loadKeys(); } else { alert('Failed: ' + r.status); }
   }
 
   async function deleteKey(id, name) {
     if (!confirm(`Permanently delete key "${name}"?`)) return;
-    const apiKey = getKey();
-    const r = await fetch(`/api/v1/keys/${id}`, { method:'DELETE', headers:{'X-API-Key': apiKey} });
+    const r = await keyFetch(`/api/v1/keys/${id}`, { method:'DELETE' });
     if (r.ok || r.status === 204) { loadKeys(); } else { alert('Failed: ' + r.status); }
   }
 
   function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function fmtDate(s) { try { return new Date(s).toLocaleString(); } catch { return s||'—'; } }
 
-  loadKeys();
+  (async function () {
+    if (window.fmpRequireAdminPage && !(await fmpRequireAdminPage())) return;
+    loadKeys();
+  })();
 </script>
 </body>
 </html>

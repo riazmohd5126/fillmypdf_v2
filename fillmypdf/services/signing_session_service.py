@@ -185,15 +185,42 @@ class SigningSessionService:
             return None
         return SigningSession(json.loads(p.read_text(encoding="utf-8")))
 
-    def list_all(self, *, limit: int = 100) -> List[SigningSession]:
-        paths = sorted(self._dir.glob("sess_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
-        sessions = []
-        for path in paths[:limit]:
+    def list_all(
+        self,
+        *,
+        limit: int = 100,
+        created_by_key_id: Optional[str] = None,
+    ) -> List[SigningSession]:
+        paths = sorted(
+            self._dir.glob("sess_*.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        sessions: List[SigningSession] = []
+        for path in paths:
             try:
-                sessions.append(SigningSession(json.loads(path.read_text(encoding="utf-8"))))
+                sess = SigningSession(json.loads(path.read_text(encoding="utf-8")))
             except Exception:
                 continue
+            if created_by_key_id and sess.to_dict().get("created_by_key_id") != created_by_key_id:
+                continue
+            sessions.append(sess)
+            if len(sessions) >= limit:
+                break
         return sessions
+
+    def count_for_key(self, created_by_key_id: str) -> int:
+        if not created_by_key_id:
+            return 0
+        n = 0
+        for path in self._dir.glob("sess_*.json"):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if data.get("created_by_key_id") == created_by_key_id:
+                n += 1
+        return n
 
     # ── Advance (record one signer's signature) ────────────────────────────
 

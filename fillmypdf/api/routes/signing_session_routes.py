@@ -3,6 +3,7 @@ Multi-Party Signing Session Routes
 ====================================
 Endpoints for creating and advancing sequential multi-signer workflows.
 
+  POST   /api/v1/signing-sessions/stage-pdf          Upload PDF into OUTPUT_DIR for session base
   POST   /api/v1/signing-sessions                    Create session
   GET    /api/v1/signing-sessions                    List sessions
   GET    /api/v1/signing-sessions/{id}               Get session detail
@@ -62,7 +63,7 @@ class SignerIn(BaseModel):
     x_pct: float = Field(55.0, ge=0, le=100)
     y_pct: float = Field(5.0, ge=0, le=100)
     width_pct: float = Field(40.0, ge=0.1, le=100)
-    height_pct: float = Field(12.0, ge=0.1, le=100)
+    height_pct: float = Field(4.0, ge=0.1, le=100)
 
 
 class CreateSessionRequest(BaseModel):
@@ -91,6 +92,36 @@ def _session_summary(sess) -> dict:
         "updated_at": d["updated_at"],
         "sign_url": f"/ui/multisign.html?session_id={d['session_id']}" if d["status"] != "complete" else None,
         "download_url": f"/api/v1/signing-sessions/{d['session_id']}/download" if d.get("final_pdf_filename") else None,
+    }
+
+
+# ── Stage PDF (upload a local file into OUTPUT_DIR for session create) ──────
+
+@router.post("/stage-pdf", summary="Upload a PDF into output storage for multi-party signing")
+async def stage_base_pdf(
+    file: UploadFile = File(..., description="PDF to use as the signing session base"),
+):
+    """
+    Saves an uploaded PDF into ``OUTPUT_DIR`` so it can be referenced by
+    ``base_pdf_filename`` when creating a signing session from the E-Sign UI.
+    """
+    name = (file.filename or "").strip()
+    if not name.lower().endswith(".pdf"):
+        raise HTTPException(400, "File must be a PDF.")
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "Empty PDF upload.")
+    if len(raw) > 26_214_400:
+        raise HTTPException(400, "PDF exceeds 25 MiB limit.")
+
+    settings.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_name = f"staged_{uuid.uuid4().hex[:12]}.pdf"
+    out_path = settings.OUTPUT_DIR / out_name
+    out_path.write_bytes(raw)
+    return {
+        "filename": out_name,
+        "size_bytes": len(raw),
+        "original_filename": Path(name).name,
     }
 
 
@@ -149,12 +180,13 @@ async def create_session(body: CreateSessionRequest, request: Request):
 # ── List ───────────────────────────────────────────────────────────────────
 
 @router.get("", summary="List signing sessions")
-async def list_sessions(limit: int = 50):
+async def list_sessions(limit: int = 50, api_key: dict = Depends(require_api_key)):
     cap = max(1, min(limit, 200))
-    sessions = _sessions.list_all(limit=cap)
+    key_id = api_key.get("id")
+    sessions = _sessions.list_all(limit=cap, created_by_key_id=key_id)
     return {
         "sessions": [_session_summary(s) for s in sessions],
-        "total": len(sessions),
+        "total": _sessions.count_for_key(key_id) if key_id else len(sessions),
     }
 
 

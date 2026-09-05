@@ -38,16 +38,34 @@ test_output_*/
 # Runtime data (regenerated at runtime; do not commit keys or user profiles)
 fillmypdf/storage/profiles/
 fillmypdf/storage/api_keys/
+fillmypdf/storage/users/
+fillmypdf/storage/sessions/
+fillmypdf/storage/accounts/
 fillmypdf/storage/temp/
 fillmypdf/storage/jobs/
 fillmypdf/storage/template_cache/
 fillmypdf/storage/label_cache/
 fillmypdf/storage/field_map_cache/
+fillmypdf/storage/blank_forms/
 fillmypdf/storage/sign_audit/
+fillmypdf/storage/signature_detect_cache/
+fillmypdf/storage/template_signature_cache/
+fillmypdf/storage/saved_signatures/
 fillmypdf/storage/usage_stats.json
+fillmypdf/storage/canonical_map_cache/
+fillmypdf/storage/approvals/
+fillmypdf/storage/form_spec_cache/
 # Generated fillable PDF cache (converted at runtime from stored templates)
 fillmypdf/storage/templates/**/fillable.pdf
 fillmypdf/storage/templates/**/fields.json
+
+# Local bulk-import / server scratch (do not push PDFs or logs)
+bulk_*.log
+bulk_*.out
+server.log
+server.out
+/prolia_*
+/raw_fill_*.py
 
 # Local compose bind-mount data (see docker-compose.yml)
 /docker-data/

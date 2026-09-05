@@ -5,15 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Extract Fields — FillMyPDF</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
   <style>body { font-family: system-ui,-apple-system,sans-serif; }</style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
   <!-- Nav -->
   <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
-    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-    </a>
     <span class="font-semibold text-gray-800">Extract Fields</span>
   </nav>
 
@@ -101,8 +100,9 @@
 
   async function runExtract(e) {
     e.preventDefault();
-    const key = getKey();
-    if (!key) { showErr('No API key set. <a href="/ui/index.html" class="underline">Set it on the dashboard.</a>'); return; }
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+      showErr('Sign in first. <a href="/ui/login.html?next=/ui/extract.html" class="underline">Clinic login</a>'); return;
+    }
 
     const file = document.getElementById('pdf-input').files[0];
     if (!file) { showErr('Please select a PDF.'); return; }
@@ -120,7 +120,7 @@
       fd.append('file', file);
       const params = new URLSearchParams({ format: fmt, include_labels: includeLabels, engine });
       const r = await fetch(`/api/v1/extract?${params}`, {
-        method: 'POST', headers: { 'X-API-Key': key }, body: fd
+        method: 'POST', headers: fmpAuthHeaders(), body: fd, credentials: 'same-origin'
       });
 
       if (fmt === 'csv') {
@@ -216,7 +216,11 @@
 
   function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  if (!getKey()) showErr('No API key set. <a href="/ui/index.html" class="underline font-medium">Set it on the dashboard</a> first.');
+  (async function () {
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+      showErr('Sign in first. <a href="/ui/login.html?next=/ui/extract.html" class="underline font-medium">Clinic login</a>');
+    }
+  })();
 </script>
 </body>
 </html>

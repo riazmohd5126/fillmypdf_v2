@@ -139,9 +139,12 @@ class JobRepository:
         *,
         status: Optional[JobStatus] = None,
         kind: Optional[JobKindFilter] = None,
+        api_key_id: Optional[str] = None,
+        admin: bool = False,
     ) -> List[Job]:
         """
         Newest-first up to ``limit`` jobs that match optional ``status`` / ``kind``.
+        Non-admin callers only see their own jobs (legacy jobs with no owner stay visible).
         """
         jobs: List[Job] = []
         with self._lock:
@@ -165,8 +168,34 @@ class JobRepository:
                     continue
                 if kind is not None and job.kind != kind:
                     continue
+                if not admin and api_key_id:
+                    owner = getattr(job, "api_key_id", None)
+                    if owner and owner != api_key_id:
+                        continue
                 jobs.append(job)
         return jobs
+
+    def count_for_owner(self, api_key_id: str) -> tuple[int, int]:
+        """Return (all-time, created-today UTC) job counts for one API key."""
+        if not api_key_id:
+            return 0, 0
+        today = datetime.now(timezone.utc).date().isoformat()
+        total = 0
+        today_count = 0
+        with self._lock:
+            for p in self.jobs_dir.glob("*.json"):
+                if p.stem.endswith("_payload"):
+                    continue
+                try:
+                    data = json.loads(p.read_text())
+                except Exception:
+                    continue
+                if data.get("api_key_id") != api_key_id:
+                    continue
+                total += 1
+                if str(data.get("created_at") or "").startswith(today):
+                    today_count += 1
+        return total, today_count
 
     # ------------------------------------------------------------------
     # Delete

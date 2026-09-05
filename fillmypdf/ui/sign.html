@@ -5,69 +5,65 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>E-Signature — FillMyPDF</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; }
     #sig-canvas { cursor: crosshair; touch-action: none; }
     .typed-preview { font-family: 'Georgia', 'Times New Roman', serif; font-style: italic; color: #0a2864; font-size: 2.2rem; letter-spacing: 0.02em; }
     .tab-active { border-bottom: 2px solid #4f46e5; color: #4f46e5; font-weight: 600; }
     .tab-inactive { border-bottom: 2px solid transparent; color: #6b7280; }
+    #pdf-preview-canvas { max-width: 100%; height: auto; border: 1px solid #e5e7eb; border-radius: 0.5rem; background: #fff; }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
   <!-- Nav -->
   <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
-    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-    </a>
     <span class="font-semibold text-gray-800">E-Signature</span>
+    <a href="/ui/multisign.html" class="ml-auto text-xs text-indigo-600 hover:underline">Session list →</a>
   </nav>
 
   <main class="max-w-2xl mx-auto px-4 py-10">
 
-    <!-- Step 1: Signature -->
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
-      <h2 class="font-semibold text-gray-900 mb-4">Step 1 — Create your signature</h2>
-
-      <!-- Tabs -->
-      <div class="flex gap-6 mb-5 border-b border-gray-100">
-        <button id="tab-draw" onclick="switchTab('draw')" class="pb-2 text-sm tab-active">Draw</button>
-        <button id="tab-type" onclick="switchTab('type')" class="pb-2 text-sm tab-inactive">Type</button>
-      </div>
-
-      <!-- Draw Panel -->
-      <div id="panel-draw">
-        <div class="border-2 border-dashed border-gray-300 rounded-xl overflow-hidden bg-white" style="height:140px">
-          <canvas id="sig-canvas" class="w-full h-full" width="600" height="140"></canvas>
-        </div>
-        <div class="flex gap-2 mt-3">
-          <button onclick="clearCanvas()" class="text-sm text-gray-500 hover:text-red-500 flex items-center gap-1">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-            Clear
-          </button>
-          <span class="text-xs text-gray-400 ml-auto self-center">Sign within the box above</span>
-        </div>
-      </div>
-
-      <!-- Type Panel -->
-      <div id="panel-type" class="hidden">
-        <input id="sig-text" type="text" placeholder="Your full name…"
-          oninput="updatePreview()"
-          class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-        <div class="border-2 border-dashed border-gray-300 rounded-xl bg-white min-h-[80px] flex items-center justify-center px-6">
-          <span id="typed-preview" class="typed-preview text-gray-300">Your signature will appear here</span>
-        </div>
-        <p class="text-xs text-gray-400 mt-2">Rendered as italic serif — will appear in navy ink on the PDF.</p>
+    <!-- Mode toggle -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 mb-6">
+      <p class="text-xs text-gray-500 mb-2">Who needs to sign?</p>
+      <div class="grid grid-cols-2 gap-2">
+        <button type="button" id="mode-solo-btn" onclick="setSignMode('solo')"
+          class="rounded-xl border-2 border-indigo-500 bg-indigo-50 px-3 py-3 text-left">
+          <div class="text-sm font-semibold text-indigo-900">Just me</div>
+          <div class="text-[11px] text-indigo-700/80 mt-0.5">Detect → sign → preview → apply now</div>
+        </button>
+        <button type="button" id="mode-multi-btn" onclick="setSignMode('multi')"
+          class="rounded-xl border-2 border-gray-200 bg-white px-3 py-3 text-left hover:border-violet-300">
+          <div class="text-sm font-semibold text-gray-800">Multiple signers</div>
+          <div class="text-[11px] text-gray-500 mt-0.5">Detect zones → assign people → create session</div>
+        </button>
       </div>
     </div>
 
-    <!-- Step 2: Upload PDF -->
+    <!-- Step 1: Upload PDF -->
     <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
-      <h2 class="font-semibold text-gray-900 mb-4">Step 2 — Upload your PDF</h2>
+      <h2 class="font-semibold text-gray-900 mb-4">Step 1 — Choose your PDF</h2>
       <div id="prefill-badge" class="hidden mb-3 flex items-center gap-2 text-xs bg-indigo-50 text-indigo-700 rounded-lg px-3 py-2 border border-indigo-200">
         <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         <span id="prefill-label">Pre-loaded filled PDF from template fill</span>
       </div>
+
+      <div id="multi-pdf-pick" class="hidden mb-4 space-y-2 rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-3">
+        <div class="flex items-center justify-between gap-2">
+          <label class="text-xs font-medium text-violet-900">Or pick a filled PDF already on the server</label>
+          <button type="button" onclick="loadSignOutputPdfs()" class="text-[11px] text-indigo-600 hover:underline">Refresh</button>
+        </div>
+        <select id="server-pdf-select" onchange="onServerPdfPicked()"
+          class="w-full border border-violet-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-400">
+          <option value="">Select from output folder…</option>
+        </select>
+        <p class="text-[11px] text-violet-800/70">Multi-party sessions need a server filename. Upload below stages a local PDF automatically when you create the session.</p>
+      </div>
+
       <label class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl py-8 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition" id="drop-zone">
         <svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
         <span class="text-sm text-gray-500" id="pdf-label">Click to upload PDF or drag & drop</span>
@@ -75,9 +71,9 @@
       </label>
     </div>
 
-    <!-- Step 3: Signer Info -->
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
-      <h2 class="font-semibold text-gray-900 mb-1">Step 3 — Signer information</h2>
+    <!-- Step 2: Signer Info (solo) -->
+    <div id="solo-signer-panel" class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
+      <h2 class="font-semibold text-gray-900 mb-1">Step 2 — Signer information</h2>
       <p class="text-xs text-gray-400 mb-4">Recorded in the audit log and Certificate of Electronic Signature.</p>
       <div class="grid grid-cols-2 gap-4">
         <div>
@@ -93,14 +89,55 @@
       </div>
     </div>
 
-    <!-- Step 4: Position -->
+    <!-- Step 2: Multi signers -->
+    <div id="multi-signer-panel" class="hidden bg-white rounded-2xl border border-violet-200 shadow-sm p-6 mb-6">
+      <h2 class="font-semibold text-gray-900 mb-1">Step 2 — Signers (in order)</h2>
+      <p class="text-xs text-gray-400 mb-4">
+        After Detect, assign each person a signature zone. Signer 1 signs first, then Signer 2, and so on.
+      </p>
+      <div class="mb-4">
+        <label class="text-xs text-gray-500 mb-1 block">Session title</label>
+        <input id="multi-session-title" type="text" placeholder="e.g. Jane Doe PA — Member + Provider"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"/>
+      </div>
+      <div id="multi-signer-rows" class="space-y-3"></div>
+      <button type="button" onclick="addMultiSignerRow()"
+        class="mt-3 text-xs text-violet-700 hover:underline">+ Add signer</button>
+      <p id="multi-zone-hint" class="mt-3 text-[11px] text-gray-400">Run Detect in Step 3 to fill the zone dropdowns.</p>
+    </div>
+
+    <!-- Step 3: Position / Detect -->
     <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="font-semibold text-gray-900">Step 4 — Position</h2>
+      <div class="flex items-center justify-between mb-2 gap-3 flex-wrap">
+        <h2 class="font-semibold text-gray-900">Step 3 — Find where to sign</h2>
         <button onclick="detectFields()" id="detect-btn"
           class="flex items-center gap-1.5 text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg px-3 py-1.5 font-medium hover:bg-indigo-100 transition">
           🔍 Detect signature spots
         </button>
+      </div>
+      <p class="text-[11px] text-gray-400 mb-3">
+        <b>Required:</b> run Detect on <em>this</em> PDF before Apply.
+        Uses AcroForm → Gemini → printed-label heuristic. Changing the PDF clears the previous placement.
+      </p>
+      <div id="workflow-banner" class="mb-3 text-xs rounded-lg px-3 py-2 bg-amber-50 text-amber-900 border border-amber-200">
+        Upload a PDF, then click <strong>Detect signature spots</strong>. Apply stays locked until Detect succeeds for this file.
+      </div>
+      <div class="mb-3 space-y-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+        <label class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
+          <input id="use-ai-detect" type="checkbox" checked class="w-4 h-4 accent-indigo-600"/>
+          <span>Use AI vision fallback when AcroForm finds nothing (Strategy 2)</span>
+        </label>
+        <label class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
+          <input id="force-refresh-detect" type="checkbox" class="w-4 h-4 accent-indigo-600"/>
+          <span>Force re-detect <span class="text-gray-400">(ignore cached zones for this PDF)</span></span>
+        </label>
+        <div>
+          <label class="text-[11px] text-gray-500 mb-1 block">
+            Optional Gemini key <span class="text-gray-400">(leave blank to use server GEMINI_API_KEY)</span>
+          </label>
+          <input id="detect-ai-key" type="password" placeholder="AIza… (optional)"
+            class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"/>
+        </div>
       </div>
       <!-- Detected fields picker (hidden until detection runs) -->
       <div id="detected-fields-row" class="hidden mb-4">
@@ -108,23 +145,128 @@
         <div id="detected-fields-list" class="flex flex-wrap gap-2"></div>
       </div>
       <div id="detect-status" class="hidden text-xs text-gray-500 mb-3 bg-gray-50 rounded-lg px-3 py-2"></div>
+      <!-- Manual placement only after Detect found zero zones -->
+      <div id="manual-place-row" class="hidden mb-4 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 space-y-2">
+        <p class="text-xs text-violet-900">
+          Detect found <strong>no signature zones</strong> on this PDF. Apply is blocked unless you place manually.
+        </p>
+        <label class="flex items-start gap-2 text-xs text-violet-900 cursor-pointer select-none">
+          <input id="manual-place-check" type="checkbox" class="mt-0.5 w-4 h-4 accent-violet-600 shrink-0"
+            onchange="onManualPlaceToggle()"/>
+          <span><strong>Place signature manually</strong> — I will set page / left / bottom / width / height for this PDF only.</span>
+        </label>
+      </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="text-xs text-gray-500 mb-1 block">Page (0-based)</label>
-          <input id="page-idx" type="number" value="0" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+          <input id="page-idx" type="number" value="" min="0" disabled placeholder="Run Detect first"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-100 disabled:text-gray-400"/>
         </div>
         <div>
           <label class="text-xs text-gray-500 mb-1 block">Left edge (% of width)</label>
-          <input id="x-pct" type="number" value="55" min="0" max="100" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+          <input id="x-pct" type="number" value="" min="0" max="100" step="0.1" disabled placeholder="—"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-100 disabled:text-gray-400"/>
         </div>
         <div>
           <label class="text-xs text-gray-500 mb-1 block">Bottom edge (% of height)</label>
-          <input id="y-pct" type="number" value="5" min="0" max="100" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+          <input id="y-pct" type="number" value="" min="0" max="100" step="0.1" disabled placeholder="—"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-100 disabled:text-gray-400"/>
         </div>
         <div>
           <label class="text-xs text-gray-500 mb-1 block">Width (%)</label>
-          <input id="w-pct" type="number" value="40" min="1" max="100" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+          <input id="w-pct" type="number" value="" min="1" max="100" step="0.1" disabled placeholder="—"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-100 disabled:text-gray-400"/>
         </div>
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Height (%) <span class="text-gray-400">— use detected box; avoid tall spill</span></label>
+          <input id="h-pct" type="number" value="" min="0.5" max="100" step="0.1" disabled placeholder="—"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-gray-100 disabled:text-gray-400"/>
+        </div>
+      </div>
+      <p class="mt-3 text-xs text-gray-500 leading-relaxed">
+        After the stamp box is set, Step 4’s pad matches its shape.
+        Check placement on the real page in <strong>Step 5 — Preview on PDF</strong> before Apply.
+      </p>
+    </div>
+
+    <div id="solo-after-detect">
+    <!-- Step 4: Signature (after Detect — pad mirrors stamp box) -->
+    <div id="sig-step" class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6 relative">
+      <h2 class="font-semibold text-gray-900 mb-1">Step 4 — Create your signature</h2>
+      <p id="sig-pad-hint" class="text-xs text-gray-400 mb-4">
+        Complete Step 3 first. The draw pad will match the stamp box proportions.
+      </p>
+
+      <div id="sig-step-lock" class="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500 mb-2">
+        Upload a PDF and run <strong>Detect</strong> (or unlock manual placement) before signing.
+        This avoids mismatch between a tall draw pad and a short signature line.
+      </div>
+
+      <div id="sig-step-body" class="opacity-40 pointer-events-none select-none">
+        <!-- Tabs -->
+        <div class="flex gap-6 mb-5 border-b border-gray-100">
+          <button id="tab-draw" type="button" onclick="switchTab('draw')" class="pb-2 text-sm tab-active">Draw</button>
+          <button id="tab-type" type="button" onclick="switchTab('type')" class="pb-2 text-sm tab-inactive">Type</button>
+        </div>
+
+        <!-- Draw Panel -->
+        <div id="panel-draw">
+          <div id="sig-canvas-wrap" class="border-2 border-dashed border-indigo-300 rounded-xl overflow-hidden bg-white mx-auto" style="width:100%;height:56px;max-width:100%">
+            <canvas id="sig-canvas" class="w-full h-full block" width="600" height="56"></canvas>
+          </div>
+          <div class="flex gap-2 mt-3 items-center flex-wrap">
+            <button type="button" onclick="clearCanvas()" class="text-sm text-gray-500 hover:text-red-500 flex items-center gap-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              Clear
+            </button>
+            <span id="sig-pad-dims" class="text-xs text-indigo-600 ml-auto">Pad waiting for stamp box…</span>
+          </div>
+        </div>
+
+        <!-- Type Panel -->
+        <div id="panel-type" class="hidden">
+          <input id="sig-text" type="text" placeholder="Your full name…"
+            oninput="updatePreview()"
+            class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+          <div id="typed-preview-wrap" class="border-2 border-dashed border-indigo-300 rounded-xl bg-white flex items-center justify-center px-6 overflow-hidden" style="height:56px">
+            <span id="typed-preview" class="typed-preview text-gray-300 text-center leading-none">Your signature will appear here</span>
+          </div>
+          <p class="text-xs text-gray-400 mt-2">Preview uses the same proportions as the stamp box on the PDF.</p>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2 items-center">
+          <button type="button" onclick="saveCurrentSignature()"
+            class="text-xs px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 hover:bg-indigo-100">
+            Save signature (this API key)
+          </button>
+          <button type="button" onclick="loadSavedSignature()"
+            class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50">
+            Use saved
+          </button>
+          <button type="button" onclick="deleteSavedSignature()"
+            class="text-xs px-3 py-1.5 rounded-lg border border-red-100 text-red-600 hover:bg-red-50">
+            Delete saved
+          </button>
+          <span id="saved-sig-status" class="text-[11px] text-gray-400"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 5: Preview on real PDF -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
+      <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
+        <h2 class="font-semibold text-gray-900">Step 5 — Preview on PDF</h2>
+        <button type="button" onclick="renderPdfPreview()"
+          class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700">
+          Refresh preview
+        </button>
+      </div>
+      <p class="text-xs text-gray-400 mb-3">
+        See your ink on the real page before Apply. Uses the stamp box from Step 3 and your signature from Step 4.
+      </p>
+      <div id="pdf-preview-status" class="text-xs text-gray-500 mb-2">Complete Steps 3–4, then refresh preview.</div>
+      <div class="overflow-auto max-h-[480px] bg-gray-100 rounded-xl p-2 flex justify-center">
+        <canvas id="pdf-preview-canvas"></canvas>
       </div>
     </div>
 
@@ -172,6 +314,30 @@
         </a>
       </div>
     </div>
+    </div><!-- /solo-after-detect -->
+
+    <!-- Multi-party create session -->
+    <div id="multi-session-flow" class="hidden space-y-4">
+      <div class="bg-violet-50 border border-violet-200 rounded-xl p-4 text-xs text-violet-900 leading-relaxed">
+        Multi-party mode creates a <strong>signing session</strong>. Each signer gets a turn (email if configured).
+        They draw/type their signature on the Multi-Party session page — you only set zones and people here.
+        Consent is collected from each signer when they sign.
+      </div>
+      <button id="multi-create-btn" type="button" onclick="createMultiSession()"
+        class="w-full bg-violet-600 text-white rounded-xl py-3 font-semibold text-sm hover:bg-violet-700 transition disabled:opacity-50">
+        Create signing session
+      </button>
+      <div id="multi-result" class="hidden bg-green-50 border border-green-200 rounded-xl p-5 space-y-2">
+        <p class="font-semibold text-green-800 text-sm">Signing session created</p>
+        <p class="text-xs text-green-700">Share the session page with signers (or open it to sign as Signer 1):</p>
+        <a id="multi-session-link" href="#" class="block text-xs text-indigo-600 hover:underline break-all"></a>
+        <div class="flex flex-wrap gap-2 pt-1">
+          <a id="multi-open-btn" href="#" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">Open session →</a>
+          <button type="button" onclick="copyText(document.getElementById('multi-session-link').href)"
+            class="text-xs px-3 py-1.5 rounded-lg border border-green-300 bg-white text-green-800">Copy link</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Status (errors) -->
     <div id="status" class="mt-4 hidden text-sm text-center rounded-lg px-4 py-3"></div>
@@ -180,7 +346,793 @@
 <script>
   const API_BASE = '';
   function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
+  function authH(extra){ return Object.assign({}, window.fmpAuthHeaders ? fmpAuthHeaders() : {}, extra||{}); }
   let activeTab = 'draw';
+  /** Workflow: Detect must run on the current PDF before Apply. */
+  let detectDoneForCurrentPdf = false;
+  let placementFromDetect = false;
+  let lastDetectSigCount = 0;
+  let manualPlacementUnlocked = false;
+  let currentPdfKey = '';
+  let pdfArrayBuffer = null;  // for PDF.js preview
+  let savedSigObjectUrl = null;
+
+  /** 'solo' | 'multi' */
+  let signMode = 'solo';
+  let lastDetectedFields = [];
+  let lastDetectedSigFields = [];
+  /** Set when PDF is already on server (dropdown) or after stage-pdf */
+  let serverBasePdfFilename = null;
+  let multiSignerSeq = 0;
+
+  if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  async function copyText(text) {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      showStatus('Copied to clipboard.', 'ok');
+    } catch {
+      prompt('Copy this link:', text);
+    }
+  }
+
+  function setSignMode(mode) {
+    signMode = mode === 'multi' ? 'multi' : 'solo';
+    const soloBtn = document.getElementById('mode-solo-btn');
+    const multiBtn = document.getElementById('mode-multi-btn');
+    if (signMode === 'solo') {
+      soloBtn.className = 'rounded-xl border-2 border-indigo-500 bg-indigo-50 px-3 py-3 text-left';
+      multiBtn.className = 'rounded-xl border-2 border-gray-200 bg-white px-3 py-3 text-left hover:border-violet-300';
+    } else {
+      multiBtn.className = 'rounded-xl border-2 border-violet-500 bg-violet-50 px-3 py-3 text-left';
+      soloBtn.className = 'rounded-xl border-2 border-gray-200 bg-white px-3 py-3 text-left hover:border-indigo-300';
+    }
+    document.getElementById('solo-signer-panel').classList.toggle('hidden', signMode !== 'solo');
+    document.getElementById('multi-signer-panel').classList.toggle('hidden', signMode !== 'multi');
+    document.getElementById('multi-pdf-pick').classList.toggle('hidden', signMode !== 'multi');
+    document.getElementById('solo-after-detect').classList.toggle('hidden', signMode !== 'solo');
+    document.getElementById('multi-session-flow').classList.toggle('hidden', signMode !== 'multi');
+    // In multi mode, coord chips still set placement for preview of assignment — keep Step 3.
+    if (signMode === 'multi') {
+      if (!document.querySelector('#multi-signer-rows .multi-signer-row')) {
+        addMultiSignerRow();
+        addMultiSignerRow();
+      }
+      loadSignOutputPdfs();
+      refreshMultiZoneSelects();
+    }
+    updateWorkflowBanner();
+  }
+
+  function fmtBytes(n) {
+    if (!n && n !== 0) return '';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  async function loadSignOutputPdfs() {
+    const sel = document.getElementById('server-pdf-select');
+    if (!sel) return;
+    const key = getKey();
+    if (!key && !window.fmpUser) {
+      sel.innerHTML = '<option value="">Set API key to load PDFs</option>';
+      return;
+    }
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">Loading…</option>';
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/approvals/output-pdfs?limit=80`, {
+        headers: authH(), credentials: 'same-origin',
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+      const pdfs = data.pdfs || [];
+      sel.innerHTML = '<option value="">Select from output folder…</option>';
+      for (const p of pdfs) {
+        const opt = document.createElement('option');
+        opt.value = p.filename;
+        opt.textContent = `${p.filename}  ·  ${fmtBytes(p.size_bytes)}`;
+        sel.appendChild(opt);
+      }
+      if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+    } catch (e) {
+      sel.innerHTML = `<option value="">Could not load PDFs (${e.message || e})</option>`;
+    }
+  }
+
+  async function onServerPdfPicked() {
+    const sel = document.getElementById('server-pdf-select');
+    const filename = (sel.value || '').trim();
+    if (!filename) return;
+    const key = getKey();
+    if (!key && !window.fmpUser) { alert('Set your API key first.'); return; }
+    try {
+      // Prefer batch download path (OUTPUT_DIR); fall back to templates download.
+      let r = await fetch(`${API_BASE}/api/v1/batch/download/${encodeURIComponent(filename)}`, {
+        headers: authH(), credentials: 'same-origin',
+      });
+      if (!r.ok) {
+        r = await fetch(`${API_BASE}/api/v1/templates/download/${encodeURIComponent(filename)}`, {
+          headers: authH(), credentials: 'same-origin',
+        });
+      }
+      if (!r.ok) throw new Error('Could not download that PDF from the server.');
+      const blob = await r.blob();
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      document.getElementById('pdf-file').files = dt.files;
+      serverBasePdfFilename = filename;
+      onPdfSelected();
+      showStatus(`Loaded server PDF: ${filename}`, 'ok');
+    } catch (e) {
+      alert(e.message || String(e));
+    }
+  }
+
+  function zoneOptionsHtml(selectedKey) {
+    const sigs = lastDetectedSigFields.length ? lastDetectedSigFields : lastDetectedFields.filter(f => {
+      const k = f.kind || 'signature';
+      return k === 'signature' || k === 'initial';
+    });
+    let html = '<option value="">Select detected zone…</option>';
+    sigs.forEach((f, i) => {
+      const key = f.key || `zone_${i}`;
+      const label = `${f.label || key} (p${f.page_index})`;
+      const sel = selectedKey && selectedKey === key ? ' selected' : '';
+      html += `<option value="${escAttr(key)}"${sel}>${escHtml(label)}</option>`;
+    });
+    html += '<option value="__manual__">Use Step 3 coordinates (manual)</option>';
+    return html;
+  }
+
+  function escHtml(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function escAttr(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  }
+
+  function addMultiSignerRow(prefill) {
+    const wrap = document.getElementById('multi-signer-rows');
+    const idx = multiSignerSeq++;
+    const row = document.createElement('div');
+    row.className = 'multi-signer-row border border-gray-200 rounded-xl p-3 space-y-2';
+    row.dataset.rowId = String(idx);
+    const name = (prefill && prefill.name) || '';
+    const email = (prefill && prefill.email) || '';
+    const zoneKey = (prefill && prefill.zoneKey) || '';
+    row.innerHTML = `
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-xs font-semibold text-gray-600">Signer <span class="signer-ord"></span></span>
+        <button type="button" class="text-xs text-gray-400 hover:text-red-500" data-remove>Remove</button>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <input type="text" data-field="name" value="${escAttr(name)}" placeholder="Full name"
+          class="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"/>
+        <input type="email" data-field="email" value="${escAttr(email)}" placeholder="Email"
+          class="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"/>
+      </div>
+      <div>
+        <label class="text-[11px] text-gray-500 mb-0.5 block">Signature zone</label>
+        <select data-field="zone" class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-400">
+          ${zoneOptionsHtml(zoneKey)}
+        </select>
+      </div>
+    `;
+    row.querySelector('[data-remove]').addEventListener('click', () => {
+      row.remove();
+      renumberMultiSigners();
+    });
+    wrap.appendChild(row);
+    renumberMultiSigners();
+  }
+
+  function renumberMultiSigners() {
+    document.querySelectorAll('#multi-signer-rows .multi-signer-row').forEach((row, i) => {
+      const el = row.querySelector('.signer-ord');
+      if (el) el.textContent = String(i + 1);
+    });
+  }
+
+  function refreshMultiZoneSelects() {
+    const hint = document.getElementById('multi-zone-hint');
+    const n = lastDetectedSigFields.length;
+    if (hint) {
+      hint.textContent = n
+        ? `${n} signature zone(s) available — assign one per signer.`
+        : 'Run Detect in Step 3 to fill the zone dropdowns (or choose manual coords).';
+    }
+    document.querySelectorAll('#multi-signer-rows select[data-field="zone"]').forEach(sel => {
+      const prev = sel.value;
+      sel.innerHTML = zoneOptionsHtml(prev);
+      if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+    });
+    // Auto-assign unused zones in order when signers have empty zone.
+    if (n > 0) {
+      const used = new Set();
+      const rows = [...document.querySelectorAll('#multi-signer-rows .multi-signer-row')];
+      rows.forEach(row => {
+        const sel = row.querySelector('select[data-field="zone"]');
+        if (sel && sel.value && sel.value !== '__manual__') used.add(sel.value);
+      });
+      rows.forEach(row => {
+        const sel = row.querySelector('select[data-field="zone"]');
+        if (!sel || sel.value) return;
+        const next = lastDetectedSigFields.find(f => !used.has(f.key || ''));
+        if (next) {
+          const key = next.key || '';
+          if ([...sel.options].some(o => o.value === key)) {
+            sel.value = key;
+            used.add(key);
+          }
+        }
+      });
+    }
+  }
+
+  function fieldByKey(key) {
+    return lastDetectedFields.find(f => (f.key || '') === key)
+      || lastDetectedSigFields.find(f => (f.key || '') === key);
+  }
+
+  function collectMultiSigners() {
+    const signers = [];
+    const rows = document.querySelectorAll('#multi-signer-rows .multi-signer-row');
+    rows.forEach((row, i) => {
+      const name = (row.querySelector('[data-field="name"]')?.value || '').trim();
+      const email = (row.querySelector('[data-field="email"]')?.value || '').trim();
+      const zoneKey = (row.querySelector('[data-field="zone"]')?.value || '').trim();
+      if (!name && !email) return;
+      let page_index = parseInt(document.getElementById('page-idx').value, 10) || 0;
+      let x_pct = Number(document.getElementById('x-pct').value);
+      let y_pct = Number(document.getElementById('y-pct').value);
+      let width_pct = Number(document.getElementById('w-pct').value);
+      let height_pct = Number(document.getElementById('h-pct').value);
+      let field_key = null;
+      if (zoneKey && zoneKey !== '__manual__') {
+        const f = fieldByKey(zoneKey);
+        if (f) {
+          const box = stampBoxFromField(f);
+          page_index = box.page;
+          x_pct = box.x;
+          y_pct = box.y;
+          width_pct = box.w;
+          height_pct = box.h;
+          field_key = f.key || zoneKey;
+        }
+      }
+      signers.push({
+        name, email, field_key,
+        page_index, x_pct, y_pct, width_pct, height_pct,
+        _zoneKey: zoneKey,
+        _ord: i,
+      });
+    });
+    return signers;
+  }
+
+  async function ensureBasePdfOnServer() {
+    if (serverBasePdfFilename) return serverBasePdfFilename;
+    const pdfFile = document.getElementById('pdf-file').files[0];
+    if (!pdfFile) throw new Error('Choose a PDF first (upload or server dropdown).');
+    const key = getKey();
+    if (!key && !window.fmpUser) throw new Error('API key required.');
+    const fd = new FormData();
+    fd.append('file', pdfFile);
+    const r = await fetch(`${API_BASE}/api/v1/signing-sessions/stage-pdf`, {
+      method: 'POST', headers: authH(), credentials: 'same-origin', body: fd,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Stage failed (${r.status})`);
+    serverBasePdfFilename = data.filename;
+    return serverBasePdfFilename;
+  }
+
+  async function createMultiSession() {
+    const key = getKey();
+    if (!key && !window.fmpUser) { showStatus('Set your API key first.', 'error'); return; }
+    if (!detectDoneForCurrentPdf) {
+      showStatus('Run Detect in Step 3 first, then assign zones to each signer.', 'error');
+      return;
+    }
+    const signers = collectMultiSigners();
+    if (signers.length < 1) {
+      showStatus('Add at least one signer with a name or email.', 'error');
+      return;
+    }
+    for (const s of signers) {
+      if (!s._zoneKey) {
+        showStatus(`Assign a signature zone to Signer ${s._ord + 1} (or choose manual coords).`, 'error');
+        return;
+      }
+      if (s._zoneKey === '__manual__') {
+        if ([s.x_pct, s.y_pct, s.width_pct, s.height_pct].some(v => Number.isNaN(v))) {
+          showStatus('Manual zone selected but Step 3 coordinates are empty. Set coords or pick a detected zone.', 'error');
+          return;
+        }
+      }
+    }
+
+    const btn = document.getElementById('multi-create-btn');
+    btn.disabled = true;
+    btn.textContent = 'Creating session…';
+    document.getElementById('multi-result').classList.add('hidden');
+
+    try {
+      const base = await ensureBasePdfOnServer();
+      const title = (document.getElementById('multi-session-title').value || '').trim()
+        || `Signing — ${signers.map(s => s.name || s.email).filter(Boolean).join(' + ')}`
+        || 'Untitled Signing Session';
+      const payload = {
+        title,
+        base_pdf_filename: base,
+        signers: signers.map(({ name, email, field_key, page_index, x_pct, y_pct, width_pct, height_pct }) => ({
+          name, email, field_key, page_index, x_pct, y_pct, width_pct, height_pct,
+        })),
+      };
+      const r = await fetch(`${API_BASE}/api/v1/signing-sessions`, {
+        method: 'POST',
+        headers: Object.assign(authH(), { 'Content-Type': 'application/json' }), credentials: 'same-origin',
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || r.status));
+
+      const link = location.origin + (data.sign_url || `/ui/multisign.html?session_id=${data.session_id}`);
+      const a = document.getElementById('multi-session-link');
+      a.href = link;
+      a.textContent = link;
+      document.getElementById('multi-open-btn').href = link;
+      document.getElementById('multi-result').classList.remove('hidden');
+      showStatus('Session created. Open it so Signer 1 can sign.', 'ok');
+    } catch (e) {
+      showStatus(e.message || String(e), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Create signing session';
+    }
+  }
+
+  function pdfFileKey(f) {
+    if (!f) return '';
+    return `${f.name}|${f.size}|${f.lastModified}`;
+  }
+
+  async function loadPdfArrayBuffer(file) {
+    if (!file) { pdfArrayBuffer = null; return; }
+    pdfArrayBuffer = await file.arrayBuffer();
+  }
+
+  async function getSignaturePngBlob() {
+    if (activeTab === 'type') {
+      const txt = (document.getElementById('sig-text').value || '').trim();
+      if (!txt) return null;
+      // Server renders typed names — for preview, rasterize the typed preview via canvas.
+      const wrap = document.getElementById('typed-preview-wrap');
+      const c = document.createElement('canvas');
+      const w = Math.max(200, document.getElementById('sig-canvas').width || 600);
+      const h = Math.max(36, document.getElementById('sig-canvas').height || 56);
+      c.width = w; c.height = h;
+      const cctx = c.getContext('2d');
+      cctx.clearRect(0, 0, w, h);
+      cctx.fillStyle = '#0a2864';
+      cctx.font = `italic ${Math.max(14, Math.floor(h * 0.55))}px Georgia, "Times New Roman", serif`;
+      cctx.textBaseline = 'middle';
+      cctx.fillText(txt, 12, h / 2);
+      return await new Promise(res => c.toBlob(res, 'image/png'));
+    }
+    if (isCanvasEmpty()) return null;
+    const c = document.getElementById('sig-canvas');
+    return await new Promise(res => c.toBlob(res, 'image/png'));
+  }
+
+  async function renderPdfPreview() {
+    const status = document.getElementById('pdf-preview-status');
+    const out = document.getElementById('pdf-preview-canvas');
+    if (!pdfArrayBuffer) {
+      status.textContent = 'Upload a PDF first.';
+      return;
+    }
+    if (!placementReady()) {
+      status.textContent = 'Set the stamp box in Step 3 first.';
+      return;
+    }
+    if (typeof pdfjsLib === 'undefined') {
+      status.textContent = 'PDF.js failed to load — preview unavailable.';
+      return;
+    }
+    const pageIdx = parseInt(document.getElementById('page-idx').value, 10) || 0;
+    const xPct = Number(document.getElementById('x-pct').value);
+    const yPct = Number(document.getElementById('y-pct').value);
+    const wPct = Number(document.getElementById('w-pct').value);
+    const hPct = Number(document.getElementById('h-pct').value);
+    status.textContent = 'Rendering preview…';
+    try {
+      const doc = await pdfjsLib.getDocument({ data: pdfArrayBuffer.slice(0) }).promise;
+      const page = await doc.getPage(pageIdx + 1);
+      const scale = 1.35;
+      const viewport = page.getViewport({ scale });
+      out.width = viewport.width;
+      out.height = viewport.height;
+      const ctx2 = out.getContext('2d');
+      ctx2.fillStyle = '#ffffff';
+      ctx2.fillRect(0, 0, out.width, out.height);
+      await page.render({ canvasContext: ctx2, viewport }).promise;
+
+      // Stamp box (PDF bottom-left % → canvas top-left).
+      const bx = (xPct / 100) * viewport.width;
+      const by = (1 - yPct / 100 - hPct / 100) * viewport.height;
+      const bw = (wPct / 100) * viewport.width;
+      const bh = (hPct / 100) * viewport.height;
+      ctx2.strokeStyle = 'rgba(79,70,229,0.9)';
+      ctx2.lineWidth = 2;
+      ctx2.setLineDash([6, 4]);
+      ctx2.strokeRect(bx, by, bw, bh);
+      ctx2.setLineDash([]);
+
+      const blob = await getSignaturePngBlob();
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const img = await new Promise((resolve, reject) => {
+          const im = new Image();
+          im.onload = () => resolve(im);
+          im.onerror = reject;
+          im.src = url;
+        });
+        // Match Apply: wide short underlines fill width + top-clip; else contain-fit.
+        // Letter page ~792pt tall → short_box ≈ box_h < 36pt ≈ 4.5% of page.
+        const shortBox = hPct < 4.5;
+        const wideShort = shortBox && (wPct / Math.max(hPct, 0.01) >= 8.0);
+        const pad = 2;
+        let dw, dh, dx, dy, sx = 0, sy = 0, sw = img.width, sh = img.height;
+        if (wideShort) {
+          const imgBoxW = bw * 0.90 - pad;
+          const imgBoxH = Math.max(1, bh - pad);
+          const scaleW = imgBoxW / img.width;
+          dw = imgBoxW;
+          dh = img.height * scaleW;
+          if (dh > imgBoxH + 0.5) {
+            sh = Math.max(1, Math.round(img.height * (imgBoxH / dh)));
+            sy = Math.max(0, img.height - sh);
+            dh = imgBoxH;
+          }
+          dx = bx + pad;
+          dy = by + bh - dh - 1;
+          ctx2.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+        } else {
+          const scaleImg = Math.min((bw - pad * 2) / img.width, (bh - pad) / img.height);
+          dw = img.width * scaleImg;
+          dh = img.height * scaleImg;
+          dx = bx + pad;
+          dy = by + bh - dh - 1;
+          ctx2.drawImage(img, dx, dy, dw, dh);
+        }
+        URL.revokeObjectURL(url);
+        status.textContent = `Preview page ${pageIdx} — indigo dashed box is the stamp area. Looks good? Apply below.`;
+      } else {
+        status.textContent = `Preview page ${pageIdx} — stamp box shown. Create a signature in Step 4 to see ink.`;
+      }
+    } catch (e) {
+      status.textContent = 'Preview failed: ' + (e.message || e);
+    }
+  }
+
+  async function refreshSavedSigStatus() {
+    const el = document.getElementById('saved-sig-status');
+    const key = getKey();
+    if (!key || !el) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/signatures/saved`, {
+        headers: authH(), credentials: 'same-origin',
+      });
+      const data = await r.json();
+      if (data.exists) {
+        el.textContent = `Saved: ${data.label || 'signature'} (${data.updated_at || ''})`;
+      } else {
+        el.textContent = 'No saved signature for this API key.';
+      }
+    } catch {
+      el.textContent = '';
+    }
+  }
+
+  async function saveCurrentSignature() {
+    const key = getKey();
+    if (!key && !window.fmpUser) { alert('Set your API key first.'); return; }
+    const blob = await getSignaturePngBlob();
+    if (!blob) { alert('Draw or type a signature first.'); return; }
+    const fd = new FormData();
+    fd.append('signature_png', blob, 'signature.png');
+    fd.append('mode', activeTab);
+    fd.append('label', 'My signature');
+    const r = await fetch(`${API_BASE}/api/v1/signatures/saved`, {
+      method: 'PUT', headers: authH(), credentials: 'same-origin', body: fd,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) { alert(data.detail || 'Save failed'); return; }
+    await refreshSavedSigStatus();
+    showStatus('Signature saved for this API key.', 'ok');
+  }
+
+  async function loadSavedSignature() {
+    const key = getKey();
+    if (!key && !window.fmpUser) { alert('Set your API key first.'); return; }
+    if (!placementReady()) { alert('Complete Step 3 first so the pad matches the stamp box.'); return; }
+    const r = await fetch(`${API_BASE}/api/v1/signatures/saved/png`, {
+      headers: authH(), credentials: 'same-origin',
+    });
+    if (!r.ok) { alert('No saved signature found.'); return; }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    if (savedSigObjectUrl) URL.revokeObjectURL(savedSigObjectUrl);
+    savedSigObjectUrl = url;
+    switchTab('draw');
+    const c = document.getElementById('sig-canvas');
+    const cctx = c.getContext('2d');
+    const img = await new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = reject;
+      im.src = url;
+    });
+    cctx.clearRect(0, 0, c.width, c.height);
+    const scale = Math.min(c.width / img.width, c.height / img.height);
+    const dw = img.width * scale;
+    const dh = img.height * scale;
+    cctx.drawImage(img, 4, (c.height - dh) / 2, dw, dh);
+    await renderPdfPreview();
+    showStatus('Loaded saved signature into the pad.', 'ok');
+  }
+
+  async function deleteSavedSignature() {
+    const key = getKey();
+    if (!key && !window.fmpUser) { alert('Set your API key first.'); return; }
+    if (!confirm('Delete your saved signature for this API key?')) return;
+    await fetch(`${API_BASE}/api/v1/signatures/saved`, {
+      method: 'DELETE', headers: authH(), credentials: 'same-origin',
+    });
+    await refreshSavedSigStatus();
+    showStatus('Saved signature deleted.', 'ok');
+  }
+
+  function setCoordInputsEnabled(on) {
+    ['page-idx', 'x-pct', 'y-pct', 'w-pct', 'h-pct'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !on;
+    });
+  }
+
+  function clearPlacementCoords() {
+    document.getElementById('page-idx').value = '';
+    document.getElementById('x-pct').value = '';
+    document.getElementById('y-pct').value = '';
+    document.getElementById('w-pct').value = '';
+    document.getElementById('h-pct').value = '';
+    setCoordInputsEnabled(false);
+    syncSignaturePadToBox();
+  }
+
+  function seedManualCoords() {
+    // Neutral starter — user must edit for the current form (not old-form leftovers).
+    document.getElementById('page-idx').value = '0';
+    document.getElementById('x-pct').value = '10';
+    document.getElementById('y-pct').value = '8';
+    document.getElementById('w-pct').value = '40';
+    document.getElementById('h-pct').value = '4';
+    setCoordInputsEnabled(true);
+    syncSignaturePadToBox();
+  }
+
+  function placementReady() {
+    const w = document.getElementById('w-pct').value;
+    const h = document.getElementById('h-pct').value;
+    if (w === '' || h === '') return false;
+    if (!detectDoneForCurrentPdf) return false;
+    if (lastDetectSigCount > 0) return placementFromDetect;
+    return manualPlacementUnlocked;
+  }
+
+  function setSignatureStepUnlocked(on) {
+    const lock = document.getElementById('sig-step-lock');
+    const body = document.getElementById('sig-step-body');
+    if (lock) lock.classList.toggle('hidden', !!on);
+    if (body) {
+      body.classList.toggle('opacity-40', !on);
+      body.classList.toggle('pointer-events-none', !on);
+      body.classList.toggle('select-none', !on);
+    }
+  }
+
+  /** Resize draw/type pad to match stamp box aspect (letter page 612×792). */
+  function syncSignaturePadToBox() {
+    const ready = placementReady();
+    setSignatureStepUnlocked(ready);
+    const hint = document.getElementById('sig-pad-hint');
+    const dims = document.getElementById('sig-pad-dims');
+    if (!ready) {
+      if (hint) {
+        hint.textContent = 'Complete Step 3 first. The draw pad will match the stamp box proportions.';
+      }
+      if (dims) dims.textContent = 'Pad waiting for stamp box…';
+      return;
+    }
+
+    const wPct = Math.max(0.5, Number(document.getElementById('w-pct').value) || 40);
+    const hPct = Math.max(0.5, Number(document.getElementById('h-pct').value) || 4);
+    // Stamp box aspect on a US Letter page.
+    const boxAspect = (wPct / hPct) * (612 / 792);
+    const canvasW = 720;
+    const canvasH = Math.max(36, Math.min(220, Math.round(canvasW / boxAspect)));
+    // CSS display size: full width, height from aspect (min 40px for touch).
+    const wrap = document.getElementById('sig-canvas-wrap');
+    const typedWrap = document.getElementById('typed-preview-wrap');
+    const cssH = Math.max(40, Math.min(160, Math.round(560 / boxAspect)));
+    if (wrap) {
+      wrap.style.height = cssH + 'px';
+      wrap.style.width = '100%';
+    }
+    if (typedWrap) {
+      typedWrap.style.height = cssH + 'px';
+    }
+    const preview = document.getElementById('typed-preview');
+    if (preview) {
+      const fs = Math.max(14, Math.min(36, Math.round(cssH * 0.55)));
+      preview.style.fontSize = fs + 'px';
+    }
+
+    const c = document.getElementById('sig-canvas');
+    if (c && (c.width !== canvasW || c.height !== canvasH)) {
+      c.width = canvasW;
+      c.height = canvasH;
+      // Re-apply stroke style after resize (clears drawing).
+      const cctx = c.getContext('2d');
+      cctx.strokeStyle = '#0a2864';
+      cctx.lineWidth = Math.max(1.5, Math.min(3.5, canvasH / 28));
+      cctx.lineCap = 'round';
+      cctx.lineJoin = 'round';
+    } else if (c) {
+      // Still refresh line width for current height.
+      const cctx = c.getContext('2d');
+      cctx.strokeStyle = '#0a2864';
+      cctx.lineWidth = Math.max(1.5, Math.min(3.5, canvasH / 28));
+      cctx.lineCap = 'round';
+      cctx.lineJoin = 'round';
+    }
+
+    if (hint) {
+      hint.textContent = 'Pad matches the stamp box (W ' + wPct + '% × H ' + hPct +
+        '%). Sign here so ink fits the line without tall cropping.';
+    }
+    if (dims) {
+      dims.textContent = 'Pad ' + canvasW + '×' + canvasH + ' px · aspect ≈ ' + boxAspect.toFixed(1) + ':1 (mirrors stamp)';
+    }
+    updatePreview();
+  }
+
+  function updateWorkflowBanner() {
+    const el = document.getElementById('workflow-banner');
+    if (!el) return;
+    const hasPdf = !!document.getElementById('pdf-file').files[0];
+    if (!hasPdf) {
+      el.className = 'mb-3 text-xs rounded-lg px-3 py-2 bg-amber-50 text-amber-900 border border-amber-200';
+      el.innerHTML = signMode === 'multi'
+        ? 'Choose a PDF (upload or server list), then <strong>Detect</strong> so you can assign zones to each signer.'
+        : 'Upload a PDF, then <strong>Detect</strong>. Next you will sign in a pad that matches that stamp box.';
+      return;
+    }
+    if (!detectDoneForCurrentPdf) {
+      el.className = 'mb-3 text-xs rounded-lg px-3 py-2 bg-amber-50 text-amber-900 border border-amber-200';
+      el.innerHTML = 'PDF ready — click <strong>Detect signature spots</strong> for <em>this</em> file.';
+      return;
+    }
+    if (signMode === 'multi') {
+      el.className = 'mb-3 text-xs rounded-lg px-3 py-2 bg-violet-50 text-violet-900 border border-violet-200';
+      el.innerHTML = lastDetectSigCount > 0
+        ? `Detect found <strong>${lastDetectSigCount}</strong> zone(s) — assign them to signers in Step 2, then <strong>Create signing session</strong>.`
+        : 'No zones found — enable manual placement, set coords, and assign “Use Step 3 coordinates” per signer.';
+      return;
+    }
+    if (lastDetectSigCount > 0 && !placementFromDetect) {
+      el.className = 'mb-3 text-xs rounded-lg px-3 py-2 bg-amber-50 text-amber-900 border border-amber-200';
+      el.innerHTML = `Detect found <strong>${lastDetectSigCount}</strong> zone(s) — click a chip, then create your signature in Step 4.`;
+      return;
+    }
+    if (lastDetectSigCount === 0 && !manualPlacementUnlocked) {
+      el.className = 'mb-3 text-xs rounded-lg px-3 py-2 bg-red-50 text-red-900 border border-red-200';
+      el.innerHTML = 'Detect found <strong>no</strong> signature zones. Enable <strong>Place signature manually</strong> to set the box, then sign in Step 4.';
+      return;
+    }
+    el.className = 'mb-3 text-xs rounded-lg px-3 py-2 bg-green-50 text-green-900 border border-green-200';
+    el.innerHTML = placementFromDetect
+      ? 'Placement ready — create your signature in <strong>Step 4</strong> (pad matches this box), then Apply.'
+      : 'Manual box set — create your signature in <strong>Step 4</strong>, then Apply.';
+  }
+
+  function resetPlacementForNewPdf() {
+    detectDoneForCurrentPdf = false;
+    placementFromDetect = false;
+    lastDetectSigCount = 0;
+    lastDetectedFields = [];
+    lastDetectedSigFields = [];
+    manualPlacementUnlocked = false;
+    const manualRow = document.getElementById('manual-place-row');
+    const manualChk = document.getElementById('manual-place-check');
+    if (manualRow) manualRow.classList.add('hidden');
+    if (manualChk) manualChk.checked = false;
+    document.getElementById('detected-fields-row').classList.add('hidden');
+    document.getElementById('detected-fields-list').innerHTML = '';
+    const status = document.getElementById('detect-status');
+    if (status) { status.classList.add('hidden'); status.textContent = ''; }
+    clearPlacementCoords();
+    clearCanvas();
+    updateWorkflowBanner();
+    syncSignaturePadToBox();
+  }
+
+  function onManualPlaceToggle() {
+    const chk = document.getElementById('manual-place-check');
+    manualPlacementUnlocked = !!(chk && chk.checked);
+    if (manualPlacementUnlocked) {
+      seedManualCoords();
+    } else {
+      clearPlacementCoords();
+      syncSignaturePadToBox();
+    }
+    updateWorkflowBanner();
+  }
+
+  /** Prefer Member/Guardian/Patient over provider/physician when several zones exist. */
+  function scoreSignatureField(f) {
+    const l = String(f.label || f.description || '').toLowerCase();
+    let s = 0;
+    if (/member|guardian|parent|patient/.test(l)) s += 100;
+    if (/health care professional|physician|provider|requesting|servicing|authorized/.test(l)) s -= 40;
+    if ((f.page_index ?? 0) === 0) s += 10;
+    if ((Number(f.width_pct) || 0) >= 40) s += 5;
+    return s;
+  }
+
+  function pickPreferredSignature(sigs) {
+    if (!sigs || !sigs.length) return null;
+    if (sigs.length === 1) return sigs[0];
+    const ranked = [...sigs].sort((a, b) => scoreSignatureField(b) - scoreSignatureField(a));
+    // Clear Member/Guardian-style winner only — otherwise require an explicit click.
+    if (scoreSignatureField(ranked[0]) >= 100) return ranked[0];
+    return null;
+  }
+
+  /** Map a detected field to stamp coords. Short signature lines get a mild upward pad (never 12%). */
+  function stampBoxFromField(f) {
+    let x = Number(f.x_pct);
+    let y = Number(f.y_pct);
+    let w = Number(f.width_pct);
+    let h = Number(f.height_pct);
+    if (!Number.isFinite(x)) x = 55;
+    if (!Number.isFinite(y)) y = 5;
+    if (!Number.isFinite(w) || w <= 0) w = 40;
+    if (!Number.isFinite(h) || h <= 0) h = 4;
+    const kind = f.kind || 'signature';
+    if ((kind === 'signature' || kind === 'initial') && h < 5) {
+      const target = Math.min(5.5, Math.max(3.8, h * 1.6));
+      const top = y + h;
+      h = Math.round(target * 100) / 100;
+      y = Math.round(Math.max(0, top - h) * 100) / 100;
+      if (y + h > 100) h = Math.round(Math.max(0.5, 100 - y) * 100) / 100;
+    }
+    return {
+      page: f.page_index ?? 0,
+      x: Math.round(x * 100) / 100,
+      y: Math.round(y * 100) / 100,
+      w: Math.round(w * 100) / 100,
+      h: Math.round(h * 100) / 100,
+    };
+  }
 
   // ── Tab switching ─────────────────────────────────────────────
   function switchTab(tab) {
@@ -219,74 +1171,170 @@
   canvas.addEventListener('pointermove', e => {
     if (!drawing) return;
     const [x, y] = canvasPos(e);
-    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
+    const cctx = canvas.getContext('2d');
+    cctx.strokeStyle = '#0a2864';
+    cctx.lineWidth = Math.max(1.5, Math.min(3.5, canvas.height / 28));
+    cctx.lineCap = 'round';
+    cctx.lineJoin = 'round';
+    cctx.beginPath(); cctx.moveTo(lastX, lastY); cctx.lineTo(x, y); cctx.stroke();
     [lastX, lastY] = [x, y]; e.preventDefault();
   });
   canvas.addEventListener('pointerup', () => drawing = false);
   canvas.addEventListener('pointerleave', () => drawing = false);
 
-  // ── Signature field detection ─────────────────────────────────────────────
+  // ── Signature field detection (AcroForm → optional Gemini vision) ─────────
   async function detectFields() {
     const pdfFile = document.getElementById('pdf-file').files[0];
     if (!pdfFile) { alert('Upload a PDF first, then click Detect.'); return; }
     const key = getKey();
-    if (!key) { alert('Set your API key first.'); return; }
+    if (!key && !window.fmpUser) { alert('Set your API key first.'); return; }
 
+    currentPdfKey = pdfFileKey(pdfFile);
     const btn = document.getElementById('detect-btn');
     const status = document.getElementById('detect-status');
+    const useAi = document.getElementById('use-ai-detect').checked;
+    const aiKey = (document.getElementById('detect-ai-key').value || '').trim();
     btn.disabled = true; btn.textContent = '⏳ Detecting…';
-    status.textContent = 'Analysing PDF for signature zones…';
+    status.textContent = useAi
+      ? 'Strategy 1 (AcroForm)… then Strategy 2 (Gemini) / heuristic if needed…'
+      : 'Strategy 1 (AcroForm) + heuristic (AI off)…';
     status.classList.remove('hidden');
     document.getElementById('detected-fields-row').classList.add('hidden');
+    document.getElementById('manual-place-row').classList.add('hidden');
+    document.getElementById('manual-place-check').checked = false;
+    placementFromDetect = false;
+    lastDetectSigCount = 0;
+    manualPlacementUnlocked = false;
+    detectDoneForCurrentPdf = false;
+    clearPlacementCoords();
 
     try {
       const fd = new FormData();
       fd.append('file', pdfFile);
+      fd.append('use_ai', useAi ? 'true' : 'false');
+      fd.append('max_pages', '5');
+      fd.append('force_refresh', document.getElementById('force-refresh-detect').checked ? 'true' : 'false');
+      if (aiKey) fd.append('ai_api_key', aiKey);
       const r = await fetch(`${API_BASE}/api/v1/signatures/detect-fields`, {
-        method: 'POST', headers: { 'X-API-Key': key }, body: fd,
+        method: 'POST', headers: authH(), credentials: 'same-origin', body: fd,
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
 
-      if (!data.fields || data.fields.length === 0) {
-        status.textContent = data.message || 'No signature zones detected automatically. Enter coordinates manually.';
+      detectDoneForCurrentPdf = true;
+      lastDetectedFields = (data.fields || []).map((f, i) => ({
+        ...f,
+        key: f.key || `zone_${i}_${f.page_index}_${f.label || 'field'}`,
+      }));
+      lastDetectedSigFields = lastDetectedFields.filter(f => {
+        const k = f.kind || 'signature';
+        return k === 'signature' || k === 'initial';
+      });
+      const bits = [];
+      if (data.message) bits.push(data.message);
+      if (data.cache_hit) bits.push('Loaded from detect cache (no AI).');
+      if (data.ai_attempted) bits.push(`AI ran (${data.ai_count || 0} zone(s)).`);
+      else if (data.ai_skipped_reason === 'no_ai_key') bits.push('Tip: set GEMINI_API_KEY or paste a key above.');
+      status.textContent = bits.join(' ') || 'Detection finished.';
+
+      if (!lastDetectedFields.length) {
+        document.getElementById('detected-fields-row').classList.add('hidden');
+        lastDetectSigCount = 0;
+        lastDetectedSigFields = [];
+        refreshMultiZoneSelects();
+        document.getElementById('manual-place-row').classList.remove('hidden');
+        status.textContent = (bits.join(' ') || 'No zones found.') +
+          ' Apply is blocked unless you enable Place signature manually.';
       } else {
-        status.textContent = data.message || `${data.total} zone(s) detected via ${data.source}.`;
         const list = document.getElementById('detected-fields-list');
         list.innerHTML = '';
-        data.fields.forEach(f => {
+        const applyField = (f) => {
+          const box = stampBoxFromField(f);
+          document.getElementById('page-idx').value = box.page;
+          document.getElementById('x-pct').value = box.x;
+          document.getElementById('y-pct').value = box.y;
+          document.getElementById('w-pct').value = box.w;
+          document.getElementById('h-pct').value = box.h;
+          placementFromDetect = true;
+          manualPlacementUnlocked = false;
+          document.getElementById('manual-place-check').checked = false;
+          document.getElementById('manual-place-row').classList.add('hidden');
+          setCoordInputsEnabled(true);
+          syncSignaturePadToBox();
+          clearCanvas();
+          updateWorkflowBanner();
+          status.textContent = `Applied "${f.label}" → page ${box.page}, box ${box.w}%×${box.h}%. Sign in Step 4, then preview in Step 5.`;
+          renderPdfPreview();
+        };
+        lastDetectedFields.forEach(f => {
+          const kind = f.kind || 'signature';
           const badge = document.createElement('button');
           badge.type = 'button';
-          badge.className = 'text-xs px-2.5 py-1 rounded-full border ' +
-            (f.source === 'acroform'
-              ? 'bg-green-50 text-green-800 border-green-200 hover:bg-green-100'
-              : 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100');
+          const isSig = kind === 'signature' || kind === 'initial';
+          const srcStyle = f.source === 'ai'
+            ? (isSig ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
+                     : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100')
+            : f.source === 'heuristic'
+              ? 'bg-violet-50 text-violet-800 border-violet-200 hover:bg-violet-100'
+              : (isSig ? 'bg-green-50 text-green-800 border-green-200 hover:bg-green-100'
+                       : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100');
+          badge.className = 'text-xs px-2.5 py-1 rounded-full border ' + srcStyle;
           badge.title = f.description || '';
-          badge.textContent = `${f.source === 'acroform' ? '✅' : '🤖'} ${f.label} (p${f.page_index})`;
-          badge.addEventListener('click', () => {
-            document.getElementById('page-idx').value = f.page_index;
-            document.getElementById('x-pct').value = f.x_pct;
-            document.getElementById('y-pct').value = f.y_pct;
-            document.getElementById('w-pct').value = f.width_pct;
-            status.textContent = `Applied coordinates for "${f.label}" (source: ${f.source}).`;
-          });
+          const src = f.source === 'acroform' ? 'AcroForm' : (f.source === 'heuristic' ? 'Heuristic' : 'AI');
+          const icon = !isSig ? '📅' : (f.source === 'ai' ? '🤖' : (f.source === 'heuristic' ? '📐' : '✅'));
+          badge.textContent = `${icon} ${src} · ${kind} · ${f.label} (p${f.page_index})`;
+          badge.addEventListener('click', () => applyField(f));
           list.appendChild(badge);
         });
         document.getElementById('detected-fields-row').classList.remove('hidden');
+        const sigs = lastDetectedSigFields;
+        lastDetectSigCount = sigs.length;
+        refreshMultiZoneSelects();
+        if (signMode === 'solo') {
+          const preferred = pickPreferredSignature(sigs);
+          if (preferred) {
+            applyField(preferred);
+            if (sigs.length > 1) {
+              status.textContent = `Auto-selected "${preferred.label}" (Member/Guardian preferred). Click another chip to change.`;
+            }
+          } else if (sigs.length > 1) {
+            status.textContent = `Found ${sigs.length} signature zones — click the one you want before Apply.`;
+          } else if (lastDetectedFields[0]) {
+            applyField(lastDetectedFields[0]);
+          }
+        } else {
+          status.textContent = `Found ${sigs.length} signature zone(s). Assign each signer a zone in Step 2, then create the session.`;
+        }
       }
+      updateWorkflowBanner();
     } catch(e) {
-      status.textContent = `Detection failed: ${e.message}`;
+      detectDoneForCurrentPdf = false;
+      lastDetectSigCount = 0;
+      lastDetectedFields = [];
+      lastDetectedSigFields = [];
+      placementFromDetect = false;
+      status.textContent = `Detection failed: ${e.message}. Apply stays locked — fix the error and Detect again.`;
+      updateWorkflowBanner();
     } finally {
       btn.disabled = false; btn.textContent = '🔍 Detect signature spots';
     }
   }
 
   function clearCanvas() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const c = document.getElementById('sig-canvas');
+    if (!c) return;
+    const cctx = c.getContext('2d');
+    cctx.clearRect(0, 0, c.width, c.height);
+    cctx.strokeStyle = '#0a2864';
+    cctx.lineWidth = Math.max(1.5, Math.min(3.5, c.height / 28));
+    cctx.lineCap = 'round';
+    cctx.lineJoin = 'round';
   }
 
   function isCanvasEmpty() {
-    const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    const c = document.getElementById('sig-canvas');
+    if (!c) return true;
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
     for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return false;
     return true;
   }
@@ -295,6 +1343,21 @@
   function onPdfSelected() {
     const f = document.getElementById('pdf-file').files[0];
     document.getElementById('pdf-label').textContent = f ? f.name : 'Click to upload PDF';
+    // Local file picker clears server filename unless it matches a staged/server pick name.
+    if (f && serverBasePdfFilename && f.name !== serverBasePdfFilename) {
+      serverBasePdfFilename = null;
+      const sel = document.getElementById('server-pdf-select');
+      if (sel) sel.value = '';
+    }
+    const nextKey = pdfFileKey(f);
+    if (nextKey !== currentPdfKey) {
+      currentPdfKey = nextKey;
+      resetPlacementForNewPdf();
+    }
+    loadPdfArrayBuffer(f).then(() => {
+      const st = document.getElementById('pdf-preview-status');
+      if (st) st.textContent = f ? 'PDF loaded — Detect, sign, then Refresh preview.' : 'Complete Steps 3–4, then refresh preview.';
+    });
   }
   const dropZone = document.getElementById('drop-zone');
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-indigo-400','bg-indigo-50'); });
@@ -312,7 +1375,7 @@
   // ── Submit ────────────────────────────────────────────────────
   async function submitSignature() {
     const key = getKey();
-    if (!key) { alert('Please set your API key first (click "API Key" on the dashboard).'); return; }
+    if (!key && !window.fmpUser) { alert('Please set your API key first (click "API Key" on the dashboard).'); return; }
 
     const consent = document.getElementById('consent-check').checked;
     if (!consent) { showStatus('Please read and accept the Electronic Signature Consent to proceed.', 'error'); return; }
@@ -320,17 +1383,68 @@
     const pdfFile = document.getElementById('pdf-file').files[0];
     if (!pdfFile) { showStatus('Please upload a PDF first.', 'error'); return; }
 
+    // New/changed PDF without Detect for this file.
+    if (pdfFileKey(pdfFile) !== currentPdfKey || !detectDoneForCurrentPdf) {
+      showStatus('Run Detect on this PDF first (Step 3), then create your signature in Step 4.', 'error');
+      updateWorkflowBanner();
+      return;
+    }
+    if (!placementReady()) {
+      showStatus('Set the stamp box in Step 3 first — then sign in the matching pad in Step 4.', 'error');
+      syncSignaturePadToBox();
+      return;
+    }
+    // Detect found zones — must pick one (or auto-prefer).
+    if (lastDetectSigCount > 0 && !placementFromDetect) {
+      showStatus('Click a detected signature zone first (Member/Guardian is preferred when available). Then confirm placement in Step 5.', 'error');
+      return;
+    }
+    // Detect found nothing — Apply blocked unless manual override is checked.
+    if (lastDetectSigCount === 0 && !manualPlacementUnlocked) {
+      showStatus('Detect found no signature zones. Enable “Place signature manually” only if you will set coordinates yourself — otherwise nothing will be applied.', 'error');
+      document.getElementById('manual-place-row').classList.remove('hidden');
+      updateWorkflowBanner();
+      return;
+    }
+
+    const pageV = document.getElementById('page-idx').value;
+    const xV = document.getElementById('x-pct').value;
+    const yV = document.getElementById('y-pct').value;
+    const wV = document.getElementById('w-pct').value;
+    const hV = document.getElementById('h-pct').value;
+    if (pageV === '' || xV === '' || yV === '' || wV === '' || hV === '') {
+      showStatus('Set page / left / bottom / width / height before Apply.', 'error');
+      return;
+    }
+    const xNow = Number(xV);
+    const wNow = Number(wV);
+    if (placementFromDetect && xNow >= 50 && wNow <= 45) {
+      const ok = confirm(
+        'Placement still looks like a right-side default.\n\n' +
+        'Member signature lines are usually on the left (~7% left, ~60% wide).\n\n' +
+        'Continue anyway?'
+      );
+      if (!ok) return;
+    }
+    if (manualPlacementUnlocked && !placementFromDetect) {
+      const ok = confirm(
+        'You are applying a MANUAL placement (Detect found no zone).\n\n' +
+        'Double-check page and the blue preview box before continuing.'
+      );
+      if (!ok) return;
+    }
+
     const btn = document.getElementById('submit-btn');
     btn.disabled = true; btn.textContent = 'Processing…';
     document.getElementById('result-card').classList.add('hidden');
 
     const fd = new FormData();
     fd.append('file', pdfFile);
-    fd.append('page_index', document.getElementById('page-idx').value);
-    fd.append('x_pct', document.getElementById('x-pct').value);
-    fd.append('y_pct', document.getElementById('y-pct').value);
-    fd.append('width_pct', document.getElementById('w-pct').value);
-    fd.append('height_pct', '12');
+    fd.append('page_index', pageV);
+    fd.append('x_pct', xV);
+    fd.append('y_pct', yV);
+    fd.append('width_pct', wV);
+    fd.append('height_pct', hV);
     fd.append('consent_given', 'true');
     fd.append('include_timestamp', document.getElementById('include-timestamp').checked ? 'true' : 'false');
 
@@ -351,7 +1465,7 @@
 
     try {
       const r = await fetch(`${API_BASE}/api/v1/signatures/apply`, {
-        method: 'POST', headers: { 'X-API-Key': key }, body: fd,
+        method: 'POST', headers: authH(), credentials: 'same-origin', body: fd,
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
@@ -360,7 +1474,7 @@
       const data = await r.json();
 
       // Fetch signed PDF blob and wire up download link
-      const dl = await fetch(data.download_url, { headers: { 'X-API-Key': key } });
+      const dl = await fetch(data.download_url, { headers: authH(), credentials: 'same-origin' });
       const pdfBlob = await dl.blob();
       const pdfUrl = URL.createObjectURL(pdfBlob);
       const pdfLink = document.getElementById('result-pdf-link');
@@ -371,7 +1485,7 @@
       const certLink = document.getElementById('result-cert-link');
       certLink.onclick = async (e) => {
         e.preventDefault();
-        const cr = await fetch(data.certificate_url, { headers: { 'X-API-Key': key } });
+        const cr = await fetch(data.certificate_url, { headers: authH(), credentials: 'same-origin' });
         const cb = await cr.blob();
         const cu = URL.createObjectURL(cb);
         const a = document.createElement('a'); a.href = cu;
@@ -394,8 +1508,34 @@
   function showStatus(msg, type) {
     const el = document.getElementById('status');
     el.textContent = msg;
+    const ok = type === 'ok' || type === 'success' || type !== 'error';
     el.className = `mt-4 text-sm text-center rounded-lg px-4 py-3 ${type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`;
     el.classList.remove('hidden');
+  }
+
+  clearPlacementCoords();
+  syncSignaturePadToBox();
+  refreshSavedSigStatus();
+  {
+    const params = new URLSearchParams(location.search);
+    setSignMode(params.get('mode') === 'multi' ? 'multi' : 'solo');
+  }
+
+  // Auto-refresh pad aspect + Step 5 PDF preview when coords / signature change.
+  let _previewTimer = null;
+  function schedulePreview() {
+    clearTimeout(_previewTimer);
+    _previewTimer = setTimeout(() => { if (placementReady() && pdfArrayBuffer) renderPdfPreview(); }, 450);
+  }
+  ['x-pct', 'y-pct', 'w-pct', 'h-pct', 'page-idx'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', () => { syncSignaturePadToBox(); schedulePreview(); });
+  });
+  const sigTextEl = document.getElementById('sig-text');
+  if (sigTextEl) sigTextEl.addEventListener('input', schedulePreview);
+  const sigCanvas = document.getElementById('sig-canvas');
+  if (sigCanvas) {
+    sigCanvas.addEventListener('pointerup', schedulePreview);
   }
 
   // ── Pre-load PDF from ?from_url= query param ──────────────────
@@ -404,16 +1544,19 @@
     const fromUrl = params.get('from_url');
     if (!fromUrl) return;
     try {
-      const key = getKey();
-      const headers = key ? { 'X-API-Key': key } : {};
-      const r = await fetch(fromUrl, { headers });
+      await (window.fmpAuthReady || Promise.resolve());
+      const r = await fetch(fromUrl, { headers: authH(), credentials: 'same-origin' });
       if (!r.ok) return;
       const blob = await r.blob();
-      const filename = fromUrl.split('/').pop() || 'filled.pdf';
+      const filename = decodeURIComponent((fromUrl.split('/').pop() || 'filled.pdf').split('?')[0]);
       const file = new File([blob], filename, { type: 'application/pdf' });
       const dt = new DataTransfer(); dt.items.add(file);
       document.getElementById('pdf-file').files = dt.files;
-      document.getElementById('pdf-label').textContent = filename;
+      // If this came from server output download, reuse filename for multi-session create.
+      if (/\/(?:batch\/download|templates\/download)\//.test(fromUrl) && filename.toLowerCase().endsWith('.pdf')) {
+        serverBasePdfFilename = filename;
+      }
+      onPdfSelected();
       const badge = document.getElementById('prefill-badge');
       document.getElementById('prefill-label').textContent = `Pre-loaded: ${filename}`;
       badge.classList.remove('hidden');

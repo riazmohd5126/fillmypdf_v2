@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Guided Batch — FillMyPDF</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
+  <script src="/ui/profile_canon.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen font-sans">
 
 <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
-  <a href="/ui/index.html" class="text-indigo-600 text-sm hover:underline">← Dashboard</a>
-  <span class="text-gray-300">|</span>
   <span class="font-semibold text-gray-800">Guided Batch</span>
   <a href="/ui/form_fill.html" class="ml-auto text-xs text-indigo-600 hover:underline">Guided Fill →</a>
 </nav>
@@ -20,13 +21,15 @@
   <div class="bg-indigo-600 rounded-2xl p-6 text-white">
     <h1 class="text-2xl font-bold">Guided Batch Fill</h1>
     <p class="text-indigo-200 text-sm mt-1">
-      Same locked map as Guided Fill — download the CSV template, fill one row per patient,
-      upload, and get a ZIP of PDFs. Attach Provider/Facility profiles once for every row.
+      Same locked map as Guided Fill — pick clinic profiles, download a CSV with those
+      values in a sample row, duplicate one row per patient, then upload for a ZIP of PDFs.
     </p>
   </div>
 
   <div id="no-key" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-    No API key set. Open the <a href="/ui/index.html" class="underline font-semibold">Dashboard</a> first.
+    Sign in to run a clinic batch.
+    <a href="/ui/login.html?next=/ui/guided_batch.html" class="underline font-semibold">Sign in</a>
+    or set an API key on the <a href="/ui/index.html" class="underline font-semibold">Dashboard</a>.
   </div>
   <div id="error-box" class="hidden bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700"></div>
   <div id="info-box" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800"></div>
@@ -42,10 +45,76 @@
       <p class="text-xs text-gray-400 mt-1">Only forms with a locked mapping appear here.</p>
     </div>
 
+    <div class="border border-gray-100 rounded-xl p-4 space-y-3 bg-gray-50">
+      <div class="flex items-baseline justify-between gap-2">
+        <p class="text-xs font-semibold text-gray-700 uppercase tracking-wide">1. Clinic profiles (optional)</p>
+        <p class="text-[11px] text-gray-400">Preview + sample CSV row · CSV overrides at run</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Patient</label>
+          <select id="pick-patient" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" onchange="onProfilesChange()">
+            <option value="">— none —</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Provider</label>
+          <select id="pick-provider" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" onchange="onProfilesChange()">
+            <option value="">— none —</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Facility</label>
+          <select id="pick-facility" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" onchange="onProfilesChange()">
+            <option value="">— none —</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Pharmacy</label>
+          <select id="pick-pharmacy" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" onchange="onProfilesChange()">
+            <option value="">— none —</option>
+          </select>
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-medium text-gray-600 mb-1">Encounter</label>
+          <select id="pick-encounter" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" onchange="onProfilesChange()">
+            <option value="">— none —</option>
+          </select>
+        </div>
+      </div>
+      <p class="text-[11px] text-gray-500">
+        Same slots as Guided Fill, merged Patient → Provider → Facility → Pharmacy → Encounter.
+        Leave Patient blank when each CSV row is a different person. Encounter is useful when every row shares the same drug/diagnosis pack.
+      </p>
+    </div>
+
+    <div id="csv-preview-box" class="hidden border border-indigo-100 rounded-xl overflow-hidden bg-indigo-50/40">
+      <div class="px-3 py-2 flex items-baseline justify-between gap-2 border-b border-indigo-100">
+        <p class="text-xs font-semibold text-indigo-800">Profile preview (columns this form will stamp)</p>
+        <p id="csv-preview-count" class="text-[11px] text-indigo-600"></p>
+      </div>
+      <div class="max-h-56 overflow-auto text-xs">
+        <table class="w-full">
+          <thead class="sticky top-0 bg-indigo-50 border-b border-indigo-100">
+            <tr>
+              <th class="text-left px-3 py-1.5 text-indigo-700 font-medium">Column</th>
+              <th class="text-left px-3 py-1.5 text-indigo-700 font-medium">Value</th>
+            </tr>
+          </thead>
+          <tbody id="csv-preview-body"></tbody>
+        </table>
+      </div>
+      <p id="csv-preview-empty" class="hidden px-3 py-2 text-[11px] text-gray-500">No matching columns for the selected profiles on this form.</p>
+      <p class="px-3 py-2 text-[11px] text-indigo-700/80 border-t border-indigo-100">
+        These values are written into the downloaded CSV sample row. Duplicate that row per patient.
+        Edit a cell to override. Blank a cell to fall back to the live profile at run time.
+      </p>
+    </div>
+
     <div class="flex flex-wrap gap-2">
       <button type="button" onclick="downloadCsv()" id="csv-btn" disabled
         class="bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg px-3 py-2 text-xs font-semibold hover:bg-indigo-100 disabled:opacity-40">
-        1. Download CSV template
+        2. Download CSV template
       </button>
       <button type="button" onclick="toggleLegend()" id="legend-btn" disabled
         class="bg-gray-50 text-gray-700 border border-gray-200 rounded-lg px-3 py-2 text-xs font-semibold hover:bg-gray-100 disabled:opacity-40">
@@ -75,26 +144,10 @@
     </div>
 
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1">2. Upload filled CSV <span class="text-red-500">*</span></label>
+      <label class="block text-sm font-medium text-gray-700 mb-1">3. Upload filled CSV <span class="text-red-500">*</span></label>
       <input id="csv-file" type="file" accept=".csv" required
         class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2"/>
     </div>
-
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Base Provider profile</label>
-        <select id="pick-provider" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-          <option value="">— none —</option>
-        </select>
-      </div>
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Base Facility / Pharmacy</label>
-        <select id="pick-facility" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-          <option value="">— none —</option>
-        </select>
-      </div>
-    </div>
-    <p class="text-[11px] text-gray-400 -mt-2">Merged into every row; CSV patient columns override.</p>
 
     <div class="border border-slate-200 rounded-xl p-4 space-y-3 bg-slate-50">
       <p class="text-xs font-semibold text-gray-700">Signature policy</p>
@@ -120,7 +173,7 @@
 
     <button type="submit" id="run-btn"
       class="w-full bg-indigo-600 text-white rounded-xl py-3 font-semibold text-sm hover:bg-indigo-700 transition">
-      3. Run Guided Batch
+      4. Run Guided Batch
     </button>
   </form>
 
@@ -134,12 +187,23 @@
 
 <script>
 function getKey(){ return localStorage.getItem('fmp_api_key') || ''; }
+function authHeaders(extra){
+  return Object.assign({}, window.fmpAuthHeaders ? fmpAuthHeaders() : {}, extra || {});
+}
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function showErr(m){ const e=document.getElementById('error-box'); e.textContent=m; e.classList.remove('hidden'); document.getElementById('info-box').classList.add('hidden'); }
 function clearErr(){ document.getElementById('error-box').classList.add('hidden'); }
 function showInfo(m){ const e=document.getElementById('info-box'); e.textContent=m; e.classList.remove('hidden'); }
 
 let legendCache = null;
+const PICKER_SLOTS = [
+  {id:'pick-patient', role:'patient'},
+  {id:'pick-provider', role:'provider'},
+  {id:'pick-facility', role:'facility'},
+  {id:'pick-pharmacy', role:'pharmacy'},
+  {id:'pick-encounter', role:'encounter'},
+];
+let previewTimer = null;
 
 document.querySelectorAll('input[name="sig-mode"]').forEach(r=>{
   r.addEventListener('change', ()=>{
@@ -150,20 +214,37 @@ document.querySelectorAll('input[name="sig-mode"]').forEach(r=>{
 });
 
 async function api(path, opts){
-  const r = await fetch(path, Object.assign({ headers: { 'X-API-Key': getKey() } }, opts||{}));
+  opts = opts || {};
+  const headers = Object.assign(authHeaders(), opts.headers || {});
+  const r = await fetch(path, Object.assign({ credentials: 'same-origin' }, opts, { headers }));
   if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${r.status}`); }
   return r.json();
 }
 
 async function init(){
-  if(!getKey()){ document.getElementById('no-key').classList.remove('hidden'); return; }
+  const ok = await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey()));
+  if(!ok){ document.getElementById('no-key').classList.remove('hidden'); return; }
   try {
     const [ready, profiles] = await Promise.all([
-      api('/api/v1/templates/readiness'),
+      window.fmpReadiness ? fmpReadiness() : api('/api/v1/templates/readiness'),
       api('/api/v1/profiles/').catch(()=>[]),
     ]);
     const readyItems = (ready.items || []).filter(x => x.ready);
     const sel = document.getElementById('template-id');
+    const plist = Array.isArray(profiles) ? profiles : [];
+    const fill = (id, types) => {
+      const el = document.getElementById(id);
+      if(!el) return;
+      const opts = plist.filter(p => types.includes(p.profile_type));
+      el.innerHTML = '<option value="">— none —</option>' +
+        opts.map(p => `<option value="${esc(p.id)}">${esc(p.name)} (${esc(p.profile_type)})</option>`).join('');
+    };
+    fill('pick-patient', ['patient','personal','insured']);
+    fill('pick-provider', ['provider','prescriber','requesting_provider','attending_provider','billing_provider']);
+    fill('pick-facility', ['facility','business']);
+    fill('pick-pharmacy', ['pharmacy']);
+    fill('pick-encounter', ['encounter']);
+
     if(!readyItems.length){
       sel.innerHTML = '<option value="">No Ready templates — lock maps first</option>';
       return;
@@ -178,16 +259,6 @@ async function init(){
         return `<option value="${esc(r.template_id)}">${esc(name)}</option>`;
       }).join('');
 
-    const plist = Array.isArray(profiles) ? profiles : [];
-    const fill = (id, types) => {
-      const el = document.getElementById(id);
-      const opts = plist.filter(p => types.includes(p.profile_type));
-      el.innerHTML = '<option value="">— none —</option>' +
-        opts.map(p => `<option value="${esc(p.id)}">${esc(p.name)} (${esc(p.profile_type)})</option>`).join('');
-    };
-    fill('pick-provider', ['provider','prescriber','requesting_provider','attending_provider','billing_provider','business']);
-    fill('pick-facility', ['facility','pharmacy']);
-
     const tid = new URLSearchParams(location.search).get('template_id');
     if(tid){ sel.value = tid; onTemplateChange(); }
   } catch(e){ showErr(e.message); }
@@ -199,6 +270,89 @@ function onTemplateChange(){
   document.getElementById('legend-btn').disabled = !tid;
   legendCache = null;
   document.getElementById('legend-box').classList.add('hidden');
+  onProfilesChange();
+}
+
+function csvEscape(v){
+  const s = String(v == null ? '' : v);
+  if(/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function selectedPickerSlots(){
+  return PICKER_SLOTS
+    .map(s => ({ role: s.role, id: document.getElementById(s.id).value }))
+    .filter(s => s.id);
+}
+
+async function loadProfileCanon(){
+  const mapper = window.fmpFlatToCanonMap || window.flatToCanonMap;
+  const merged = {};
+  if(!mapper) return merged;
+  for(const slot of selectedPickerSlots()){
+    try {
+      const d = await api('/api/v1/profiles/'+encodeURIComponent(slot.id)+'/fill-data');
+      Object.assign(merged, mapper(d.data || {}, slot.role));
+    } catch(e) {}
+  }
+  return merged;
+}
+
+async function ensureLegend(){
+  const tid = document.getElementById('template-id').value;
+  if(!tid) return null;
+  if(legendCache && legendCache.template_id === tid) return legendCache;
+  const d = await api('/api/v1/templates/'+encodeURIComponent(tid)+'/guided-csv');
+  legendCache = d;
+  return d;
+}
+
+function renderCsvPreview(headers, canon){
+  const box = document.getElementById('csv-preview-box');
+  const body = document.getElementById('csv-preview-body');
+  const empty = document.getElementById('csv-preview-empty');
+  const count = document.getElementById('csv-preview-count');
+  const filled = (headers || []).filter(h => {
+    const v = canon[h];
+    return v !== undefined && v !== null && String(v).trim() !== '';
+  });
+  const hasProfiles = selectedPickerSlots().length > 0;
+  if(!hasProfiles){
+    box.classList.add('hidden');
+    return filled.length;
+  }
+  box.classList.remove('hidden');
+  count.textContent = filled.length ? (filled.length + ' of ' + headers.length + ' columns') : '';
+  if(!filled.length){
+    body.innerHTML = '';
+    empty.classList.remove('hidden');
+    return 0;
+  }
+  empty.classList.add('hidden');
+  body.innerHTML = filled.map(h => `
+    <tr class="border-t border-indigo-50">
+      <td class="px-3 py-1 font-mono text-[11px] text-indigo-900 whitespace-nowrap">${esc(h)}</td>
+      <td class="px-3 py-1 text-gray-800">${esc(canon[h])}</td>
+    </tr>`).join('');
+  return filled.length;
+}
+
+function onProfilesChange(){
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => { refreshPreview().catch(()=>{}); }, 150);
+}
+
+async function refreshPreview(){
+  const tid = document.getElementById('template-id').value;
+  if(!tid || !selectedPickerSlots().length){
+    document.getElementById('csv-preview-box').classList.add('hidden');
+    return { headers: [], canon: {}, filled: 0 };
+  }
+  const d = await ensureLegend();
+  const headers = (d && d.headers) || [];
+  const canon = await loadProfileCanon();
+  const filled = renderCsvPreview(headers, canon);
+  return { headers, canon, filled };
 }
 
 async function downloadCsv(){
@@ -206,22 +360,35 @@ async function downloadCsv(){
   const tid = document.getElementById('template-id').value;
   if(!tid) return;
   try {
-    const d = await api('/api/v1/templates/'+encodeURIComponent(tid)+'/guided-csv');
-    legendCache = d;
-    const blob = new Blob([d.csv || ''], { type: 'text/csv;charset=utf-8' });
+    const d = await ensureLegend();
+    const headers = d.headers || [];
+    const canon = await loadProfileCanon();
+    const filled = renderCsvPreview(headers, canon);
+    const sample = headers.map(h => {
+      const v = canon[h];
+      return (v !== undefined && v !== null && String(v).trim() !== '') ? String(v) : '';
+    });
+    const lines = [
+      headers.map(csvEscape).join(','),
+      sample.map(csvEscape).join(','),
+    ];
+    const blob = new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = tid + '_guided_batch.csv';
     a.click();
     URL.revokeObjectURL(a.href);
-    // Also offer legend.json
     const lb = new Blob([JSON.stringify({ headers: d.headers, legend: d.legend, notes: d.notes }, null, 2)], { type: 'application/json' });
     const a2 = document.createElement('a');
     a2.href = URL.createObjectURL(lb);
     a2.download = tid + '_column_legend.json';
     a2.click();
     URL.revokeObjectURL(a2.href);
-    showInfo('Downloaded CSV template + column legend. Fill one row per patient, then upload.');
+    if(filled){
+      showInfo('Downloaded CSV with a sample row ('+filled+' profile columns filled). Duplicate that row per patient; edit to override, blank to use the live profile at run time.');
+    } else {
+      showInfo('Downloaded CSV template + column legend. Fill one row per patient, then upload.');
+    }
   } catch(e){ showErr(e.message); }
 }
 
@@ -269,16 +436,15 @@ async function runBatch(ev){
   fd.append('consent_given', mode === 'typed' ? 'true' : 'false');
   fd.append('signer_name', document.getElementById('signer-name').value.trim());
   fd.append('signer_email', document.getElementById('signer-email').value.trim());
-  const ids = [
-    document.getElementById('pick-provider').value,
-    document.getElementById('pick-facility').value,
-  ].filter(Boolean);
+  const ids = ['pick-patient','pick-provider','pick-facility','pick-pharmacy','pick-encounter']
+    .map(id => document.getElementById(id).value)
+    .filter(Boolean);
   if(ids.length === 1) fd.append('profile_id', ids[0]);
   else if(ids.length > 1) fd.append('profile_ids', ids.join(','));
 
   try {
     const r = await fetch('/api/v1/templates/'+encodeURIComponent(tid)+'/batch-csv', {
-      method: 'POST', headers: { 'X-API-Key': getKey() }, body: fd,
+      method: 'POST', headers: authHeaders(), body: fd, credentials: 'same-origin',
     });
     const d = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
@@ -291,7 +457,7 @@ async function runBatch(ev){
     dl.href = d.download_url;
     dl.onclick = async (e) => {
       e.preventDefault();
-      const resp = await fetch(d.download_url, { headers: { 'X-API-Key': getKey() } });
+      const resp = await fetch(d.download_url, { headers: authHeaders(), credentials: 'same-origin' });
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url;
@@ -299,7 +465,7 @@ async function runBatch(ev){
       URL.revokeObjectURL(url);
     };
   } catch(e){ showErr(e.message); }
-  finally { btn.disabled = false; btn.textContent = '3. Run Guided Batch'; }
+  finally { btn.disabled = false; btn.textContent = '4. Run Guided Batch'; }
 }
 
 init();

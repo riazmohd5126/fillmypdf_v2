@@ -5,15 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Profiles — FillMyPDF</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
   <style>body { font-family: system-ui,-apple-system,sans-serif; }</style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
   <!-- Nav -->
   <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
-    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-    </a>
     <span class="font-semibold text-gray-800">Profiles</span>
     <button onclick="openImportModal()" class="ml-auto text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-2 hover:bg-gray-50">Import CSV/Excel</button>
     <button onclick="openCreateModal()" class="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700">+ New Profile</button>
@@ -697,10 +696,10 @@
 
   // ── Load profiles ─────────────────────────────────────────────
   async function loadProfiles() {
-    const key = getKey();
-    if (!key) { showListErr('No API key. <a href="/ui/index.html" class="underline">Set it on the dashboard.</a>'); return; }
+    const ok = await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey()));
+    if (!ok) { showListErr('Sign in first. <a href="/ui/login.html?next=/ui/profiles.html" class="underline">Clinic login</a>'); return; }
     try {
-      const r = await fetch('/api/v1/profiles', { headers: {'X-API-Key': key} });
+      const r = await fetch('/api/v1/profiles', { headers: fmpAuthHeaders(), credentials: 'same-origin' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       allProfiles = await r.json();
       renderProfiles(allProfiles);
@@ -783,8 +782,9 @@
   function closeModal() { document.getElementById('modal').classList.add('hidden'); }
 
   async function saveProfile() {
-    const key = getKey();
-    if (!key) { showModalErr('No API key set.'); return; }
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+      showModalErr('Sign in first.'); return;
+    }
     const name = document.getElementById('f-name').value.trim();
     const type = document.getElementById('f-type').value;
     if (!name) { showModalErr('Profile name is required.'); return; }
@@ -803,7 +803,8 @@
     try {
       const r = await fetch(id ? `/api/v1/profiles/${id}` : '/api/v1/profiles/', {
         method: id ? 'PATCH' : 'POST',
-        headers: {'X-API-Key': key, 'Content-Type': 'application/json'},
+        headers: Object.assign(fmpAuthHeaders(), {'Content-Type': 'application/json'}),
+        credentials: 'same-origin',
         body: JSON.stringify({name, profile_type: type, data, org_id, shared}),
       });
       if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.detail||`HTTP ${r.status}`); }
@@ -849,8 +850,9 @@
   async function runImport() {
     const file = document.getElementById('import-file').files[0];
     if (!file) { showImportResult('error', 'Please select a file.'); return; }
-    const key = getKey();
-    if (!key) { showImportResult('error', 'No API key set.'); return; }
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+      showImportResult('error', 'Sign in first.'); return;
+    }
     const btn = document.getElementById('import-btn');
     btn.disabled = true; btn.textContent = 'Importing…';
     try {
@@ -858,7 +860,7 @@
       fd.append('file', file);
       fd.append('profile_type', document.getElementById('import-type').value);
       const r = await fetch('/api/v1/profiles/import', {
-        method: 'POST', headers: { 'X-API-Key': key }, body: fd,
+        method: 'POST', headers: fmpAuthHeaders(), body: fd, credentials: 'same-origin',
       });
       const data = await r.json();
       if (!r.ok) { showImportResult('error', data.detail || `HTTP ${r.status}`); return; }
@@ -877,7 +879,7 @@
   }
   document.getElementById('confirm-delete-btn').onclick = async () => {
     if (!pendingDeleteId) return;
-    await fetch(`/api/v1/profiles/${pendingDeleteId}`, {method:'DELETE', headers:{'X-API-Key':getKey()}});
+    await fetch(`/api/v1/profiles/${pendingDeleteId}`, {method:'DELETE', headers: fmpAuthHeaders(), credentials: 'same-origin'});
     closeConfirmModal(); loadProfiles();
   };
 
@@ -888,7 +890,11 @@
   function showModalErr(msg) { const el=document.getElementById('modal-error'); el.innerHTML=msg; el.classList.remove('hidden'); }
   function hideModalErr() { document.getElementById('modal-error').classList.add('hidden'); }
 
-  loadProfiles();
+  (async function(){
+    await (window.fmpAuthReady || Promise.resolve());
+    if (window.fmpPaintNavAuth) fmpPaintNavAuth('nav-auth');
+    loadProfiles();
+  })();
 </script>
 </body>
 </html>

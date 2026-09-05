@@ -722,6 +722,12 @@ class VisionService:
                         # textarea, so it holds a free-text narrative rather
                         # than an identity value the canonical catalog covers.
                         multiline = bool("/Tx" in ft and (field_flags & 0x1000))
+                        # /Ff bit 2 (0x2) = Required. This is the only
+                        # per-FORM requiredness the document itself declares;
+                        # the canonical catalog's ``required`` is a generic
+                        # "usually needed on PA forms" hint that cannot know
+                        # what this particular payer left optional.
+                        required = bool(field_flags & 0x2)
                         rect = annot.get("/Rect")
                         if rect:
                             x0 = float(rect[0])
@@ -765,6 +771,7 @@ class VisionService:
                             "export_value": export_value,
                             "tu": tu,
                             "multiline": multiline,
+                            "required": required,
                             # Mark this as a REAL AcroForm widget read straight
                             # from the PDF — so its /TU provably belongs to this
                             # exact box. The OpenCV/VLM engines re-detect boxes
@@ -4852,7 +4859,7 @@ class VisionService:
         Removes /AP so PDF viewers regenerate the visual appearance.
         """
         try:
-            from pypdf.generic import TextStringObject, NameObject
+            from pypdf.generic import BooleanObject, TextStringObject, NameObject
             from .pdf_service import PDFService
 
             reader = PdfReader(input_path)
@@ -4919,6 +4926,17 @@ class VisionService:
                 f"  ✏️  Fields written: {filled}/{len(field_values)} "
                 f"(btn={len(button_norm)}, tx={len(text_vals)})"
             )
+
+            # Ask viewers (Acrobat, Preview, some PDF.js builds) to regenerate
+            # appearances from /V — we deliberately drop /AP for commonforms.
+            try:
+                root = writer._root_object
+                acro = root.get("/AcroForm")
+                if acro is not None:
+                    acro_obj = acro.get_object() if hasattr(acro, "get_object") else acro
+                    acro_obj[NameObject("/NeedAppearances")] = BooleanObject(True)
+            except Exception:
+                pass
 
             with open(output_path, "wb") as fh:
                 writer.write(fh)
@@ -4996,12 +5014,14 @@ class VisionService:
         output_path: str,
         user_data: dict,
         dpi: int = 200,
+        skip_ai: bool = False,
     ) -> dict:
         """
         Full label-aware autofill pipeline:
           1. Extract field bounding boxes (from AcroForm annotations)
           2. Label each field using pdfplumber word proximity
           3. Ask AI to map user_data → field names via semantic label matching
+             (skipped for guided/locked fills — CSV + canonical map only)
           4. Write filled PDF
         """
         # Step 1
@@ -5056,12 +5076,26 @@ class VisionService:
             k: v for k, v in field_labels.items() if k not in skip_names
         }
 
-        # Step 3b — general AI semantic matching (Call 3) for the remaining fields
-        if remaining_info:
-            gen_values, gen_conf, cache_hit = self._map_fields_with_ai(
-                remaining_info, remaining_labels, user_data
-            )
+        # Step 3b — general AI semantic matching (Call 3) for remaining fields.
+        # Guided Batch / Guided Fill already keyed the CSV to the locked map
+        # (canonical / q: / t:). Do not call Gemini — a missing cloud key
+        # used to raise APIConnectionError ("Connection error.") and fail
+        # every row even after the canonical fork had filled fields.
+        no_key = not (self.api_key or "").strip() or self.api_key in ("-",)
+        if remaining_info and not skip_ai and not no_key:
+            try:
+                gen_values, gen_conf, cache_hit = self._map_fields_with_ai(
+                    remaining_info, remaining_labels, user_data
+                )
+            except Exception as exc:
+                print(f"  ⚠️  AI field map skipped: {exc}")
+                gen_values, gen_conf, cache_hit = {}, {}, False
         else:
+            if remaining_info and (skip_ai or no_key):
+                print(
+                    f"  🔒  Skipping AI mapper ({len(remaining_info)} leftover "
+                    f"field(s)) — locked/guided fill"
+                )
             gen_values, gen_conf, cache_hit = {}, {}, False
 
         # Merge — canonical fork wins (disjoint from the general fork by design)

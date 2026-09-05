@@ -5,14 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Make Fillable — FillMyPDF</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
   <style>body{font-family:system-ui,-apple-system,sans-serif;}</style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
 <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
-  <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
-    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-  </a>
   <span class="font-semibold text-gray-800">Make Fillable</span>
   <a href="/ui/pdftools.html" class="ml-auto text-xs text-indigo-600 hover:underline">PDF Tools →</a>
 </nav>
@@ -28,7 +27,7 @@
   </div>
 
   <div id="no-key" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-    No API key set. Open the <a href="/ui/index.html" class="underline font-semibold">Dashboard</a> and set your API key first.
+    Sign in at <a href="/ui/login.html" class="underline font-semibold">login</a> first to convert a PDF.
   </div>
   <div id="error-box" class="hidden bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700"></div>
 
@@ -46,11 +45,11 @@
         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
     </div>
 
-    <label class="flex items-start gap-2 cursor-pointer">
+    <label id="save-tpl-row" class="flex items-start gap-2 cursor-pointer">
       <input id="save-tpl" type="checkbox" class="mt-0.5 accent-indigo-600" onchange="toggleTplFields()"/>
       <span class="text-sm text-gray-700">
         Also save as Template Library entry
-        <span class="block text-[11px] text-gray-400">Requires an admin API key. Then you can open Guided Fill / Mapping Review.</span>
+        <span class="block text-[11px] text-gray-400">Admin only — then you can open Guided Fill.</span>
       </span>
     </label>
 
@@ -149,7 +148,7 @@ function toggleTplFields(){
 }
 
 async function downloadWithKey(url, filename){
-  const r = await fetch(url, { headers: { 'X-API-Key': getKey() } });
+  const r = await fetch(url, { credentials: 'same-origin', headers: window.fmpAuthHeaders ? fmpAuthHeaders() : { 'X-API-Key': getKey() } });
   if(!r.ok) throw new Error('Download failed (HTTP ' + r.status + ')');
   const blob = await r.blob();
   const obj = URL.createObjectURL(blob);
@@ -161,7 +160,7 @@ async function downloadWithKey(url, filename){
 async function doConvert(){
   clearErr();
   document.getElementById('result').classList.add('hidden');
-  if(!getKey()){ showErr('Set your API key on the Dashboard first.'); return; }
+  if(!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))){ showErr('Sign in first.'); return; }
   if(!selectedFile){ showErr('Choose a PDF first.'); return; }
 
   const btn = document.getElementById('convert-btn');
@@ -186,7 +185,8 @@ async function doConvert(){
 
     const r = await fetch('/api/v1/pdf/convert-fillable', {
       method: 'POST',
-      headers: { 'X-API-Key': getKey() },
+      credentials: 'same-origin',
+      headers: window.fmpAuthHeaders ? fmpAuthHeaders() : { 'X-API-Key': getKey() },
       body: fd,
     });
     const data = await r.json().catch(() => ({}));
@@ -244,7 +244,18 @@ async function doConvert(){
   }
 }
 
-if(!getKey()) document.getElementById('no-key').classList.remove('hidden');
+(async function(){
+  await (window.fmpAuthReady || Promise.resolve());
+  const ok = await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey()));
+  if(!ok){
+    document.getElementById('no-key').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('no-key').classList.add('hidden');
+  if(!(window.fmpIsAdmin && fmpIsAdmin())){
+    document.getElementById('save-tpl-row').classList.add('hidden');
+  }
+})();
 </script>
 </body>
 </html>

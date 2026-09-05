@@ -300,8 +300,9 @@ def intake_schema(mappings: Dict[str, dict], spec=None) -> dict:
         if rule:
             out["rules"][f["canonical"]] = rule
 
-    out["signatures"] = [
-        {
+    out["signatures"] = []
+    for s in spec.signatures:
+        row = {
             "field": s.field,
             "acro_field": s.acro_field,
             "label": s.label,
@@ -311,8 +312,14 @@ def intake_schema(mappings: Dict[str, dict], spec=None) -> dict:
             "page": s.page,
             "order": s.order,
         }
-        for s in spec.signatures
-    ]
+        place = getattr(s, "placement", None)
+        if place is not None:
+            row["placement"] = (
+                place.model_dump(mode="json")
+                if hasattr(place, "model_dump")
+                else dict(place)
+            )
+        out["signatures"].append(row)
     return out
 
 

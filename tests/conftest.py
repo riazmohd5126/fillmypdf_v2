@@ -63,6 +63,9 @@ def isolated_storage(tmp_path, monkeypatch) -> Iterator[Path]:
     monkeypatch.setattr(cfg.settings, "PROFILES_DIR", profiles_dir, raising=True)
     monkeypatch.setattr(cfg.settings, "UPLOAD_DIR", upload_dir, raising=True)
     monkeypatch.setattr(cfg.settings, "OUTPUT_DIR", output_dir, raising=True)
+    # Do not seed the operator account from the developer's .env during tests.
+    monkeypatch.setattr(cfg.settings, "ADMIN_EMAIL", "", raising=True)
+    monkeypatch.setattr(cfg.settings, "ADMIN_PASSWORD", "", raising=True)
 
     yield tmp_path
 

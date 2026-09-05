@@ -46,7 +46,7 @@ def _summary(job: Job):
 
 class TestSubmitBatchJob:
 
-    def test_submit_returns_202(self, client, pro_api_key):
+    def test_submit_returns_202(self, client, admin_api_key):
         with patch("fillmypdf.api.routes.jobs.get_runner") as mock_runner:
             mock_runner.return_value.submit_batch.return_value = _queued_job()
             resp = client.post(
@@ -56,7 +56,7 @@ class TestSubmitBatchJob:
                     "records": json.dumps([{"first_name": "Alice"}]),
                 },
                 files={"file": ("pa.pdf", b"%PDF-1.4", "application/pdf")},
-                headers={"X-API-Key": _plain(pro_api_key)},
+                headers={"X-API-Key": _plain(admin_api_key)},
             )
         assert resp.status_code == 202
         body = resp.json()
@@ -64,34 +64,34 @@ class TestSubmitBatchJob:
         assert body["status"] == "queued"
         assert "/api/v1/jobs/" in body["status_url"]
 
-    def test_submit_non_pdf_returns_400(self, client, pro_api_key):
+    def test_submit_non_pdf_returns_400(self, client, admin_api_key):
         with patch("fillmypdf.api.routes.jobs.get_runner"):
             resp = client.post(
                 f"{BASE}/batch",
                 data={"ai_api_key": "k", "records": "[{}]"},
                 files={"file": ("f.docx", b"word", "application/msword")},
-                headers={"X-API-Key": _plain(pro_api_key)},
+                headers={"X-API-Key": _plain(admin_api_key)},
             )
         assert resp.status_code == 400
 
-    def test_submit_empty_records_returns_400(self, client, pro_api_key):
+    def test_submit_empty_records_returns_400(self, client, admin_api_key):
         with patch("fillmypdf.api.routes.jobs.get_runner"):
             resp = client.post(
                 f"{BASE}/batch",
                 data={"ai_api_key": "k", "records": "[]"},
                 files={"file": ("pa.pdf", b"%PDF", "application/pdf")},
-                headers={"X-API-Key": _plain(pro_api_key)},
+                headers={"X-API-Key": _plain(admin_api_key)},
             )
         assert resp.status_code == 400
 
-    def test_submit_too_many_records_returns_400(self, client, pro_api_key):
+    def test_submit_too_many_records_returns_400(self, client, admin_api_key):
         big = json.dumps([{"x": i} for i in range(501)])
         with patch("fillmypdf.api.routes.jobs.get_runner"):
             resp = client.post(
                 f"{BASE}/batch",
                 data={"ai_api_key": "k", "records": big},
                 files={"file": ("pa.pdf", b"%PDF", "application/pdf")},
-                headers={"X-API-Key": _plain(pro_api_key)},
+                headers={"X-API-Key": _plain(admin_api_key)},
             )
         assert resp.status_code == 400
 
@@ -112,15 +112,19 @@ class TestSubmitTemplateBatchJob:
             mock_runner.return_value.submit_template_batch.return_value = _queued_job(
                 kind="template_fill"
             )
-            resp = client.post(
-                f"{BASE}/template-batch",
-                data={
-                    "template_id": "pa_linzess_molina_tx",
-                    "ai_api_key": "test",
-                    "records": json.dumps([{"first_name": "Bob"}]),
-                },
-                headers={"X-API-Key": _plain(pro_api_key)},
-            )
+            with patch(
+                "fillmypdf.api.routes.jobs.template_has_locked_map",
+                return_value=True,
+            ):
+                resp = client.post(
+                    f"{BASE}/template-batch",
+                    data={
+                        "template_id": "pa_linzess_molina_tx",
+                        "ai_api_key": "test",
+                        "records": json.dumps([{"first_name": "Bob"}]),
+                    },
+                    headers={"X-API-Key": _plain(pro_api_key)},
+                )
         assert resp.status_code == 202
         assert resp.json()["status"] == "queued"
 
@@ -141,7 +145,7 @@ class TestSubmitTemplateBatchJob:
 
 class TestSubmitXlsxJob:
 
-    def test_submit_returns_202(self, client, pro_api_key):
+    def test_submit_returns_202(self, client, admin_api_key):
         j = _queued_job(kind="batch_fill_xlsx")
         j.record_count = 4
         with patch("fillmypdf.api.routes.jobs.get_runner") as mock_runner:
@@ -153,14 +157,14 @@ class TestSubmitXlsxJob:
                     "file": ("pa.pdf", b"%PDF-1.4", "application/pdf"),
                     "xlsx_file": ("rows.xlsx", b"PK fake xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
                 },
-                headers={"X-API-Key": _plain(pro_api_key)},
+                headers={"X-API-Key": _plain(admin_api_key)},
             )
         assert resp.status_code == 202
         body = resp.json()
         assert body["job_id"] == "job_abc123"
         assert "Excel job queued" in body["message"]
 
-    def test_non_xlsx_returns_400(self, client, pro_api_key):
+    def test_non_xlsx_returns_400(self, client, admin_api_key):
         with patch("fillmypdf.api.routes.jobs.get_runner"):
             resp = client.post(
                 f"{BASE}/xlsx-batch",
@@ -169,11 +173,11 @@ class TestSubmitXlsxJob:
                     "file": ("pa.pdf", b"%PDF", "application/pdf"),
                     "xlsx_file": ("bad.csv", b"a,b", "text/csv"),
                 },
-                headers={"X-API-Key": _plain(pro_api_key)},
+                headers={"X-API-Key": _plain(admin_api_key)},
             )
         assert resp.status_code == 400
 
-    def test_parse_error_returns_400(self, client, pro_api_key):
+    def test_parse_error_returns_400(self, client, admin_api_key):
         with patch("fillmypdf.api.routes.jobs.get_runner") as mock_runner:
             mock_runner.return_value.submit_xlsx_batch.side_effect = ValueError("Invalid Excel")
             resp = client.post(
@@ -183,7 +187,7 @@ class TestSubmitXlsxJob:
                     "file": ("pa.pdf", b"%PDF", "application/pdf"),
                     "xlsx_file": ("rows.xlsx", b"x", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
                 },
-                headers={"X-API-Key": _plain(pro_api_key)},
+                headers={"X-API-Key": _plain(admin_api_key)},
             )
         assert resp.status_code == 400
         assert "Invalid Excel" in resp.json()["detail"]
@@ -476,7 +480,8 @@ class TestListJobs:
             )
         assert resp.status_code == 200
         inst.list_recent.assert_called_once_with(
-            limit=17, status="running", kind="extract_pdf"
+            limit=17, status="running", kind="extract_pdf",
+            api_key_id=pro_api_key["id"], admin=False,
         )
 
     def test_list_requires_auth(self, client):

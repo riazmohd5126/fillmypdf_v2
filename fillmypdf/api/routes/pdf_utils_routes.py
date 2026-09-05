@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pypdf import PdfReader, PdfWriter
 
@@ -225,6 +225,7 @@ async def split_pdf(
     summary="Convert a static PDF to a fillable AcroForm PDF",
 )
 async def convert_fillable(
+    request: Request,
     file: UploadFile = File(..., description="Static (or already-fillable) PDF"),
     output_name: Optional[str] = Form(
         None,
@@ -252,11 +253,8 @@ async def convert_fillable(
     Detect form fields on a flat/static PDF (CommonForms / cloud converter) and
     return a fillable AcroForm PDF.
 
-    - Already-fillable PDFs are returned unchanged (`status=already_fillable`).
-    - Flat PDFs are converted via local CommonForms or the cloud converter
-      depending on ``COMMONFORMS_MODE``.
-    - Optional ``save_as_template`` stores the fillable PDF in the template
-      library (requires an **admin** API key).
+    Clinic and admin sessions can convert. Optional ``save_as_template`` still
+    requires an admin key or operator role.
     """
     if not (file.filename or "").lower().endswith(".pdf"):
         raise HTTPException(400, "File must be a PDF.")
@@ -297,9 +295,14 @@ async def convert_fillable(
     }
 
     if save_as_template:
-        if (api_key.get("tier") or "").lower() != "admin":
+        user = getattr(request.state, "user", None) or {}
+        is_admin = (
+            (api_key.get("tier") or "").lower() == "admin"
+            or str(user.get("role") or "").lower() == "admin"
+        )
+        if not is_admin:
             result["warning"] = (
-                "Converted OK, but save_as_template requires an admin API key. "
+                "Converted OK, but save_as_template requires an admin account. "
                 "Download the fillable PDF below."
             )
         else:

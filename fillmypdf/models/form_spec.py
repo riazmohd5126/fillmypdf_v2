@@ -141,12 +141,26 @@ class LongTextField(BaseModel):
     rule: Optional[VisibilityRule] = None
 
 
+class SignaturePlacement(BaseModel):
+    """E-sign stamp box on the page (PDF bottom-left origin, percentages)."""
+
+    page_index: int = Field(0, ge=0)
+    x_pct: float = Field(..., ge=0, le=100)
+    y_pct: float = Field(..., ge=0, le=100)
+    width_pct: float = Field(..., ge=0.1, le=100)
+    height_pct: float = Field(..., ge=0.1, le=100)
+
+
 class SignatureField(BaseModel):
     """A signature (or signature-date) widget kept out of the canonical map.
 
     Includes true PDF ``/Sig`` fields and CareFirst-style ``/Tx`` blanks whose
     caption is a printed signature line. Companion date blanks next to the
     line use ``kind='date'``. Guided Fill collects typed values as ``t:<field>``.
+
+    ``placement`` is the locked e-sign stamp box (set at FormSpec build / map
+    lock). When present, Guided Fill pads and Apply use it instead of
+    re-deriving geometry at fill time.
     """
 
     field: str
@@ -158,6 +172,10 @@ class SignatureField(BaseModel):
     kind: Literal["signature", "date"] = "signature"
     role: Optional[str] = Field(
         None, description="Signer role (prescriber, patient, …) — reviewer-assigned"
+    )
+    placement: Optional[SignaturePlacement] = Field(
+        None,
+        description="Locked stamp box (% of page, bottom-left origin) for e-sign",
     )
 
 

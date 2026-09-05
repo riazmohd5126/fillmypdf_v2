@@ -107,15 +107,38 @@ def enrich_signature_placements(
     signatures: List[dict],
     fields_info: List[dict],
     pdf_path: Path | str,
+    *,
+    overwrite: bool = False,
 ) -> List[dict]:
-    """Attach e-sign placement to intake signature dicts from AcroForm geometry."""
+    """Attach e-sign placement to intake signature dicts from AcroForm geometry.
+
+    When ``overwrite`` is False (default), an existing complete ``placement``
+    block is kept — used for locked FormSpec placements.
+    """
     if not signatures:
         return signatures
+
+    def _complete(existing) -> bool:
+        return (
+            isinstance(existing, dict)
+            and existing.get("page_index") is not None
+            and existing.get("x_pct") is not None
+            and existing.get("y_pct") is not None
+            and existing.get("width_pct") is not None
+            and existing.get("height_pct") is not None
+        )
+
+    if not overwrite and all(_complete(s.get("placement")) for s in signatures):
+        return [dict(s) for s in signatures]
+
     sizes = page_sizes_pts(pdf_path)
     by_name = {f.get("name"): f for f in fields_info if f.get("name")}
     out: List[dict] = []
     for s in signatures:
         row = dict(s)
+        if not overwrite and _complete(row.get("placement")):
+            out.append(row)
+            continue
         acro = row.get("acro_field") or row.get("field")
         f = by_name.get(acro)
         if f is not None:
@@ -126,6 +149,49 @@ def enrich_signature_placements(
                 row["placement"] = place
         out.append(row)
     return out
+
+
+def attach_placements_to_form_spec(
+    spec,
+    fields_info: List[dict],
+    pdf_path: Path | str,
+    *,
+    overwrite: bool = False,
+):
+    """Fill ``SignatureField.placement`` from AcroForm geometry (in place)."""
+    from ..models.form_spec import SignaturePlacement
+
+    if not spec or not getattr(spec, "signatures", None):
+        return spec
+    sizes = page_sizes_pts(pdf_path)
+    by_name = {f.get("name"): f for f in fields_info if f.get("name")}
+    for s in spec.signatures:
+        if getattr(s, "kind", "signature") == "date":
+            continue  # dates are typed fields, not stamp boxes
+        if not overwrite and getattr(s, "placement", None) is not None:
+            continue
+        f = by_name.get(s.acro_field) or by_name.get(s.field)
+        if f is None:
+            continue
+        page = int(f.get("page") or 0)
+        pw, ph = sizes.get(page, (0.0, 0.0))
+        place = placement_from_acro_field(f, pw, ph)
+        if place:
+            s.placement = SignaturePlacement(**place)
+    return spec
+
+
+def missing_signature_placements(spec) -> List[str]:
+    """Labels/fields of stampable signatures that still lack a placement box."""
+    missing: List[str] = []
+    if not spec:
+        return missing
+    for s in getattr(spec, "signatures", None) or []:
+        if getattr(s, "kind", "signature") == "date":
+            continue
+        if getattr(s, "placement", None) is None:
+            missing.append(s.label or s.field)
+    return missing
 
 
 def _bbox_pts(
@@ -207,34 +273,85 @@ def _build_overlay_pdf(
     box_h: float,
     timestamp_text: "str | None" = None,
 ) -> io.BytesIO:
+    """Stamp PNG inside ``(x,y,box_w,box_h)`` — baseline on the line, no tall spill.
+
+    Short wide AcroForm signature lines (typical PA underlines) **fill the
+    field width**; if the ink is taller than the box after that scale, the top
+    is clipped so the baseline stays on the line. Taller stamp boxes use
+    classic contain-fit. Timestamp goes under the ink when there is room; on
+    short boxes it sits at the right end at a small size.
+    """
     overlay = io.BytesIO()
     c = canvas.Canvas(overlay, pagesize=(page_w, page_h))
-    ir = ImageReader(io.BytesIO(png_bytes))
     thumb = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
     tw, th = thumb.size
     if tw <= 0 or th <= 0:
         raise ESignValidationError("Signature image has no pixels.")
 
-    # Reserve space at the bottom of the box for the timestamp line
-    TIMESTAMP_FONT_SIZE = max(6.0, box_h * 0.15)
-    timestamp_line_h = TIMESTAMP_FONT_SIZE + 2 if timestamp_text else 0.0
-    img_box_h = box_h - timestamp_line_h
+    pad = 1.5
+    short_box = box_h < 36.0  # ~4.5% of letter page — typical underline widget
+    # e.g. Surest Member line ~63% × ~4% → aspect ≫ 8
+    wide_short = short_box and (box_w / max(box_h, 1.0) >= 8.0)
+    TIMESTAMP_FONT_SIZE = 5.5 if short_box else max(6.0, min(8.0, box_h * 0.12))
 
-    scale = min(box_w / float(tw), max(1.0, img_box_h) / float(th))
-    draw_w = tw * scale
-    draw_h = th * scale
-    # Left-align and baseline the ink just above the timestamp — PA signature
-    # lines are wide; centering floated short names mid-line and looked wrong.
-    inset_x = x + 2.0
-    inset_y = y + timestamp_line_h
+    if timestamp_text and not short_box:
+        timestamp_line_h = TIMESTAMP_FONT_SIZE + 2.0
+        ts_mode = "under"
+    elif timestamp_text and short_box:
+        timestamp_line_h = 0.0
+        ts_mode = "right"
+    else:
+        timestamp_line_h = 0.0
+        ts_mode = "none"
+
+    img_box_h = max(1.0, box_h - timestamp_line_h - pad)
+    if ts_mode == "right" and wide_short:
+        # Keep most of the underline for ink; tiny strip for "Signed: …".
+        img_box_w = max(1.0, box_w * 0.90 - pad)
+    elif ts_mode == "right":
+        img_box_w = max(1.0, box_w * 0.78 - pad)
+    else:
+        img_box_w = max(1.0, box_w - pad * 2)
+
+    if wide_short:
+        # Prefer filling the signature line width; clip top if ink is tall.
+        scale = img_box_w / float(tw)
+        draw_w = img_box_w
+        draw_h = th * scale
+        stamp_img = thumb
+        if draw_h > img_box_h + 0.5:
+            keep_src_h = max(1, int(round(th * (img_box_h / draw_h))))
+            top_cut = max(0, th - keep_src_h)
+            stamp_img = thumb.crop((0, top_cut, tw, th))
+            draw_h = img_box_h
+        img_buf = io.BytesIO()
+        stamp_img.save(img_buf, format="PNG")
+        img_buf.seek(0)
+        ir = ImageReader(img_buf)
+    else:
+        scale = min(img_box_w / float(tw), img_box_h / float(th))
+        draw_w = tw * scale
+        draw_h = th * scale
+        ir = ImageReader(io.BytesIO(png_bytes))
+
+    # Baseline the ink on the bottom of the stamp box (the signature line).
+    inset_x = x + pad
+    inset_y = y + timestamp_line_h + pad * 0.25
 
     c.drawImage(ir, inset_x, inset_y, width=draw_w, height=draw_h, mask="auto")
 
-    if timestamp_text:
+    if timestamp_text and ts_mode == "under":
         c.setFont("Helvetica", TIMESTAMP_FONT_SIZE)
-        c.setFillColorRGB(0.3, 0.3, 0.3)  # dark grey — subtle
-        # Left-align under the signature; clip to box width
-        c.drawString(x + 2, y + 1, timestamp_text)
+        c.setFillColorRGB(0.3, 0.3, 0.3)
+        c.drawString(x + pad, y + 1, timestamp_text)
+    elif timestamp_text and ts_mode == "right":
+        c.setFont("Helvetica", TIMESTAMP_FONT_SIZE)
+        c.setFillColorRGB(0.3, 0.3, 0.3)
+        # Park timestamp just after the ink (near Date on PA forms).
+        tx = min(x + pad + draw_w + 3.0, x + box_w - 80.0)
+        if tx < x + pad:
+            tx = x + pad
+        c.drawString(tx, y + pad, timestamp_text[:42])
 
     c.showPage()
     c.save()

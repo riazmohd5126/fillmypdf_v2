@@ -5,69 +5,70 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Mapping Review — FillMyPDF</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
 </head>
-<body class="bg-gray-50 min-h-screen font-sans">
+<body class="bg-gray-50 h-screen flex flex-col overflow-hidden font-sans">
 
-<nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-3">
-  <a href="/ui/index.html" class="text-indigo-600 text-sm hover:underline">← Dashboard</a>
-  <span class="text-gray-300">|</span>
+<nav class="bg-white border-b border-gray-200 px-4 py-2.5 flex items-center gap-3 shrink-0">
   <span class="font-semibold text-gray-800">Canonical Mapping Review</span>
+  <span class="text-xs text-gray-400 hidden md:inline">50/50 review · PDF.js (no thumbs) · Build on demand</span>
   <span class="ml-auto text-xs text-gray-400">Admin only</span>
 </nav>
 
-<main class="max-w-6xl mx-auto px-4 py-8 space-y-6">
+<div id="no-key" class="hidden shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-800">
+  Sign in as the operator at <a href="/ui/login.html" class="underline font-semibold">login</a>
+  (admin email from <code>ADMIN_EMAIL</code> in <code>.env</code>). Mapping Review uses your session — no API key paste.
+</div>
+<div id="error-box" class="hidden shrink-0 bg-red-50 border-b border-red-200 px-4 py-2 text-sm text-red-700"></div>
+<div id="info-box" class="hidden shrink-0 bg-emerald-50 border-b border-emerald-200 px-4 py-2 text-sm text-emerald-800"></div>
 
-  <div class="bg-indigo-600 rounded-2xl p-6 text-white">
-    <h1 class="text-2xl font-bold">Review &amp; Lock Field Mappings</h1>
-    <p class="text-indigo-200 text-sm mt-1">
-      Check the auto-generated field → canonical-path mapping for a form, correct any
-      mistakes, then Lock it. Locked maps are trusted verbatim by the fill pipeline
-      (no AI re-guessing) and survive schema/label changes. PHI-free — this is form
-      structure only.
-    </p>
-  </div>
+<main id="workspace" class="flex-1 min-h-0 flex overflow-hidden">
 
-  <div id="no-key" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-    No API key set. Open the <a href="/ui/index.html" class="underline font-semibold">Dashboard</a>
-    and set an <b>admin</b> API key first (stored as <code>fmp_api_key</code>).
-  </div>
-  <div id="error-box" class="hidden bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700"></div>
-  <div id="info-box" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800"></div>
+    <!-- Expand rail (shown when collapsed) -->
+    <button id="rail-expand" type="button" onclick="setRailCollapsed(false)" title="Show maps"
+      class="hidden shrink-0 w-9 border-r border-gray-200 bg-white hover:bg-indigo-50 text-gray-500 text-xs font-semibold">
+      »
+    </button>
 
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-    <!-- LEFT: build + list -->
-    <div class="space-y-4">
-      <!-- Build a draft -->
-      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-3">
-        <h2 class="font-semibold text-gray-800 text-sm uppercase tracking-wide">Build a draft</h2>
-        <p class="text-xs text-gray-500">Run label + canonical mapping on a blank form so you can review it before any patient data.</p>
-        <label class="label">Upload a blank PDF</label>
-        <input id="build-file" type="file" accept="application/pdf" class="text-xs w-full"/>
-        <div class="text-center text-xs text-gray-400">— or —</div>
-        <label class="label">Pick a shipped PA form</label>
-        <select id="build-form" class="inp"><option value="">Loading…</option></select>
-        <button onclick="buildDraft()" id="build-btn"
-          class="w-full bg-indigo-600 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-indigo-700 transition">
-          Build draft
-        </button>
+    <!-- RAIL: build + list -->
+    <aside id="maps-rail" class="rail border-r border-gray-200 bg-white flex flex-col min-h-0 overflow-hidden shrink-0">
+      <div class="px-2 py-1.5 border-b border-gray-100 flex items-center gap-2 shrink-0">
+        <h2 class="font-semibold text-gray-800 text-[11px] uppercase tracking-wide flex-1">Maps</h2>
+        <button type="button" onclick="setRailCollapsed(true)" title="Collapse maps rail"
+          class="text-xs text-gray-500 hover:text-indigo-600 px-1.5 py-0.5 rounded hover:bg-indigo-50">«</button>
       </div>
-
-      <!-- Existing maps -->
-      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-3">
-        <div class="flex items-center justify-between">
-          <h2 class="font-semibold text-gray-800 text-sm uppercase tracking-wide">Saved maps</h2>
-          <button onclick="loadList()" class="text-xs text-indigo-600 hover:underline">Refresh</button>
+      <div class="px-3 py-2 border-b border-gray-100 shrink-0">
+        <button type="button" id="build-toggle" onclick="toggleBuildPanel()"
+          class="w-full text-left text-xs font-semibold text-indigo-700 hover:bg-indigo-50 rounded-lg px-2 py-1.5 border border-indigo-100">
+          + Build draft
+        </button>
+        <div id="build-panel" class="hidden mt-2 space-y-2">
+          <label class="label">Upload blank PDF</label>
+          <input id="build-file" type="file" accept="application/pdf" class="text-[11px] w-full"/>
+          <div class="text-center text-[10px] text-gray-400">— or shipped form —</div>
+          <select id="build-form" class="inp text-xs"><option value="">Loading…</option></select>
+          <button onclick="buildDraft()" id="build-btn"
+            class="w-full bg-indigo-600 text-white rounded-lg py-2 font-semibold text-xs hover:bg-indigo-700 transition">
+            Build draft
+          </button>
         </div>
-        <div class="flex items-center gap-1 text-[11px]">
+      </div>
+      <div class="p-3 border-b border-gray-100 space-y-2 shrink-0">
+        <div class="flex items-center justify-between">
+          <h2 class="font-semibold text-gray-800 text-xs uppercase tracking-wide">Saved maps</h2>
+          <button onclick="loadList()" class="text-[11px] text-indigo-600 hover:underline">Refresh</button>
+        </div>
+        <div class="flex items-center gap-1 text-[11px] flex-wrap">
           <button onclick="setFilter('all')"    id="flt-all"    class="filter-btn">All</button>
           <button onclick="setFilter('draft')"  id="flt-draft"  class="filter-btn">Draft</button>
           <button onclick="setFilter('locked')" id="flt-locked" class="filter-btn">Locked</button>
           <span id="list-count" class="ml-auto text-gray-400"></span>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <label class="flex items-center gap-1 text-[11px] text-gray-500">
-            <input type="checkbox" id="chk-all" onchange="toggleAll(this)"/> select all
+            <input type="checkbox" id="chk-all" onchange="toggleAll(this)"/> all
           </label>
           <button onclick="lockSelected()" id="lock-sel-btn"
             class="ml-auto bg-emerald-600 text-white rounded px-2 py-1 text-[11px] font-semibold hover:bg-emerald-700 disabled:opacity-40" disabled>
@@ -78,26 +79,74 @@
             AI suggest
           </button>
         </div>
-        <div id="map-list" class="space-y-2 text-sm">
-          <div class="text-gray-400 text-xs">Loading…</div>
+      </div>
+      <div id="map-list" class="flex-1 overflow-y-auto p-2 space-y-2 text-sm min-h-0">
+        <div class="text-gray-400 text-xs px-1">Loading…</div>
+      </div>
+    </aside>
+
+    <!-- CENTER: blank PDF preview (50/50 with editor; PDF.js — no thumbnail sidebar) -->
+    <section id="pdf-pane" class="min-h-0 min-w-0 bg-slate-100 flex flex-col" style="flex: 50 1 0;">
+      <div class="px-2 py-1.5 border-b border-gray-200 bg-white flex items-center gap-1.5 shrink-0 flex-wrap">
+        <h2 class="font-semibold text-gray-800 text-xs uppercase tracking-wide shrink-0">Blank PDF</h2>
+        <span id="pdf-status" class="text-[11px] text-gray-400 truncate max-w-[8rem] sm:max-w-xs">Select a map to preview</span>
+        <div id="pdf-page-nav" class="flex items-center gap-1 ml-1 opacity-50 pointer-events-none">
+          <button type="button" onclick="pdfPageBy(-1)" class="pdf-tool" title="Previous page">‹</button>
+          <label class="flex items-center gap-1 text-[11px] text-gray-600">
+            <input id="pdf-page-input" type="number" min="1" value="1"
+              class="w-12 border border-gray-200 rounded px-1 py-0.5 text-center text-[11px] font-semibold"
+              title="Page number — Enter to jump"
+              onkeydown="if(event.key==='Enter'){ event.preventDefault(); goToPdfPage(this.value); }"
+              onchange="goToPdfPage(this.value)"/>
+            <span>/ <span id="pdf-page-total">0</span></span>
+          </label>
+          <button type="button" onclick="pdfPageBy(1)" class="pdf-tool" title="Next page">›</button>
+          <select id="pdf-page-select" class="pdf-tool max-w-[7rem]" title="Jump to page"
+            onchange="goToPdfPage(this.value)" disabled>
+            <option value="">Page…</option>
+          </select>
+        </div>
+        <div class="ml-auto flex items-center gap-1 flex-wrap">
+          <button type="button" onclick="pdfZoomBy(-0.15)" class="pdf-tool" title="Zoom out">−</button>
+          <button type="button" onclick="pdfZoomReset()" id="pdf-zoom-label" class="pdf-tool min-w-[3rem]" title="Fit width = 100%">100%</button>
+          <button type="button" onclick="pdfZoomBy(0.15)" class="pdf-tool" title="Zoom in">+</button>
+          <button type="button" onclick="pdfZoomFit()" class="pdf-tool" title="Fit width">Fit</button>
+          <span class="text-gray-300 px-0.5">|</span>
+          <button type="button" onclick="togglePdfFocus()" id="pdf-focus-btn" class="pdf-tool" title="Widen PDF, shrink mappings">Focus</button>
+          <button type="button" onclick="openPdfTab()" id="pdf-open-btn" class="pdf-tool" title="Open PDF in new tab" disabled>Open</button>
+          <button type="button" onclick="setRailCollapsed(false)" class="pdf-tool" title="Show maps / build">Maps</button>
         </div>
       </div>
-    </div>
+      <div id="pdf-viewport" class="flex-1 min-h-0 overflow-auto relative bg-slate-300/50">
+        <div id="pdf-empty" class="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-gray-500 z-10">
+          Select a saved map (Maps) or open Build draft to preview the blank form here.<br/>
+          <span class="text-[11px] text-gray-400">Pages render full-width — no thumbnail strip.</span>
+        </div>
+        <div id="pdf-pages" class="hidden py-3 px-3 space-y-3"></div>
+      </div>
+    </section>
+
+    <!-- Drag handle between PDF and editor -->
+    <div id="split-handle" title="Drag to resize" class="hidden lg:flex w-1.5 shrink-0 cursor-col-resize bg-gray-200 hover:bg-indigo-400 active:bg-indigo-500 items-stretch"></div>
 
     <!-- RIGHT: editor -->
-    <div class="lg:col-span-2 space-y-4">
-      <div id="editor-empty" class="bg-white rounded-2xl border border-dashed border-gray-300 p-10 text-center text-gray-400 text-sm">
-        Select a saved map on the left, or build a draft, to start reviewing.
+    <section id="editor-pane" class="min-h-0 min-w-0 flex flex-col bg-gray-50 overflow-hidden" style="flex: 50 1 0; min-width: 280px;">
+      <div id="editor-empty" class="m-4 bg-white rounded-2xl border border-dashed border-gray-300 p-10 text-center text-gray-400 text-sm">
+        Select a saved map in the rail, or build a draft, to start reviewing mappings.
       </div>
 
-      <div id="editor" class="hidden bg-white rounded-2xl border border-gray-200 shadow-sm">
-        <div class="p-5 border-b border-gray-100 flex items-center gap-3 flex-wrap">
-          <div>
-            <p class="font-semibold text-gray-800" id="ed-title">—</p>
-            <p class="text-xs text-gray-400 font-mono" id="ed-sub">—</p>
+      <div id="editor" class="hidden flex-1 min-h-0 flex flex-col bg-white">
+
+        <div class="p-3 border-b border-gray-100 flex items-center gap-3 flex-wrap shrink-0">
+          <div class="min-w-0">
+            <p class="font-semibold text-gray-800 truncate" id="ed-title">—</p>
+            <p class="text-xs text-gray-400 font-mono truncate" id="ed-sub">—</p>
+            <p class="text-[11px] text-gray-500 mt-0.5" id="ed-meta">—</p>
+            <a id="ed-tpl-link" href="#" target="_blank" rel="noopener"
+              class="hidden text-[11px] text-indigo-600 hover:underline">Open template PDF</a>
           </div>
           <span id="ed-lock-badge" class="text-xs px-2 py-0.5 rounded-full"></span>
-          <div class="ml-auto flex gap-2">
+          <div class="ml-auto flex gap-2 flex-wrap">
             <button onclick="aiSuggestCurrent()" id="ai-btn"
               class="bg-purple-50 text-purple-700 border border-purple-200 rounded-lg px-3 py-2 font-semibold text-xs hover:bg-purple-100 transition">
               AI suggest tail
@@ -116,15 +165,15 @@
             </a>
           </div>
         </div>
-        <div class="p-3 text-xs text-gray-500" id="ed-stats"></div>
+        <div class="px-3 py-2 text-xs text-gray-500 shrink-0" id="ed-stats"></div>
 
-        <div class="flex gap-1 px-3 border-t border-gray-100 pt-2">
+        <div class="flex gap-1 px-3 border-t border-gray-100 pt-2 shrink-0">
           <button onclick="setTab('canonical')" id="tab-btn-canonical" class="tab-btn">Canonical fields</button>
           <button onclick="setTab('questions')" id="tab-btn-questions" class="tab-btn">Questions &amp; checkboxes</button>
           <button onclick="setTab('signatures')" id="tab-btn-signatures" class="tab-btn">Signatures</button>
         </div>
 
-        <div id="tab-canonical" class="overflow-x-auto max-h-[60vh] border-t border-gray-100">
+        <div id="tab-canonical" class="flex-1 overflow-auto border-t border-gray-100 min-h-0">
           <table class="w-full text-xs">
             <thead class="bg-gray-50 sticky top-0">
               <tr>
@@ -140,7 +189,7 @@
           </table>
         </div>
 
-        <div id="tab-questions" class="hidden overflow-y-auto max-h-[60vh] border-t border-gray-100 p-3 space-y-3">
+        <div id="tab-questions" class="hidden flex-1 overflow-y-auto border-t border-gray-100 p-3 space-y-3 min-h-0">
           <p class="text-[11px] text-gray-400">
             These stay in the form’s own wording (not the shared catalog).
             Yes/No <b>branching</b>, <b>tables</b> (with PDF column headers), and gated blanks
@@ -164,12 +213,11 @@
           <div id="ed-narratives" class="space-y-2"></div>
         </div>
 
-        <div id="tab-signatures" class="hidden overflow-y-auto max-h-[60vh] border-t border-gray-100 p-3">
+        <div id="tab-signatures" class="hidden flex-1 overflow-y-auto border-t border-gray-100 p-3 min-h-0">
           <div id="ed-signatures" class="space-y-2"></div>
         </div>
       </div>
-    </div>
-  </div>
+    </section>
 </main>
 
 <style>
@@ -179,6 +227,7 @@
   .inp.flex-1 { width:auto; min-width:0; flex:1 1 auto }  /* don't fight flex siblings */
   .inp:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.15) }
   .cell-sel { width:100%; border:1px solid #e5e7eb; border-radius:0.375rem; padding:3px 6px; font-size:0.72rem; background:white; box-sizing:border-box }
+  .cell-inp { width:100%; border:1px solid #e5e7eb; border-radius:0.375rem; padding:3px 6px; font-size:0.72rem; background:white; box-sizing:border-box }
   .cell-sel.changed { border-color:#f59e0b; background:#fffbeb }
   .filter-btn { border:1px solid #e5e7eb; border-radius:0.375rem; padding:2px 8px; color:#6b7280; background:white }
   .filter-btn.active { border-color:#6366f1; background:#eef2ff; color:#4338ca; font-weight:600 }
@@ -188,11 +237,35 @@
   .q-card { border:1px solid #e5e7eb; border-radius:0.6rem; padding:10px 12px; background:#fff }
   .q-opt  { font-size:0.72rem; color:#374151; padding:2px 8px; border:1px solid #e5e7eb;
             border-radius:999px; background:#f9fafb; display:inline-block; margin:2px 3px 0 0 }
+  .pdf-tool { border:1px solid #e5e7eb; border-radius:0.375rem; padding:2px 8px; font-size:0.7rem;
+              font-weight:600; color:#374151; background:#fff; line-height:1.4 }
+  .pdf-tool:hover:not(:disabled) { border-color:#6366f1; color:#4338ca; background:#eef2ff }
+  .pdf-tool:disabled { opacity:0.4; cursor:not-allowed }
+  .pdf-tool.active { border-color:#6366f1; background:#eef2ff; color:#4338ca }
+  #maps-rail.rail { width:17rem; }
+  #workspace.rail-collapsed #maps-rail { display:none; }
+  #workspace.rail-collapsed #rail-expand { display:block; }
+  #workspace.pdf-focus #editor-pane { flex: 0 0 22rem !important; min-width: 18rem !important; }
+  #workspace.pdf-focus #pdf-pane { flex: 1 1 auto !important; }
+  #workspace.pdf-focus #pdf-focus-btn { border-color:#6366f1; background:#eef2ff; color:#4338ca }
+  .pdf-page { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.12); margin:0 auto; position:relative; width:fit-content; max-width:100%; }
+  .pdf-page-canvas { display:block; max-width:100%; height:auto; }
+  .pdf-page-num { position:absolute; top:6px; right:6px; font-size:10px; font-weight:600;
+                  color:#64748b; background:rgba(255,255,255,.85); border:1px solid #e2e8f0;
+                  border-radius:999px; padding:1px 7px; pointer-events:none; }
+  body.resizing-split { cursor:col-resize; user-select:none; }
+  body.resizing-split canvas { pointer-events:none; }
+  @media (max-width: 1023px) {
+    #workspace { flex-direction: column; }
+    #maps-rail.rail { width:100%; max-height:40vh; }
+    #split-handle { display:none !important; }
+    #pdf-pane, #editor-pane { flex: 1 1 40% !important; min-height: 40vh; }
+  }
 </style>
 
 <script>
 function getKey(){ return localStorage.getItem('fmp_api_key') || ''; }
-function headers(extra){ return Object.assign({ 'X-API-Key': getKey() }, extra||{}); }
+function headers(extra){ return Object.assign({}, window.fmpAuthHeaders ? fmpAuthHeaders() : {'X-API-Key': getKey()}, extra||{}); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function showErr(m){ const e=document.getElementById('error-box'); e.textContent=m; e.classList.remove('hidden'); }
 function clearErr(){ document.getElementById('error-box').classList.add('hidden'); document.getElementById('info-box').classList.add('hidden'); }
@@ -204,11 +277,389 @@ let pendingEdits = {};   // {field: {canonical, value}}
 let allMaps = [];        // last fetched list
 let filter = 'all';      // all | draft | locked
 let selected = new Set();// selected fingerprints for bulk actions
+let pdfObjectUrl = null; // blob URL for left-pane PDF preview
+let pdfDoc = null;       // PDF.js document (pages rendered as canvases — no thumbs)
+let pdfLoadToken = 0;    // ignore stale async preview responses
+let pdfRenderToken = 0;
+let pdfZoom = 1;         // 1 = fit width of pane
+let pdfZoomTimer = null;
+let pdfFocus = false;
+let buildPanelOpen = false;
+let pdfCurrentPage = 1;
+let pdfPageObserver = null;
+let pdfJumpPending = null; // restore page after re-render / zoom
+const LS_RAIL = 'fmp_map_rail_collapsed';
+const LS_SPLIT = 'fmp_map_pdf_pct_v2'; // v2 default 50/50
+const LS_FOCUS = 'fmp_map_pdf_focus';
+
+if(typeof pdfjsLib !== 'undefined'){
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
 async function api(path, opts){
-  const r = await fetch(path, Object.assign({ headers: headers(opts && opts.json ? {'Content-Type':'application/json'} : undefined) }, opts||{}));
+  const r = await fetch(path, Object.assign({ credentials: 'same-origin', headers: headers(opts && opts.json ? {'Content-Type':'application/json'} : undefined) }, opts||{}));
   if(!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.detail || `HTTP ${r.status}`); }
   return r.json();
+}
+
+function revokePdfUrl(){
+  if(pdfObjectUrl){ URL.revokeObjectURL(pdfObjectUrl); pdfObjectUrl = null; }
+  pdfDoc = null;
+}
+
+function setPdfOpenEnabled(on){
+  const btn = document.getElementById('pdf-open-btn');
+  if(btn) btn.disabled = !on;
+  const nav = document.getElementById('pdf-page-nav');
+  if(nav){
+    nav.classList.toggle('opacity-50', !on);
+    nav.classList.toggle('pointer-events-none', !on);
+  }
+  const sel = document.getElementById('pdf-page-select');
+  if(sel) sel.disabled = !on;
+  const inp = document.getElementById('pdf-page-input');
+  if(inp) inp.disabled = !on;
+}
+
+function updatePdfPageControls(page, total){
+  pdfCurrentPage = page;
+  const inp = document.getElementById('pdf-page-input');
+  const tot = document.getElementById('pdf-page-total');
+  const sel = document.getElementById('pdf-page-select');
+  if(tot) tot.textContent = String(total || 0);
+  if(inp && document.activeElement !== inp){
+    inp.value = String(page || 1);
+    inp.max = String(total || 1);
+  }
+  if(sel && document.activeElement !== sel){
+    sel.value = String(page || 1);
+  }
+}
+
+function fillPdfPageSelect(total){
+  const sel = document.getElementById('pdf-page-select');
+  if(!sel) return;
+  const cur = String(pdfCurrentPage || 1);
+  let html = '';
+  for(let i = 1; i <= total; i++){
+    html += `<option value="${i}">Page ${i}</option>`;
+  }
+  sel.innerHTML = html || '<option value="">Page…</option>';
+  sel.value = cur;
+  sel.disabled = !total;
+}
+
+function disconnectPdfPageObserver(){
+  if(pdfPageObserver){
+    if(typeof pdfPageObserver === 'function'){
+      // scroll listener cleanup
+      const viewportEl = document.getElementById('pdf-viewport');
+      if(viewportEl) viewportEl.removeEventListener('scroll', pdfPageObserver);
+    } else {
+      pdfPageObserver.disconnect();
+    }
+    pdfPageObserver = null;
+  }
+}
+
+function syncPdfPageFromScroll(){
+  if(!pdfDoc) return;
+  const viewportEl = document.getElementById('pdf-viewport');
+  const pages = document.querySelectorAll('#pdf-pages .pdf-page[data-page]');
+  if(!viewportEl || !pages.length) return;
+  const marker = viewportEl.scrollTop + Math.min(80, viewportEl.clientHeight * 0.2);
+  let n = 1;
+  pages.forEach(el=>{
+    if(el.offsetTop <= marker) n = parseInt(el.getAttribute('data-page'), 10) || n;
+  });
+  if(n !== pdfCurrentPage) updatePdfPageControls(n, pdfDoc.numPages);
+}
+
+function observePdfPages(){
+  disconnectPdfPageObserver();
+  const viewportEl = document.getElementById('pdf-viewport');
+  if(!viewportEl) return;
+  // Track current page while scrolling (Adobe-style page indicator).
+  pdfPageObserver = ()=>{ syncPdfPageFromScroll(); };
+  viewportEl.addEventListener('scroll', pdfPageObserver, { passive: true });
+  syncPdfPageFromScroll();
+}
+
+function goToPdfPage(raw){
+  if(!pdfDoc) return;
+  const total = pdfDoc.numPages;
+  let n = parseInt(raw, 10);
+  if(!Number.isFinite(n)) return;
+  n = Math.max(1, Math.min(total, n));
+  const el = document.querySelector(`#pdf-pages .pdf-page[data-page="${n}"]`);
+  if(!el){
+    pdfJumpPending = n;
+    return;
+  }
+  const viewportEl = document.getElementById('pdf-viewport');
+  if(viewportEl){
+    // Align page near the top of the scroll area.
+    const top = el.offsetTop - 8;
+    viewportEl.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  } else {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  updatePdfPageControls(n, total);
+}
+
+function pdfPageBy(delta){
+  goToPdfPage((pdfCurrentPage || 1) + delta);
+}
+
+function toggleBuildPanel(force){
+  buildPanelOpen = (force == null) ? !buildPanelOpen : !!force;
+  const panel = document.getElementById('build-panel');
+  const btn = document.getElementById('build-toggle');
+  if(panel) panel.classList.toggle('hidden', !buildPanelOpen);
+  if(btn) btn.textContent = buildPanelOpen ? '▾ Hide build draft' : '+ Build draft';
+  if(buildPanelOpen) setRailCollapsed(false);
+}
+
+function setPdfEmpty(msg){
+  const pages = document.getElementById('pdf-pages');
+  const empty = document.getElementById('pdf-empty');
+  const status = document.getElementById('pdf-status');
+  pdfRenderToken++;
+  disconnectPdfPageObserver();
+  revokePdfUrl();
+  pdfCurrentPage = 1;
+  pdfJumpPending = null;
+  if(pages){ pages.innerHTML = ''; pages.classList.add('hidden'); }
+  empty.classList.remove('hidden');
+  if(msg){
+    empty.textContent = msg;
+  } else {
+    empty.innerHTML =
+      'Select a saved map (Maps) or open Build draft to preview the blank form here.<br/>' +
+      '<span class="text-[11px] text-gray-400">Pages render full-width — no thumbnail strip.</span>';
+  }
+  if(status) status.textContent = 'No PDF';
+  fillPdfPageSelect(0);
+  updatePdfPageControls(1, 0);
+  setPdfOpenEnabled(false);
+}
+
+function revealPdfPages(){
+  document.getElementById('pdf-pages').classList.remove('hidden');
+  document.getElementById('pdf-empty').classList.add('hidden');
+  setPdfOpenEnabled(true);
+}
+
+async function renderPdfDoc(){
+  const pagesEl = document.getElementById('pdf-pages');
+  const viewportEl = document.getElementById('pdf-viewport');
+  const label = document.getElementById('pdf-zoom-label');
+  if(!pdfDoc || !pagesEl || !viewportEl) return;
+  const keepPage = pdfJumpPending || pdfCurrentPage || 1;
+  const token = ++pdfRenderToken;
+  const z = Math.max(0.5, Math.min(2.5, pdfZoom));
+  pdfZoom = z;
+  if(label) label.textContent = Math.round(z * 100) + '%';
+
+  const pad = 24;
+  const baseWidth = Math.max(280, (viewportEl.clientWidth || 600) - pad);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  disconnectPdfPageObserver();
+  pagesEl.innerHTML = '';
+
+  for(let i = 1; i <= pdfDoc.numPages; i++){
+    if(token !== pdfRenderToken) return;
+    const page = await pdfDoc.getPage(i);
+    const unscaled = page.getViewport({ scale: 1 });
+    const fit = baseWidth / unscaled.width;
+    const scale = fit * z;
+    const viewport = page.getViewport({ scale: scale * dpr });
+    const canvas = document.createElement('canvas');
+    canvas.className = 'pdf-page-canvas';
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    canvas.style.width = Math.floor(viewport.width / dpr) + 'px';
+    canvas.style.height = Math.floor(viewport.height / dpr) + 'px';
+    const wrap = document.createElement('div');
+    wrap.className = 'pdf-page';
+    wrap.setAttribute('data-page', String(i));
+    wrap.id = 'pdf-page-' + i;
+    const badge = document.createElement('div');
+    badge.className = 'pdf-page-num';
+    badge.textContent = i + ' / ' + pdfDoc.numPages;
+    wrap.appendChild(canvas);
+    wrap.appendChild(badge);
+    pagesEl.appendChild(wrap);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  }
+  fillPdfPageSelect(pdfDoc.numPages);
+  updatePdfPageControls(Math.min(keepPage, pdfDoc.numPages), pdfDoc.numPages);
+  observePdfPages();
+  // Restore scroll position after zoom / re-render.
+  pdfJumpPending = null;
+  requestAnimationFrame(()=>{
+    const el = document.querySelector(`#pdf-pages .pdf-page[data-page="${keepPage}"]`);
+    if(el && viewportEl){
+      viewportEl.scrollTop = Math.max(0, el.offsetTop - 8);
+    }
+  });
+}
+
+function schedulePdfRender(){
+  clearTimeout(pdfZoomTimer);
+  // Keep current page across zoom re-renders.
+  pdfJumpPending = pdfCurrentPage || 1;
+  pdfZoomTimer = setTimeout(()=>{ renderPdfDoc().catch(e=>console.warn(e)); }, 100);
+}
+
+function applyPdfZoom(){ schedulePdfRender(); }
+
+function pdfZoomBy(delta){
+  pdfZoom = Math.round((pdfZoom + delta) * 100) / 100;
+  applyPdfZoom();
+}
+function pdfZoomReset(){ pdfZoom = 1; applyPdfZoom(); }
+function pdfZoomFit(){ pdfZoom = 1; applyPdfZoom(); }
+
+function openPdfTab(){
+  if(!pdfObjectUrl){ showErr('No PDF loaded to open.'); return; }
+  window.open(pdfObjectUrl, '_blank', 'noopener');
+}
+
+function setRailCollapsed(collapsed){
+  const ws = document.getElementById('workspace');
+  const expand = document.getElementById('rail-expand');
+  if(!ws) return;
+  ws.classList.toggle('rail-collapsed', !!collapsed);
+  if(expand) expand.classList.toggle('hidden', !collapsed);
+  try { localStorage.setItem(LS_RAIL, collapsed ? '1' : '0'); } catch(_){}
+  requestAnimationFrame(applyPdfZoom);
+}
+
+function togglePdfFocus(){
+  pdfFocus = !pdfFocus;
+  const ws = document.getElementById('workspace');
+  ws.classList.toggle('pdf-focus', pdfFocus);
+  try { localStorage.setItem(LS_FOCUS, pdfFocus ? '1' : '0'); } catch(_){}
+  if(pdfFocus){
+    setRailCollapsed(true);
+  } else {
+    const pct = parseInt(localStorage.getItem(LS_SPLIT) || '50', 10);
+    applySplitPct(isNaN(pct) ? 50 : pct);
+  }
+  requestAnimationFrame(applyPdfZoom);
+}
+
+function applySplitPct(pct){
+  const pdf = document.getElementById('pdf-pane');
+  const ed = document.getElementById('editor-pane');
+  if(!pdf || !ed || pdfFocus) return;
+  pct = Math.max(35, Math.min(70, pct));
+  // Grow factors share space left after the maps rail (true 50/50 when pct=50).
+  pdf.style.flex = pct + ' 1 0';
+  ed.style.flex = (100 - pct) + ' 1 0';
+  try { localStorage.setItem(LS_SPLIT, String(Math.round(pct))); } catch(_){}
+}
+
+function initSplitDrag(){
+  const handle = document.getElementById('split-handle');
+  const ws = document.getElementById('workspace');
+  if(!handle || !ws) return;
+  let dragging = false;
+  handle.addEventListener('mousedown', (e)=>{
+    if(window.matchMedia('(max-width: 1023px)').matches) return;
+    dragging = true;
+    document.body.classList.add('resizing-split');
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e)=>{
+    if(!dragging) return;
+    const rail = document.getElementById('maps-rail');
+    const expand = document.getElementById('rail-expand');
+    const rect = ws.getBoundingClientRect();
+    let left = 0;
+    if(!ws.classList.contains('rail-collapsed') && rail) left += rail.getBoundingClientRect().width;
+    else if(expand && !expand.classList.contains('hidden')) left += expand.getBoundingClientRect().width;
+    const usable = rect.width - left - handle.offsetWidth;
+    if(usable < 100) return;
+    const x = e.clientX - rect.left - left;
+    applySplitPct((x / usable) * 100);
+    applyPdfZoom();
+  });
+  window.addEventListener('mouseup', ()=>{
+    if(!dragging) return;
+    dragging = false;
+    document.body.classList.remove('resizing-split');
+    applyPdfZoom();
+  });
+}
+
+function initReviewLayout(){
+  try {
+    // Prefer review space: rail collapsed unless user explicitly opened it.
+    const railPref = localStorage.getItem(LS_RAIL);
+    setRailCollapsed(railPref !== '0');
+    const pct = parseInt(localStorage.getItem(LS_SPLIT) || '50', 10);
+    applySplitPct(isNaN(pct) ? 50 : pct);
+    if(localStorage.getItem(LS_FOCUS) === '1'){
+      pdfFocus = true;
+      document.getElementById('workspace').classList.add('pdf-focus');
+      setRailCollapsed(true);
+    }
+  } catch(_){ applySplitPct(50); setRailCollapsed(true); }
+  initSplitDrag();
+  window.addEventListener('resize', ()=>{ applyPdfZoom(); });
+}
+
+async function loadPdfFromUrl(url, statusText){
+  if(typeof pdfjsLib === 'undefined'){
+    setPdfEmpty('PDF.js failed to load. Check your network / CDN and refresh.');
+    return;
+  }
+  const status = document.getElementById('pdf-status');
+  if(status) status.textContent = 'Rendering…';
+  pdfDoc = await pdfjsLib.getDocument(url).promise;
+  revealPdfPages();
+  await renderPdfDoc();
+  if(status) status.textContent = statusText || 'Blank PDF';
+}
+
+async function showPdfFor(fp, localFile){
+  const status = document.getElementById('pdf-status');
+  const token = ++pdfLoadToken;
+  revokePdfUrl();
+  setPdfOpenEnabled(false);
+  document.getElementById('pdf-pages').innerHTML = '';
+  if(localFile){
+    pdfObjectUrl = URL.createObjectURL(localFile);
+    try {
+      if(token !== pdfLoadToken) return;
+      await loadPdfFromUrl(pdfObjectUrl, localFile.name || 'Uploaded PDF');
+    } catch(e){
+      if(token !== pdfLoadToken) return;
+      setPdfEmpty(e.message || 'Failed to render PDF.');
+    }
+    return;
+  }
+  if(!fp){ setPdfEmpty(); return; }
+  if(status) status.textContent = 'Loading PDF…';
+  try {
+    const r = await fetch('/api/v1/mappings/'+encodeURIComponent(fp)+'/pdf', { credentials: 'same-origin', headers: headers() });
+    if(token !== pdfLoadToken) return;
+    if(!r.ok){
+      const e = await r.json().catch(()=>({}));
+      setPdfEmpty(e.detail || 'No blank PDF stored for this map. Rebuild the draft to enable preview.');
+      return;
+    }
+    const blob = await r.blob();
+    if(token !== pdfLoadToken) return;
+    pdfObjectUrl = URL.createObjectURL(blob);
+    await loadPdfFromUrl(pdfObjectUrl, (current && current.form_label) || fp.slice(0,12)+'…');
+  } catch(e){
+    if(token !== pdfLoadToken) return;
+    setPdfEmpty(e.message || 'Failed to load PDF preview.');
+  }
 }
 
 // ---- catalog + shipped forms ----
@@ -254,6 +705,21 @@ function visibleMaps(){
   return allMaps;
 }
 
+function fmtWhen(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString(undefined, { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
+}
+function trackLine(m){
+  const when = fmtWhen(m.updated_at || m.cached_at);
+  const who = m.actor || '';
+  if(when && who) return `Updated ${when} · ${who}`;
+  if(when) return `Updated ${when}`;
+  if(who) return who;
+  return '';
+}
+
 function coverageLine(m){
   const total = (m.total_fields!=null?m.total_fields:m.field_count) || 0;
   const mapped = m.mapped_count || 0;
@@ -286,6 +752,7 @@ function renderList(){
           <span class="font-medium text-gray-800 truncate">${name}</span> ${badge}
         </div>
         ${coverageLine(m)}
+        <div class="text-[10px] text-gray-400 mt-0.5 truncate">${trackLine(m)}</div>
       </button>
       <button onclick="aiSuggestOne('${fp}', event)" title="AI-map this form's unmapped tail"
         class="shrink-0 text-[10px] px-1.5 py-1 rounded bg-purple-50 text-purple-700 hover:bg-purple-100">AI</button>
@@ -334,6 +801,7 @@ async function lockSelected(){
     const d = await api('/api/v1/mappings/lock-batch', {
       method:'POST', json:true, body: JSON.stringify({ fingerprints: fps })
     });
+    if(window.fmpReadinessBust) fmpReadinessBust();
     selected.clear();
     await loadList();
     showInfo(`Locked ${d.locked} of ${fps.length} selected map(s).`);
@@ -393,7 +861,10 @@ async function buildDraft(){
     if(formId) fd.append('form_id', formId);
     const d = await api('/api/v1/mappings/build', { method:'POST', body: fd });
     await loadList();
-    renderDetail(d);
+    toggleBuildPanel(false);
+    setRailCollapsed(true);
+    applySplitPct(50);
+    renderDetail(d, file || null);
   } catch(e){ showErr(e.message); }
   finally { btn.disabled=false; btn.textContent='Build draft'; }
 }
@@ -401,8 +872,12 @@ async function buildDraft(){
 // ---- open + render one map ----
 async function openMap(fp){
   clearErr();
-  try { renderDetail(await api('/api/v1/mappings/'+encodeURIComponent(fp))); }
-  catch(e){ showErr(e.message); }
+  try {
+    const d = await api('/api/v1/mappings/'+encodeURIComponent(fp));
+    setRailCollapsed(true);
+    applySplitPct(parseInt(localStorage.getItem(LS_SPLIT) || '50', 10) || 50);
+    renderDetail(d);
+  } catch(e){ showErr(e.message); }
 }
 
 function optionsHtml(selected){
@@ -466,12 +941,25 @@ function rowState(field){
   };
 }
 
-function renderDetail(d){
+function renderDetail(d, localFile){
+  const sameFp = current && current.fingerprint === d.fingerprint;
   current = d; pendingEdits = {};
   document.getElementById('editor-empty').classList.add('hidden');
   document.getElementById('editor').classList.remove('hidden');
   document.getElementById('ed-title').textContent = d.form_label || d.fingerprint;
   document.getElementById('ed-sub').textContent = `fp ${d.fingerprint.slice(0,12)}… · sig ${d.signature||'?'}`;
+  const meta = trackLine(d);
+  document.getElementById('ed-meta').textContent = meta || 'No update history yet';
+  const tplLink = document.getElementById('ed-tpl-link');
+  if(d.template_pdf_url){
+    tplLink.href = d.template_pdf_url;
+    tplLink.classList.remove('hidden');
+  } else {
+    tplLink.href = '#';
+    tplLink.classList.add('hidden');
+  }
+  // Reload preview on new map / upload; keep pane stable across save / AI refresh.
+  if(localFile || !sameFp || !pdfObjectUrl) showPdfFor(d.fingerprint, localFile || null);
   updateLockUI(d.reviewed);
   const spec = d.form_spec || null;
   const nOpts = spec ? (spec.questions||[]).reduce((a,q)=>a+(q.options||[]).length, 0) : 0;
@@ -692,7 +1180,17 @@ function renderSignatures(spec){
     return;
   }
   const roles = ['', 'prescriber', 'patient', 'representative', 'pharmacist', 'witness'];
-  box.innerHTML = sigs.map(s=>{
+  const stampCount = sigs.filter(s => (s.kind||'signature') !== 'date').length;
+  const missing = sigs.filter(s => (s.kind||'signature') !== 'date' && !s.placement).length;
+  box.innerHTML = `
+    <div class="flex items-center justify-between gap-2 mb-2">
+      <p class="text-[11px] text-gray-500">${stampCount} stampable · ${missing ? `<span class="text-amber-700">${missing} missing placement</span>` : '<span class="text-emerald-700">all have placement</span>'}</p>
+      <button type="button" onclick="applyPlacementsFromAcro(false)"
+        class="text-[11px] px-2 py-1 rounded-md border border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+        Auto from AcroForm
+      </button>
+    </div>
+    ${sigs.map(s=>{
     const kind = s.kind || 'signature';
     const kindBadge = kind === 'date'
       ? `<span class="text-[9px] px-1 py-0.5 rounded bg-indigo-50 text-indigo-700">date</span>`
@@ -701,15 +1199,61 @@ function renderSignatures(spec){
       <select class="cell-sel w-44" data-field="${esc(s.field)}" onchange="saveSignatureRole(this)">
         ${roles.map(r=>`<option value="${r}"${(s.role||'')===r?' selected':''}>${r||'— unassigned —'}</option>`).join('')}
       </select>`;
-    return `
-    <div class="q-card flex items-center gap-3">
-      <div class="flex-1">
-        <p class="text-xs text-gray-700">${esc(s.label)} ${kindBadge}</p>
-        <p class="text-[10px] text-gray-400 font-mono">${esc(s.field)}${s.page?` · p${s.page}`:''}</p>
+    const p = s.placement || null;
+    const placeHtml = kind === 'date' ? '' : `
+      <div class="mt-2 grid grid-cols-5 gap-1.5 text-[10px]">
+        <label class="block">page
+          <input type="number" min="0" class="cell-inp w-full" data-place-field="${esc(s.field)}" data-place-k="page_index"
+            value="${p && p.page_index!=null ? p.page_index : ''}" onchange="saveSignaturePlacement(this)"/>
+        </label>
+        <label class="block">x%
+          <input type="number" step="0.1" class="cell-inp w-full" data-place-field="${esc(s.field)}" data-place-k="x_pct"
+            value="${p && p.x_pct!=null ? p.x_pct : ''}" onchange="saveSignaturePlacement(this)"/>
+        </label>
+        <label class="block">y%
+          <input type="number" step="0.1" class="cell-inp w-full" data-place-field="${esc(s.field)}" data-place-k="y_pct"
+            value="${p && p.y_pct!=null ? p.y_pct : ''}" onchange="saveSignaturePlacement(this)"/>
+        </label>
+        <label class="block">w%
+          <input type="number" step="0.1" class="cell-inp w-full" data-place-field="${esc(s.field)}" data-place-k="width_pct"
+            value="${p && p.width_pct!=null ? p.width_pct : ''}" onchange="saveSignaturePlacement(this)"/>
+        </label>
+        <label class="block">h%
+          <input type="number" step="0.1" class="cell-inp w-full" data-place-field="${esc(s.field)}" data-place-k="height_pct"
+            value="${p && p.height_pct!=null ? p.height_pct : ''}" onchange="saveSignaturePlacement(this)"/>
+        </label>
       </div>
-      ${roleSel}
+      <p class="text-[10px] text-gray-400 mt-1">${p
+        ? `Locked stamp · page ${p.page_index} · ${Number(p.width_pct).toFixed(1)}×${Number(p.height_pct).toFixed(1)}%`
+        : 'No placement yet — use Auto from AcroForm or enter % boxes (PDF bottom-left origin).'}</p>`;
+    return `
+    <div class="q-card">
+      <div class="flex items-center gap-3">
+        <div class="flex-1">
+          <p class="text-xs text-gray-700">${esc(s.label)} ${kindBadge}</p>
+          <p class="text-[10px] text-gray-400 font-mono">${esc(s.field)}${s.page?` · p${s.page}`:''}</p>
+        </div>
+        ${roleSel}
+      </div>
+      ${placeHtml}
     </div>`;
-  }).join('');
+  }).join('')}`;
+}
+
+async function applyPlacementsFromAcro(overwrite){
+  if(!current) return;
+  clearErr();
+  try{
+    const d = await api(`/api/v1/mappings/${encodeURIComponent(current.fingerprint)}/form-spec/signatures/placements/from-acro?overwrite=${overwrite?'true':'false'}`,
+      { method:'POST' });
+    current.form_spec = d.form_spec;
+    renderSignatures(d.form_spec);
+    if(d.missing && d.missing.length){
+      showInfo(`Applied AcroForm boxes. Still missing: ${d.missing.join(', ')}`);
+    } else {
+      showInfo('Signature placements locked from AcroForm.');
+    }
+  }catch(e){ showErr(e.message); }
 }
 
 async function patchSpec(path, body){
@@ -727,6 +1271,21 @@ function saveQuestion(el){ patchSpec(`/questions/${encodeURIComponent(el.getAttr
 function saveQuestionInput(el){ patchSpec(`/questions/${encodeURIComponent(el.getAttribute('data-qid'))}`, { input: el.value }); }
 function saveQuestionHint(el){ patchSpec(`/questions/${encodeURIComponent(el.getAttribute('data-qid'))}`, { canonical_hint: el.value }); }
 function saveSignatureRole(el){ patchSpec(`/signatures/${encodeURIComponent(el.getAttribute('data-field'))}`, { role: el.value }); }
+function saveSignaturePlacement(el){
+  const field = el.getAttribute('data-place-field');
+  if(!field || !current) return;
+  const keys = ['page_index','x_pct','y_pct','width_pct','height_pct'];
+  const placement = {};
+  let complete = true;
+  keys.forEach(k=>{
+    const inp = document.querySelector(`[data-place-field="${CSS.escape(field)}"][data-place-k="${k}"]`);
+    const v = inp ? inp.value.trim() : '';
+    if(v === ''){ complete = false; return; }
+    placement[k] = k === 'page_index' ? parseInt(v, 10) : parseFloat(v);
+  });
+  if(!complete) return; // wait until all five filled
+  patchSpec(`/signatures/${encodeURIComponent(field)}`, { placement });
+}
 
 function selectedQuestionIds(){
   return [...document.querySelectorAll('.q-merge-chk:checked')].map(el => el.getAttribute('data-qid'));
@@ -810,7 +1369,7 @@ function updateLockUI(reviewed){
         : '/ui/form_fill.html';
       // Refine href via readiness index (fingerprint → template_id).
       if(current && current.fingerprint){
-        api('/api/v1/templates/readiness').then(ready=>{
+        (window.fmpReadiness ? fmpReadiness() : api('/api/v1/templates/readiness')).then(ready=>{
           const hit = (ready.items||[]).find(r => r.fingerprint === current.fingerprint);
           if(hit && hit.template_id){
             cta.href = '/ui/form_fill.html?template_id='+encodeURIComponent(hit.template_id);
@@ -892,25 +1451,50 @@ async function toggleLock(){
       });
       pendingEdits = {};
     }
+    if(action === 'lock'){
+      const sigs = (current.form_spec && current.form_spec.signatures) || [];
+      const missing = sigs.filter(s => (s.kind||'signature') !== 'date' && !s.placement)
+        .map(s => s.label || s.field);
+      if(missing.length){
+        const ok = confirm(
+          'Some signature lines have no stamp placement yet:\n\n• ' +
+          missing.join('\n• ') +
+          '\n\nLock anyway? (Lock will try Auto from AcroForm first.)'
+        );
+        if(!ok){ btn.disabled=false; btn.textContent='Lock (approve)'; return; }
+      }
+    }
     const d = await api('/api/v1/mappings/'+encodeURIComponent(current.fingerprint)+'/'+action, { method:'POST' });
+    if(window.fmpReadinessBust) fmpReadinessBust();
     renderDetail(d);
     await loadList();
     if(action === 'lock' && d.reviewed){
-      showInfo('Map locked. You can open Guided Fill for this form now.');
+      const warn = d.signature_placement_warnings || [];
+      if(warn.length){
+        showInfo('Map locked, but still missing placement: ' + warn.join(', '));
+      } else {
+        showInfo('Map locked (signature placements included). You can open Guided Fill now.');
+      }
     }
   } catch(e){ showErr(e.message); btn.disabled=false; }
   finally { btn.disabled=false; }
 }
 
 // ---- init ----
-if(!getKey()) document.getElementById('no-key').classList.remove('hidden');
-setFilter('all');
-loadCatalog();
-loadForms();
-loadList().then(()=>{
-  const fp = new URLSearchParams(location.search).get('fp');
-  if(fp) openMap(fp);
-});
+(async function(){
+  if (window.fmpRequireAdminPage && !(await fmpRequireAdminPage())) return;
+  if(!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+    document.getElementById('no-key').classList.remove('hidden');
+  }
+  initReviewLayout();
+  setFilter('all');
+  loadCatalog();
+  loadForms();
+  loadList().then(()=>{
+    const fp = new URLSearchParams(location.search).get('fp');
+    if(fp) openMap(fp);
+  });
+})();
 </script>
 </body>
 </html>

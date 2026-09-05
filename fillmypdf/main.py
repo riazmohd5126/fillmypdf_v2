@@ -9,17 +9,20 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
 
+from .api.dependencies.auth import require_admin
 from .api.dependencies.rate_limit import limiter
 from .api.error_handlers import rate_limit_exceeded_handler, register_exception_handlers
 from .api.middleware.request_id import RequestIDMiddleware
 from .api.routes import keys, profiles
 from .config import settings
 from .models import HealthResponse, UsageStats
+from .services.account_service import AccountService
 from .services.api_key_service import APIKeyService
 
 # Import batch routes
@@ -120,8 +123,11 @@ profiles.increment_profiles_created = increment_profiles_created
 # ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Bootstrap: if no API keys exist, create an admin key and print it
-    bootstrap_key = APIKeyService().bootstrap_admin_key_if_empty()
+    admin_login = AccountService().ensure_admin_user()
+    # Fallback only when no operator email is configured and the key store is empty.
+    bootstrap_key = None
+    if not admin_login:
+        bootstrap_key = APIKeyService().bootstrap_admin_key_if_empty()
 
     # Start background job runner
     if HAS_JOBS:
@@ -135,16 +141,21 @@ async def lifespan(app: FastAPI):
     print(f"📊 Profile limits: {settings.PROFILE_LIMITS}")
     print(f"📦 Batch:          {'Enabled' if HAS_BATCH else 'Disabled'}")
     print(f"✍️  E-sign overlay: {'Enabled' if HAS_SIGNING else 'Disabled'}")
-    print(f"🔑 Auth:           Enabled (X-API-Key required)")
+    print(f"🔑 Auth:           Email/password (cookie) or X-API-Key")
     print(f"⏱️  Rate limits:    {settings.RATE_LIMITS}")
     print(f"🌐 CORS origins:   {settings.CORS_ORIGINS}")
-    print(f"📖 API Docs:       http://localhost:{settings.API_PORT}/docs")
+    print(f"📖 API Docs:       http://localhost:{settings.API_PORT}/docs (admin key)")
 
+    if admin_login:
+        print(f"\n{'─'*70}")
+        print(f"🔐 {admin_login}")
+        print(f"   Password is ADMIN_PASSWORD from .env (not printed).")
+        print(f"{'─'*70}")
     if bootstrap_key:
         print(f"\n{'─'*70}")
         print(f"🆕 BOOTSTRAP ADMIN KEY (save this — it will NEVER be shown again):")
         print(f"   {bootstrap_key.key}")
-        print(f"   ↑ Use this key in the 'X-API-Key' header to call any endpoint.")
+        print(f"   ↑ Prefer ADMIN_EMAIL / ADMIN_PASSWORD and /ui/login.html instead.")
         print(f"{'─'*70}")
     print(f"{'='*70}\n")
 
@@ -199,8 +210,9 @@ app = FastAPI(
         "(``POST /api/v1/jobs/...``) with progress polling and completion webhooks."
     ),
     version=settings.APP_VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
     openapi_tags=_OPENAPI_TAGS,
     lifespan=lifespan,
 )
@@ -241,6 +253,56 @@ async def count_requests(request: Request, call_next):
     if request.url.path.startswith(("/ui", "/static")):
         response.headers["Cache-Control"] = "no-cache, must-revalidate"
     return response
+
+
+# ---------------------------------------------------------------------------
+# Admin-only API docs (not shown to clinic logins)
+# ---------------------------------------------------------------------------
+def _spec_json() -> str:
+    return json.dumps(app.openapi()).replace("<", "\\u003c")
+
+
+def _swagger_html(spec: str) -> str:
+    title = f"{settings.APP_NAME} API"
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>{title}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css"/>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    SwaggerUIBundle({{
+      spec: {spec},
+      dom_id: "#swagger-ui",
+      persistAuthorization: true
+    }});
+  </script>
+</body>
+</html>
+"""
+
+
+def _redoc_html(spec: str) -> str:
+    title = f"{settings.APP_NAME} API"
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>{title}</title>
+</head>
+<body>
+  <div id="redoc-container"></div>
+  <script src="https://cdn.jsdelivr.net/npm/redoc@2/bundles/redoc.standalone.js"></script>
+  <script>
+    Redoc.init({spec}, {{}}, document.getElementById("redoc-container"));
+  </script>
+</body>
+</html>
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -302,11 +364,29 @@ async def get_usage():
     )
 
 
+@app.get("/openapi.json", include_in_schema=False)
+async def openapi_spec(_admin: dict = Depends(require_admin)):
+    return JSONResponse(app.openapi())
+
+
+@app.get("/docs", include_in_schema=False)
+async def swagger_docs(_admin: dict = Depends(require_admin)):
+    return HTMLResponse(_swagger_html(_spec_json()))
+
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc_docs(_admin: dict = Depends(require_admin)):
+    return HTMLResponse(_redoc_html(_spec_json()))
+
+
 # ---------------------------------------------------------------------------
 # Include routers (all require auth via router-level dependency)
 # ---------------------------------------------------------------------------
 app.include_router(keys.router, prefix="/api/v1")
 app.include_router(profiles.router, prefix="/api/v1")
+from .api.routes import auth_routes, account_routes
+app.include_router(auth_routes.router, prefix="/api/v1")
+app.include_router(account_routes.router, prefix="/api/v1")
 
 if HAS_BATCH:
     app.include_router(batch_routes.router, prefix="/api/v1")

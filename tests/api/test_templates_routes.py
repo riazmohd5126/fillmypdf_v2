@@ -84,34 +84,45 @@ def _plain(key_dict: dict) -> str:
 
 class TestListTemplates:
 
-    def test_list_returns_templates(self, client, free_api_key):
+    def test_list_returns_templates(self, client, admin_api_key):
         with patch("fillmypdf.api.routes.templates._get_service") as mock:
             mock.return_value.list.return_value = [FAKE_LIST_ITEM]
-            resp = client.get(BASE, headers={"X-API-Key": _plain(free_api_key)})
+            resp = client.get(BASE, headers={"X-API-Key": _plain(admin_api_key)})
         assert resp.status_code == 200
         body = resp.json()
         assert body["total"] == 1
         assert body["templates"][0]["id"] == "pa_linzess_test"
 
-    def test_list_empty(self, client, free_api_key):
+    def test_list_empty(self, client, admin_api_key):
         with patch("fillmypdf.api.routes.templates._get_service") as mock:
             mock.return_value.list.return_value = []
-            resp = client.get(BASE, headers={"X-API-Key": _plain(free_api_key)})
+            resp = client.get(BASE, headers={"X-API-Key": _plain(admin_api_key)})
         assert resp.status_code == 200
         assert resp.json()["total"] == 0
 
-    def test_list_passes_filters(self, client, free_api_key):
+    def test_list_passes_filters(self, client, admin_api_key):
         with patch("fillmypdf.api.routes.templates._get_service") as mock:
             mock.return_value.list.return_value = [FAKE_LIST_ITEM]
             resp = client.get(
                 BASE + "?drug=linzess&state=TX",
-                headers={"X-API-Key": _plain(free_api_key)},
+                headers={"X-API-Key": _plain(admin_api_key)},
             )
         assert resp.status_code == 200
         # Verify the service was called with the filters
         call_kwargs = mock.return_value.list.call_args.kwargs
         assert call_kwargs.get("drug") == "linzess"
         assert call_kwargs.get("state") == "TX"
+
+    def test_clinic_hides_unreviewed_shared(self, client, free_api_key):
+        with patch("fillmypdf.api.routes.templates._get_service") as mock:
+            mock.return_value.list.return_value = [FAKE_LIST_ITEM]
+            with patch(
+                "fillmypdf.api.routes.templates.template_listed_for",
+                return_value=False,
+            ):
+                resp = client.get(BASE, headers={"X-API-Key": _plain(free_api_key)})
+        assert resp.status_code == 200
+        assert resp.json()["total"] == 0
 
     def test_list_requires_auth(self, client):
         resp = client.get(BASE)
@@ -125,12 +136,12 @@ class TestListTemplates:
 
 class TestGetTemplate:
 
-    def test_get_existing(self, client, free_api_key):
+    def test_get_existing(self, client, admin_api_key):
         with patch("fillmypdf.api.routes.templates._get_service") as mock:
             mock.return_value.get.return_value = FAKE_MANIFEST
             resp = client.get(
                 f"{BASE}/pa_linzess_test",
-                headers={"X-API-Key": _plain(free_api_key)},
+                headers={"X-API-Key": _plain(admin_api_key)},
             )
         assert resp.status_code == 200
         body = resp.json()
@@ -159,14 +170,14 @@ class TestGetTemplate:
 
 class TestInspectFields:
 
-    def test_inspect_existing(self, client, free_api_key):
+    def test_inspect_existing(self, client, admin_api_key):
         fake_fields = {"fields_detected": 5, "fields": []}
         with patch("fillmypdf.api.routes.templates._get_service") as mock:
             mock.return_value.get.return_value = FAKE_MANIFEST
             mock.return_value.inspect_fields.return_value = fake_fields
             resp = client.get(
                 f"{BASE}/pa_linzess_test/fields",
-                headers={"X-API-Key": _plain(free_api_key)},
+                headers={"X-API-Key": _plain(admin_api_key)},
             )
         assert resp.status_code == 200
         assert resp.json()["fields_detected"] == 5
@@ -192,19 +203,48 @@ class TestFillTemplate:
         with patch("fillmypdf.api.routes.templates._get_service") as mock:
             mock.return_value.get.return_value = FAKE_MANIFEST
             mock.return_value.fill.return_value = FAKE_FILL_RESP
-            resp = client.post(
-                f"{BASE}/pa_linzess_test/fill",
-                data={
-                    "ai_api_key": "test-key",
-                    "user_data": json.dumps({"first_name": "Jane", "last_name": "Doe"}),
-                },
-                headers={"X-API-Key": _plain(pro_api_key)},
-            )
+            with patch(
+                "fillmypdf.api.routes.templates.template_has_locked_map",
+                return_value=True,
+            ):
+                with patch(
+                    "fillmypdf.api.routes.templates.template_listed_for",
+                    return_value=True,
+                ):
+                    resp = client.post(
+                        f"{BASE}/pa_linzess_test/fill",
+                        data={
+                            "ai_api_key": "test-key",
+                            "user_data": json.dumps({"first_name": "Jane", "last_name": "Doe"}),
+                        },
+                        headers={"X-API-Key": _plain(pro_api_key)},
+                    )
         assert resp.status_code == 200
         body = resp.json()
         assert body["success"] is True
         assert body["fields_filled"] == 7
         assert "download_url" in body
+
+    def test_fill_unlocked_returns_409(self, client, pro_api_key):
+        with patch("fillmypdf.api.routes.templates._get_service") as mock:
+            mock.return_value.get.return_value = FAKE_MANIFEST
+            with patch(
+                "fillmypdf.api.routes.templates.template_listed_for",
+                return_value=True,
+            ):
+                with patch(
+                    "fillmypdf.api.routes.templates.template_has_locked_map",
+                    return_value=False,
+                ):
+                    resp = client.post(
+                        f"{BASE}/pa_linzess_test/fill",
+                        data={
+                            "ai_api_key": "test-key",
+                            "user_data": json.dumps({"first_name": "Jane"}),
+                        },
+                        headers={"X-API-Key": _plain(pro_api_key)},
+                    )
+        assert resp.status_code == 409
 
     def test_fill_invalid_json_returns_400(self, client, pro_api_key):
         with patch("fillmypdf.api.routes.templates._get_service") as mock:
@@ -239,14 +279,22 @@ class TestBatchFillTemplate:
         with patch("fillmypdf.api.routes.templates._get_service") as mock:
             mock.return_value.get.return_value = FAKE_MANIFEST
             mock.return_value.fill_batch.return_value = FAKE_BATCH_RESP
-            resp = client.post(
-                f"{BASE}/pa_linzess_test/batch",
-                data={
-                    "ai_api_key": "test-key",
-                    "records": json.dumps(records),
-                },
-                headers={"X-API-Key": _plain(pro_api_key)},
-            )
+            with patch(
+                "fillmypdf.api.routes.templates.template_has_locked_map",
+                return_value=True,
+            ):
+                with patch(
+                    "fillmypdf.api.routes.templates.template_listed_for",
+                    return_value=True,
+                ):
+                    resp = client.post(
+                        f"{BASE}/pa_linzess_test/batch",
+                        data={
+                            "ai_api_key": "test-key",
+                            "records": json.dumps(records),
+                        },
+                        headers={"X-API-Key": _plain(pro_api_key)},
+                    )
         assert resp.status_code == 200
         body = resp.json()
         assert body["successful"] == 2

@@ -55,6 +55,17 @@ from ...models.template import (
 )
 from ...services.template_service import TemplateService
 from ...services.ai_provider import prepare_ai_config
+from ...services import template_signature_cache
+from ...services.template_access import (
+    LOCK_REQUIRED_MSG,
+    is_admin,
+    map_index,
+    template_has_locked_map,
+    template_listed_for,
+    template_visible,
+)
+from ...services.account_service import account_scope
+from ...repositories.account_data_repository import AccountDataRepository
 from ..dependencies.auth import require_api_key, require_admin
 from ..openapi_form_examples import (
     EX_AI_API_KEY,
@@ -80,6 +91,65 @@ def _get_service() -> TemplateService:
     return TemplateService()
 
 
+def _principal(request: Request) -> dict:
+    return getattr(request.state, "api_key", None) or {}
+
+
+def _norm_map_key(text: str) -> str:
+    import re
+    return re.sub(r"[^a-z0-9]+", "", (text or "").lower())
+
+
+def _enrich_field_counts(items: list, signatures: dict) -> None:
+    """Fill ``field_count`` from locked/cached maps (widget labels), not empty questionnaire lists."""
+    if not items:
+        return
+    from ...services.canonical_map_cache import CanonicalMapCache
+
+    by_sig: dict = {}
+    by_label: dict = {}
+    for e in CanonicalMapCache().list_index():
+        n = int(e.get("field_count") or 0)
+        if n <= 0:
+            continue
+        sig = (e.get("signature") or "").strip()
+        if sig:
+            by_sig[sig] = max(by_sig.get(sig, 0), n)
+        lab = _norm_map_key(e.get("form_label") or "")
+        if lab:
+            by_label[lab] = max(by_label.get(lab, 0), n)
+    for item in items:
+        n = 0
+        sig = signatures.get(item.id) if signatures else None
+        if sig:
+            n = by_sig.get(sig, 0)
+        if not n:
+            n = by_label.get(_norm_map_key(item.id), 0) or by_label.get(
+                _norm_map_key(item.name), 0
+            )
+        if n:
+            item.field_count = n
+
+
+def _ensure_visible(template_id: str, request: Request):
+    return _ensure_visible_key(template_id, _principal(request))
+
+
+def _ensure_visible_key(template_id: str, api_key: dict):
+    try:
+        manifest = _get_service().get(template_id)
+    except KeyError:
+        raise HTTPException(404, f"Template '{template_id}' not found")
+    if not template_listed_for(manifest, api_key, service=_get_service()):
+        raise HTTPException(404, f"Template '{template_id}' not found")
+    return manifest
+
+
+def _require_locked(template_id: str) -> None:
+    if not template_has_locked_map(template_id, service=_get_service()):
+        raise HTTPException(409, LOCK_REQUIRED_MSG)
+
+
 # ---------------------------------------------------------------------------
 # List
 # ---------------------------------------------------------------------------
@@ -87,6 +157,7 @@ def _get_service() -> TemplateService:
 
 @router.get("", response_model=TemplateListResponse, summary="List form templates")
 async def list_templates(
+    request: Request,
     category: Optional[str] = Query(
         None,
         description="e.g. prior_authorization",
@@ -117,6 +188,10 @@ async def list_templates(
         description="Tag match, e.g. medicaid",
         examples=["medicaid"],
     ),
+    mine: bool = Query(
+        False,
+        description="If true, only templates pinned in this clinic's library (plus private uploads)",
+    ),
 ):
     """
     Browse the template library.  All filters are optional and can be combined.
@@ -135,6 +210,44 @@ async def list_templates(
         specialty=specialty,
         tag=tag,
     )
+    api_key = _principal(request)
+    items = [i for i in items if template_visible(i, api_key)]
+    if not is_admin(api_key):
+        # Build the locked-map index and warm every signature up front: doing
+        # either one per template turned this listing into thousands of file
+        # reads and a PDF open per form.
+        index = map_index()
+        template_signature_cache.get_many(
+            # Private uploads are listed without a lock check, so they need no
+            # signature here.
+            [i.id for i in items if getattr(i, "visibility", "shared") != "private"],
+            service=svc,
+            allow_convert=False,
+        )
+        items = [
+            i for i in items
+            if template_listed_for(
+                i, api_key, service=svc, index=index, allow_convert=False
+            )
+        ]
+    pinned = set()
+    try:
+        pinned = set(AccountDataRepository().get_library(account_scope(api_key)).get("template_ids") or [])
+    except Exception:
+        pinned = set()
+    if mine:
+        items = [
+            i for i in items
+            if i.id in pinned or (getattr(i, "visibility", "shared") == "private")
+        ]
+    for i in items:
+        i.pinned = i.id in pinned
+    sigs = template_signature_cache.get_many(
+        [i.id for i in items],
+        service=svc,
+        allow_convert=False,
+    )
+    _enrich_field_counts(items, sigs)
     return TemplateListResponse(templates=items, total=len(items))
 
 
@@ -143,17 +256,12 @@ async def list_templates(
 # ---------------------------------------------------------------------------
 
 
-def _norm_map_key(text: str) -> str:
-    import re
-    return re.sub(r"[^a-z0-9]+", "", (text or "").lower())
-
-
 @router.get(
     "/readiness",
     response_model=TemplateReadinessResponse,
     summary="Which templates have a locked map for Guided Fill",
 )
-async def templates_readiness():
+async def templates_readiness(request: Request):
     """Return Ready / Needs mapping status for every template.
 
     Matches templates to canonical maps by structure signature when cheap, and
@@ -161,12 +269,12 @@ async def templates_readiness():
     Template Library and Guided Fill pickers.
     """
     from ...services.canonical_map_cache import CanonicalMapCache
-    from ...services.vision_service import VisionService
 
     svc = _get_service()
-    items = svc.list()
+    items = [t for t in svc.list() if template_visible(t, _principal(request))]
     cache = CanonicalMapCache()
-    entries = cache.list_entries()
+    # Identity + lock state only; the reviewer coverage stats are not used here.
+    entries = cache.list_index()
 
     by_sig: dict = {}
     by_label: dict = {}
@@ -192,25 +300,25 @@ async def templates_readiness():
             if prev is None or (ready and not prev.get("ready")):
                 by_label[nk] = row
 
-    vs = VisionService("", "", "")
+    # Signatures come from the persisted cache, so a warm library needs no PDF
+    # opens at all. A form with no fillable version yet simply has no signature
+    # to match on and reports as needing mapping.
+    signatures = template_signature_cache.get_many(
+        [t.id for t in items], service=svc, allow_convert=False
+    )
+
     out: list[TemplateReadinessItem] = []
     for t in items:
         hit = by_label.get(_norm_map_key(t.id)) or by_label.get(_norm_map_key(t.name))
         if hit is None:
-            # Compute structure signature for a precise match (fillable cache helps).
-            try:
-                fillable = svc._ensure_fillable(t.id)
-                fields = vs._get_fields_with_coords(str(fillable))
-                if fields:
-                    sig = cache.signature(fields)
-                    hit = by_sig.get(sig) or {
-                        "ready": False,
-                        "fingerprint": None,
-                        "signature": sig,
-                        "form_label": None,
-                    }
-            except Exception:
-                hit = None
+            sig = signatures.get(t.id)
+            if sig:
+                hit = by_sig.get(sig) or {
+                    "ready": False,
+                    "fingerprint": None,
+                    "signature": sig,
+                    "form_label": None,
+                }
         if hit is None:
             hit = {
                 "ready": False,
@@ -238,17 +346,14 @@ async def templates_readiness():
 
 
 @router.get("/{template_id}", response_model=TemplateManifest, summary="Get template manifest")
-async def get_template(template_id: str):
+async def get_template(template_id: str, request: Request):
     """
     Return the full manifest for a template — drug info, payer, indications,
     and the complete questionnaire (key + display text for every Y/N question).
 
     Use this to render a "fill" UI without downloading the PDF first.
     """
-    try:
-        return _get_service().get(template_id)
-    except KeyError:
-        raise HTTPException(404, f"Template '{template_id}' not found")
+    return _ensure_visible(template_id, request)
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +365,7 @@ async def get_template(template_id: str):
     "/{template_id}/fields",
     summary="Inspect detected form fields (no AI)",
 )
-async def inspect_template_fields(template_id: str):
+async def inspect_template_fields(template_id: str, request: Request):
     """
     Run CommonForms field detection + pdfplumber label extraction on the stored
     template PDF and return the detected AcroForm fields with inferred labels.
@@ -268,11 +373,7 @@ async def inspect_template_fields(template_id: str):
     **No AI call is made.** Use this to validate that field detection looks
     correct before running paid AI fills.
     """
-    try:
-        svc = _get_service()
-        svc.get(template_id)  # ensure exists
-    except KeyError:
-        raise HTTPException(404, f"Template '{template_id}' not found")
+    _ensure_visible(template_id, request)
 
     try:
         data = _get_service().inspect_fields(template_id)
@@ -291,7 +392,7 @@ async def inspect_template_fields(template_id: str):
     "/{template_id}/schema",
     summary="Canonical intake schema for a template (from its reviewed/locked map)",
 )
-async def get_template_schema(template_id: str):
+async def get_template_schema(template_id: str, request: Request):
     """
     Return the set of canonical fields this template needs, derived from its
     **locked** canonical map (see the Mapping Review workflow). Drives the guided
@@ -305,11 +406,8 @@ async def get_template_schema(template_id: str):
     from ...services.form_spec_cache import FormSpecCache
     from ...services.vision_service import VisionService
 
-    try:
-        svc = _get_service()
-        svc.get(template_id)  # ensure exists
-    except KeyError:
-        raise HTTPException(404, f"Template '{template_id}' not found")
+    _ensure_visible(template_id, request)
+    svc = _get_service()
 
     try:
         fillable_path = svc._ensure_fillable(template_id)
@@ -431,8 +529,35 @@ async def get_template_schema(template_id: str):
         for p, names in by_path.items()
     }
 
+    # Per-form requiredness. Three inputs, most specific first:
+    #   1. ``required_fields`` / ``optional_fields`` on the locked map — an
+    #      admin's decision for THIS form, authoritative when present.
+    #   2. the PDF's own /Ff Required bit, when the document declares it (a
+    #      CommonForms-converted form never does; a native fillable one may).
+    #   3. the canonical catalog's generic ``required`` hint, already on the
+    #      field, used only when neither of the above says anything.
+    required_names = {
+        str(f.get("name")) for f in fields_info if f.get("name") and f.get("required")
+    }
+    required_names |= {str(n) for n in (locked.get("required_fields") or [])}
+    optional_names = {str(n) for n in (locked.get("optional_fields") or [])}
+    required_names -= optional_names
+
+    def _declared(names: list) -> Optional[bool]:
+        """The form's own verdict, or None to fall back to the catalog hint."""
+        names = [str(n) for n in (names or []) if n]
+        if not names:
+            return None
+        if any(n in required_names for n in names):
+            return True
+        if all(n in optional_names for n in names):
+            return False
+        return None
+
     def _annotate(field: dict) -> dict:
         field["rows"] = rows_by_path.get(field.get("canonical"), 1)
+        declared = _declared(field.get("form_fields"))
+        field["required"] = bool(field.get("required")) if declared is None else declared
         return field
 
     for f in schema.get("fields", []):
@@ -445,6 +570,19 @@ async def get_template_schema(template_id: str):
     for g in intake.get("canonical", {}).get("groups", []):
         for f in g.get("fields", []):
             _annotate(f)
+
+    # Form-specific items have no catalog hint at all, so they are required only
+    # when this form says so.
+    for q in intake.get("questions") or []:
+        q["required"] = bool(
+            _declared([o.get("field") for o in (q.get("options") or [])])
+        )
+    for n in intake.get("narratives") or []:
+        n["required"] = bool(_declared([n.get("field")]))
+    for s in intake.get("signatures") or []:
+        s["required"] = bool(_declared([s.get("acro_field"), s.get("field")]))
+    for ex in intake.get("extras") or []:
+        ex["required"] = bool(_declared([ex.get("field"), ex.get("acro_field")]))
 
     # Attach e-sign box placement (%) so Guided Fill can stamp signatures
     # after fill without asking the user for coordinates.
@@ -459,6 +597,49 @@ async def get_template_schema(template_id: str):
     except Exception as exc:
         print(f"  ⚠️  signature placement enrich skipped: {exc}")
 
+    # Widget stamp boxes for client-side live field overlay (pre-fill preview).
+    widget_placements: dict = {}
+    try:
+        from ...services.esign_service import page_sizes_pts, placement_from_acro_field
+
+        sizes = page_sizes_pts(fillable_path)
+        for f in fields_info or []:
+            name = f.get("name")
+            if not name:
+                continue
+            page = int(f.get("page") or 0)
+            pw, ph = sizes.get(page, (0.0, 0.0))
+            place = placement_from_acro_field(f, pw, ph, min_height_pct=1.5)
+            if place:
+                widget_placements[str(name)] = place
+    except Exception as exc:
+        print(f"  ⚠️  widget placement map skipped: {exc}")
+
+    # The resolved required-widget set, so the PDF overlay can tint an empty
+    # required box amber without re-deriving the rules above. This is wider than
+    # ``required_names``: a catalog-required canonical field makes every widget
+    # it feeds required too.
+    effective_required = set(required_names)
+    for g in intake.get("canonical", {}).get("groups", []):
+        for f in g.get("fields", []):
+            if f.get("required"):
+                effective_required |= {str(n) for n in (f.get("form_fields") or [])}
+    for q in intake.get("questions") or []:
+        if q.get("required"):
+            effective_required |= {
+                str(o.get("field")) for o in (q.get("options") or []) if o.get("field")
+            }
+    for coll, keys in (
+        (intake.get("narratives"), ("field",)),
+        (intake.get("signatures"), ("acro_field", "field")),
+        (intake.get("extras"), ("field", "acro_field")),
+    ):
+        for item in coll or []:
+            if item.get("required"):
+                effective_required |= {str(item[k]) for k in keys if item.get(k)}
+    effective_required -= optional_names
+    widget_required = {name: True for name in sorted(effective_required)}
+
     return {
         "template_id": template_id,
         "reviewed": True,
@@ -466,6 +647,8 @@ async def get_template_schema(template_id: str):
         "signature": sig,
         "schema": schema,
         "intake": intake,
+        "widget_placements": widget_placements,
+        "widget_required": widget_required,
     }
 
 
@@ -475,11 +658,12 @@ async def get_template_schema(template_id: str):
 
 
 @router.get("/{template_id}/pdf", summary="Download the raw template PDF")
-async def get_template_pdf(template_id: str):
+async def get_template_pdf(template_id: str, request: Request):
     """
     Stream the original (static/fillable) template PDF.  Useful for previewing
     the form in a browser or downloading it.
     """
+    _ensure_visible(template_id, request)
     try:
         pdf_path = _get_service().get_pdf_path(template_id)
     except KeyError:
@@ -571,10 +755,8 @@ async def fill_template(
     except json.JSONDecodeError:
         raise HTTPException(400, "user_data must be valid JSON")
 
-    try:
-        tpl = _get_service().get(template_id)
-    except KeyError:
-        raise HTTPException(404, f"Template '{template_id}' not found")
+    tpl = _ensure_visible_key(template_id, api_key)
+    _require_locked(template_id)
 
     parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
 
@@ -585,6 +767,7 @@ async def fill_template(
             request_model=ai_model,
             provider_hint=ai_provider,
             category=tpl.category,
+            require_cloud_key=False,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc))
@@ -615,7 +798,7 @@ async def fill_template(
 # ---------------------------------------------------------------------------
 
 
-def _intake_for_template(template_id: str) -> tuple[dict, str, str]:
+def _intake_for_template(template_id: str, api_key: Optional[dict] = None) -> tuple[dict, str, str]:
     """Return (intake_schema, fingerprint, signature) for a locked template."""
     from ...services.canonical_map_cache import CanonicalMapCache
     from ...services.canonical_schema import intake_schema
@@ -623,10 +806,13 @@ def _intake_for_template(template_id: str) -> tuple[dict, str, str]:
     from ...services.vision_service import VisionService
 
     svc = _get_service()
-    try:
-        svc.get(template_id)
-    except KeyError:
-        raise HTTPException(404, f"Template '{template_id}' not found")
+    if api_key is not None:
+        _ensure_visible_key(template_id, api_key)
+    else:
+        try:
+            svc.get(template_id)
+        except KeyError:
+            raise HTTPException(404, f"Template '{template_id}' not found")
     fillable = svc._ensure_fillable(template_id)
     fields = VisionService("", "", "")._get_fields_with_coords(str(fillable))
     if not fields:
@@ -648,7 +834,7 @@ def _intake_for_template(template_id: str) -> tuple[dict, str, str]:
     "/{template_id}/guided-csv",
     summary="Download Guided Batch CSV template + column legend",
 )
-async def download_guided_csv_template(template_id: str):
+async def download_guided_csv_template(template_id: str, request: Request):
     """CSV header row for Guided Batch, plus JSON legend in the response body.
 
     Returns JSON: ``{csv, headers, legend, fingerprint, signature}``.
@@ -659,7 +845,7 @@ async def download_guided_csv_template(template_id: str):
     import csv as _csv
     import io as _io
 
-    intake, fp, sig = _intake_for_template(template_id)
+    intake, fp, sig = _intake_for_template(template_id, _principal(request))
     headers = intake_csv_headers(intake)
     legend = intake_csv_legend(intake)
     buf = _io.StringIO()
@@ -693,7 +879,7 @@ async def guided_batch_csv(
     profile_id: Optional[str] = Form(None, examples=[EX_PROFILE_ID]),
     profile_ids: Optional[str] = Form(
         None,
-        description="Comma-separated base profiles (provider/facility) merged into every row",
+        description="Comma-separated base profiles (patient/provider/facility/pharmacy/encounter) merged into every row; CSV cells override",
     ),
     signature_mode: str = Form(
         default="none",
@@ -713,15 +899,17 @@ async def guided_batch_csv(
 ):
     """Fill many rows using the locked map (canonical / q: / t: columns).
 
-    Download the header row from ``GET .../guided-csv`` first. Provider
-    profiles can be attached once via ``profile_ids``; each CSV row supplies
-    the patient + clinical values.
+    Download the header row from ``GET .../guided-csv`` first. Optional
+    clinic profiles (patient, provider, facility, pharmacy, encounter) can be
+    attached once via ``profile_ids`` and are merged into every row; non-empty
+    CSV cells override. Use a patient profile only as a fallback — typically
+    each row is a different patient.
     """
     import csv as _csv
     import io as _io
 
-    # Ensure locked map exists
-    _intake_for_template(template_id)
+    # Ensure locked map exists and this clinic can see the form
+    _intake_for_template(template_id, api_key)
 
     raw = await csv_file.read()
     try:
@@ -744,10 +932,7 @@ async def guided_batch_csv(
     if len(records) > 500:
         raise HTTPException(400, "Maximum 500 rows per batch")
 
-    try:
-        tpl = _get_service().get(template_id)
-    except KeyError:
-        raise HTTPException(404, f"Template '{template_id}' not found")
+    tpl = _ensure_visible_key(template_id, api_key)
 
     parsed_ids = (
         [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
@@ -760,6 +945,7 @@ async def guided_batch_csv(
             request_model=ai_model,
             provider_hint=ai_provider,
             category=tpl.category,
+            require_cloud_key=False,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc))
@@ -849,10 +1035,8 @@ async def batch_fill_template(
     if len(data_list) > 500:
         raise HTTPException(400, "Maximum 500 records per batch")
 
-    try:
-        tpl = _get_service().get(template_id)
-    except KeyError:
-        raise HTTPException(404, f"Template '{template_id}' not found")
+    tpl = _ensure_visible_key(template_id, api_key)
+    _require_locked(template_id)
 
     parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
 
@@ -863,6 +1047,7 @@ async def batch_fill_template(
             request_model=ai_model,
             provider_hint=ai_provider,
             category=tpl.category,
+            require_cloud_key=False,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc))
@@ -1016,6 +1201,7 @@ async def delete_template(template_id: str):
     """Permanently remove a template and its PDF from the library."""
     if not _get_service().delete(template_id):
         raise HTTPException(404, f"Template '{template_id}' not found")
+    template_signature_cache.bust(template_id)
     return None
 
 
@@ -1029,15 +1215,13 @@ async def delete_template(template_id: str):
     response_model=SignatureFieldsResponse,
     summary="List pre-defined signature zones for a template",
 )
-async def get_signature_fields(template_id: str):
+async def get_signature_fields(template_id: str, request: Request):
     """
     Returns the array of named signature zones stored in the template manifest.
     Use the ``key`` value when calling ``POST /templates/{id}/sign`` to avoid
     specifying raw coordinates.
     """
-    manifest = _get_service().get(template_id)
-    if not manifest:
-        raise HTTPException(404, f"Template '{template_id}' not found")
+    manifest = _ensure_visible(template_id, request)
     return SignatureFieldsResponse(
         template_id=template_id,
         signature_fields=manifest.signature_fields,
@@ -1147,9 +1331,7 @@ async def sign_template(
     if not consent_given:
         raise HTTPException(400, "consent_given must be true — display the ESIGN disclosure first.")
 
-    manifest = _get_service().get(template_id)
-    if not manifest:
-        raise HTTPException(404, f"Template '{template_id}' not found")
+    manifest = _ensure_visible(template_id, request)
 
     # Locate the requested field
     field = next((f for f in manifest.signature_fields if f.key == field_key), None)

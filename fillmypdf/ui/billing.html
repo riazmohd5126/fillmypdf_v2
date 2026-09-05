@@ -5,13 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Billing & Plans — FillMyPDF</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
   <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
-    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-    </a>
     <span class="font-semibold text-gray-800">Billing & Plans</span>
     <div class="ml-auto flex items-center gap-3">
       <span id="current-tier-badge" class="hidden text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700"></span>
@@ -111,7 +110,12 @@
     try {
       const [plansRes, usageRes] = await Promise.all([
         fetch('/api/v1/billing/plans'),
-        key() ? fetch('/api/v1/billing/usage', { headers: { 'X-API-Key': key() } }) : Promise.resolve(null),
+        (async () => {
+          await (window.fmpAuthReady || Promise.resolve());
+          const ok = window.fmpUser || key();
+          if (!ok) return null;
+          return fetch('/api/v1/billing/usage', { headers: fmpAuthHeaders(), credentials: 'same-origin' });
+        })(),
       ]);
       if (plansRes.ok) {
         const data = await plansRes.json();
@@ -207,11 +211,13 @@
       window.open('mailto:sales@fillmypdf.app?subject=Business%20Plan%20Inquiry', '_blank');
       return;
     }
-    if (!key()) { alert('Set your API key in the dashboard first.'); return; }
+    await (window.fmpAuthReady || Promise.resolve());
+    if (!window.fmpUser && !key()) { alert('Sign in or set your API key first.'); return; }
     try {
       const res = await fetch('/api/v1/billing/checkout', {
         method: 'POST',
-        headers: { 'X-API-Key': key(), 'Content-Type': 'application/json' },
+        headers: Object.assign(fmpAuthHeaders(), { 'Content-Type': 'application/json' }),
+        credentials: 'same-origin',
         body: JSON.stringify({ plan_id: planId, billing_period: billing }),
       });
       if (!res.ok) {

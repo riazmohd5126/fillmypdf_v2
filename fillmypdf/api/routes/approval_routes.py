@@ -6,6 +6,7 @@ are public but token-gated.
 
   POST   /api/v1/approvals                         Create approval request
   GET    /api/v1/approvals                         List approval requests (requester)
+  GET    /api/v1/approvals/output-pdfs             List recent filled PDFs for dropdown
   GET    /api/v1/approvals/{id}                    Get full status (requester)
   GET    /api/v1/approvals/{id}/review?token=..    Public metadata view (reviewer)
   GET    /api/v1/approvals/{id}/download?token=..  Public PDF download (reviewer)
@@ -14,6 +15,8 @@ are public but token-gated.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import (
@@ -22,6 +25,7 @@ from fastapi import (
     Depends,
     Form,
     HTTPException,
+    Query,
     Request,
 )
 from fastapi.responses import FileResponse
@@ -116,13 +120,20 @@ async def create_approval(
     The reviewer receives an email with a token link. Anyone with the link
     can approve or reject the document.
     """
-    pdf_path = settings.OUTPUT_DIR / pdf_filename
-    if not pdf_path.exists():
+    safe_name = Path(pdf_filename or "").name
+    if not safe_name or safe_name != pdf_filename.strip() or "/" in pdf_filename or "\\" in pdf_filename:
+        raise HTTPException(400, "pdf_filename must be a bare filename (no path).")
+    if not safe_name.lower().endswith(".pdf"):
+        raise HTTPException(400, "pdf_filename must be a .pdf file.")
+
+    pdf_path = settings.OUTPUT_DIR / safe_name
+    if not pdf_path.is_file():
         raise HTTPException(
             404,
-            f"PDF '{pdf_filename}' not found in output directory. "
-            "Fill a template first to get a PDF filename.",
+            f"PDF '{safe_name}' not found in output directory. "
+            "Fill a template first, then pick it from the dropdown.",
         )
+    pdf_filename = safe_name
 
     try:
         record = _svc.create(
@@ -157,6 +168,53 @@ async def list_approvals(limit: int = 50):
     cap = max(1, min(limit, 200))
     records = _svc.list_all(limit=cap)
     return {"approvals": [_summary(r) for r in records], "total": len(records)}
+
+
+@router.get(
+    "/output-pdfs",
+    summary="List recent filled PDFs available for approval",
+    dependencies=[Depends(require_api_key)],
+)
+async def list_output_pdfs(
+    limit: int = Query(50, ge=1, le=200, description="Max PDFs to return (newest first)"),
+):
+    """
+    Lists top-level ``.pdf`` files in the server output directory that can be
+    sent for approval. Skips certificate PDFs and non-files.
+    """
+    out = settings.OUTPUT_DIR
+    out.mkdir(parents=True, exist_ok=True)
+
+    items = []
+    try:
+        candidates = list(out.glob("*.pdf"))
+    except OSError:
+        candidates = []
+
+    for path in candidates:
+        name = path.name
+        if not path.is_file():
+            continue
+        # Workflow evidence docs — not useful as approval targets
+        if name.startswith("certificate_"):
+            continue
+        try:
+            st = path.stat()
+        except OSError:
+            continue
+        items.append(
+            {
+                "filename": name,
+                "size_bytes": st.st_size,
+                "modified_at": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
+            }
+        )
+
+    items.sort(key=lambda x: x["modified_at"], reverse=True)
+    items = items[:limit]
+    return {"pdfs": items, "total": len(items)}
 
 
 @router.get("/{approval_id}", summary="Get approval status", dependencies=[Depends(require_api_key)])

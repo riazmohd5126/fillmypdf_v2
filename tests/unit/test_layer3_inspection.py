@@ -63,10 +63,10 @@ def test_inspect_empty_pdf_returns_zero(vision, monkeypatch):
     assert out["fields_detected"] == 0
 
 
-def test_analyze_template_fields_via_api(client, auth_headers_free, monkeypatch):
+def test_analyze_template_fields_via_api(client, auth_headers_free, auth_headers_admin, monkeypatch):
     pytest.importorskip("fillmypdf.api.routes.batch_routes")
 
-    openapi = client.get("/openapi.json").json()
+    openapi = client.get("/openapi.json", headers=auth_headers_admin).json()
     if "/api/v1/batch/template-fields" not in (openapi.get("paths") or {}):
         pytest.skip("batch router not mounted (HAS_BATCH=false)")
 

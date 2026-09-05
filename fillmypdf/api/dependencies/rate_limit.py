@@ -9,7 +9,7 @@ Limits (configurable via .env):
   business: 6_000 req/min, 1_000_000/day
   admin:    no limit
 
-Bypassed entirely for /health, /docs, /openapi.json, /redoc, and / (root).
+Bypassed entirely for /health and / (root).
 """
 
 from __future__ import annotations

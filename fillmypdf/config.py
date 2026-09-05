@@ -236,10 +236,18 @@ class Settings(BaseSettings):
         "business": "6000/minute;1000000/day",
         "admin":    "100000/minute",
     }
+    # Clinic login (email/password) — UI sessions. API keys still work for Zapier.
+    SESSION_COOKIE_NAME: str = "fmp_session"
+    SESSION_TTL_DAYS: int = 14
+    AUTH_ALLOW_REGISTER: bool = True
+    # Operator account seeded at startup when both are set (password ≥ 8 chars).
+    # Sign in at /ui/login.html — do not paste an admin API key into the dashboard.
+    ADMIN_EMAIL: str = ""
+    ADMIN_PASSWORD: str = ""
+
     # Auth bypass paths (no API key required). Used by main.py.
     AUTH_BYPASS_PATHS: List[str] = [
         "/", "/health", "/usage",
-        "/docs", "/redoc", "/openapi.json",
     ]
     
     class Config:

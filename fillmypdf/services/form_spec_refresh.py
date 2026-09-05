@@ -122,6 +122,13 @@ def rebuild_form_spec_for_signatures(
         widget_key=widget_key,
     )
 
+    try:
+        from .esign_service import attach_placements_to_form_spec
+
+        attach_placements_to_form_spec(rebuilt, fields_info, fillable_path)
+    except Exception:
+        pass
+
     cache = CanonicalMapCache()
     if entry is None:
         entry = cache.find_by_signature(sig)

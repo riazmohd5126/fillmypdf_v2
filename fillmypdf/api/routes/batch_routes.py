@@ -132,7 +132,7 @@ async def batch_fill_json(
     profile_id: Optional[str] = Form(None, description="Single profile ID (legacy)", examples=[EX_PROFILE_ID]),
     profile_ids: Optional[str] = Form(None, description="Comma-separated profile IDs to merge (takes precedence over profile_id)"),
     background_tasks: BackgroundTasks = None,
-    api_key: dict = Depends(require_api_key),
+    api_key: dict = Depends(require_admin),
 ):
     """
     Batch fill: Same PDF template + JSON array of data.
@@ -256,7 +256,7 @@ async def batch_fill_csv(
     profile_id: Optional[str] = Form(None, description="Single profile ID (legacy)", examples=[EX_PROFILE_ID]),
     profile_ids: Optional[str] = Form(None, description="Comma-separated profile IDs to merge (takes precedence over profile_id)"),
     background_tasks: BackgroundTasks = None,
-    api_key: dict = Depends(require_api_key),
+    api_key: dict = Depends(require_admin),
 ):
     """
     CSV Batch: Upload PDF template + CSV → Get ZIP with filled PDFs.
@@ -379,7 +379,7 @@ async def batch_fill_xlsx(
     profile_id: Optional[str] = Form(None, description="Single profile ID (legacy)", examples=[EX_PROFILE_ID]),
     profile_ids: Optional[str] = Form(None, description="Comma-separated profile IDs to merge (takes precedence over profile_id)"),
     background_tasks: BackgroundTasks = None,
-    api_key: dict = Depends(require_api_key),
+    api_key: dict = Depends(require_admin),
 ):
     """
     Same as CSV batch — first worksheet: row 1 = column names, subsequent rows =

@@ -1,0 +1,31 @@
+# FillMyPDF — Render blueprint
+# Deploy: GitHub repo riazmohd5126/fillmypdf_v2 → Render → New + → Blueprint
+#
+# Disk keeps templates, maps, and clinic accounts across deploys.
+# Set ADMIN_EMAIL / ADMIN_PASSWORD / GEMINI_API_KEY in the Render dashboard
+# (sync: false). Do not commit .env.
+services:
+  - type: web
+    name: fillmypdf
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PROFILES_ENCRYPTION_KEY
+        generateValue: true
+      - key: AUTH_ALLOW_REGISTER
+        value: "true"
+      - key: DEBUG
+        value: "false"
+    disk:
+      name: fillmypdf-data
+      mountPath: /app/fillmypdf/storage
+      sizeGB: 10

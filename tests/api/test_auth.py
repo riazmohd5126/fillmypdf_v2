@@ -4,13 +4,13 @@ API auth tests
 Verify the X-API-Key header gate on protected endpoints.
 
 Public endpoints (no auth):
-  /, /health, /usage, /docs, /openapi.json
+  /, /health, /usage
 
 Protected endpoints (require any valid key):
   /api/v1/profiles/*, /api/v1/batch/*
 
 Admin-only endpoints:
-  /api/v1/keys/*
+  /docs, /redoc, /openapi.json, /api/v1/keys/*
 """
 
 import pytest
@@ -31,16 +31,6 @@ class TestPublicEndpoints:
     def test_usage_no_auth(self, client):
         r = client.get("/usage")
         assert r.status_code == 200
-
-    def test_docs_no_auth(self, client):
-        r = client.get("/docs")
-        assert r.status_code == 200
-
-    def test_openapi_json_no_auth(self, client):
-        r = client.get("/openapi.json")
-        assert r.status_code == 200
-        spec = r.json()
-        assert spec["info"]["title"] == "FillMyPDF"
 
 
 class TestMissingKey:
@@ -109,6 +99,47 @@ class TestAdminGate:
         assert r.status_code == 200
         # Should at least include the admin key itself
         assert len(r.json()) >= 1
+
+
+class TestAdminDocs:
+    """Swagger / OpenAPI are operator-only, not clinic-facing."""
+
+    def test_docs_requires_auth(self, client):
+        r = client.get("/docs")
+        assert r.status_code == 401
+
+    def test_openapi_requires_auth(self, client):
+        r = client.get("/openapi.json")
+        assert r.status_code == 401
+
+    def test_redoc_requires_auth(self, client):
+        r = client.get("/redoc")
+        assert r.status_code == 401
+
+    def test_clinic_key_blocked_from_docs(self, client, auth_headers_free):
+        assert client.get("/docs", headers=auth_headers_free).status_code == 403
+        assert client.get("/openapi.json", headers=auth_headers_free).status_code == 403
+        assert client.get("/redoc", headers=auth_headers_free).status_code == 403
+
+    def test_pro_key_blocked_from_docs(self, client, auth_headers_pro):
+        assert client.get("/docs", headers=auth_headers_pro).status_code == 403
+        assert client.get("/openapi.json", headers=auth_headers_pro).status_code == 403
+
+    def test_admin_key_can_open_docs(self, client, auth_headers_admin):
+        r = client.get("/docs", headers=auth_headers_admin)
+        assert r.status_code == 200
+        assert "swagger-ui" in r.text.lower()
+
+    def test_admin_key_can_open_openapi(self, client, auth_headers_admin):
+        r = client.get("/openapi.json", headers=auth_headers_admin)
+        assert r.status_code == 200
+        spec = r.json()
+        assert spec["info"]["title"] == "FillMyPDF"
+
+    def test_admin_key_can_open_redoc(self, client, auth_headers_admin):
+        r = client.get("/redoc", headers=auth_headers_admin)
+        assert r.status_code == 200
+        assert "redoc" in r.text.lower()
 
 
 class TestRevocation:

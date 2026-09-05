@@ -12,6 +12,7 @@ Endpoints (all admin-only, mounted at /api/v1/mappings):
   GET    /mappings                 list draft + locked maps
   GET    /mappings/catalog         canonical paths for the editor dropdown
   GET    /mappings/{fp}            one map: per-field rows + catalog
+  GET    /mappings/{fp}/pdf        blank PDF for side-by-side review
   PATCH  /mappings/{fp}            correct field -> canonical entries
   POST   /mappings/{fp}/lock       mark reviewed=true
   POST   /mappings/{fp}/unlock     mark reviewed=false
@@ -24,16 +25,19 @@ Endpoints (all admin-only, mounted at /api/v1/mappings):
 from __future__ import annotations
 
 import os
+import re
+import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from ...config import settings
+from ...services.template_access import FILLED_PDF_MSG, acroform_has_filled_values
 from ...models.pa_canonical import CATALOG, BY_PATH, CATALOG_CHOICES, infer_option_value
 from ...services.canonical_field_service import CanonicalFieldService
 from ...services.canonical_map_cache import CanonicalMapCache
@@ -52,6 +56,129 @@ router = APIRouter(
 
 # Blank forms shipped with the app (same dir pa_routes serves from).
 _FORMS_DIR = Path(__file__).resolve().parent.parent.parent / "static" / "pa_forms"
+
+
+def _blank_pdf_dir() -> Path:
+    """PHI-free blank PDFs kept for Mapping Review side-by-side preview."""
+    path = settings.STORAGE_DIR / "blank_forms"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _blank_pdf_path(fp: str) -> Path:
+    return _blank_pdf_dir() / f"{fp}.pdf"
+
+
+def _persist_blank_pdf(fp: str, pdf_path: Path) -> bool:
+    """Copy the blank source PDF next to the map so reopen can preview it."""
+    if not pdf_path.is_file():
+        return False
+    dest = _blank_pdf_path(fp)
+    try:
+        shutil.copy2(pdf_path, dest)
+        return True
+    except OSError:
+        return False
+
+
+def _template_id_from_label(label: str) -> str:
+    """Same sanitizer the bulk importer uses for template ids."""
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", (label or "").strip()).strip("_")[:120]
+
+
+def _template_pdf_path(template_id: str) -> Optional[Path]:
+    """Fillable copy if present, otherwise the stored template PDF."""
+    if not template_id:
+        return None
+    from ...repositories.template_repository import TemplateRepository
+
+    repo = TemplateRepository()
+    fillable = repo.get_fillable_path(template_id)
+    if fillable is not None and fillable.is_file():
+        return fillable
+    raw = repo.get_pdf_path(template_id)
+    if raw is not None and raw.is_file():
+        return raw
+    return None
+
+
+def find_template_id(data: Optional[dict]) -> Optional[str]:
+    """Resolve a library template for a map (explicit id, then label → id)."""
+    data = data or {}
+    from ...repositories.template_repository import TemplateRepository
+
+    repo = TemplateRepository()
+    tid = (data.get("template_id") or "").strip()
+    if tid and repo.exists(tid):
+        return tid
+    label = (data.get("form_label") or "").strip()
+    if not label:
+        return None
+    guess = _template_id_from_label(label)
+    if guess and repo.exists(guess):
+        return guess
+    stem = Path(label).stem
+    if stem != label:
+        guess2 = _template_id_from_label(stem)
+        if guess2 and repo.exists(guess2):
+            return guess2
+    label_lc = label.lower().replace("_", " ")
+    for manifest in repo.list_all():
+        name = (manifest.name or "").lower()
+        if name == label.lower() or name == label_lc:
+            return manifest.id
+    return None
+
+
+def _resolve_blank_pdf(fp: str, data: Optional[dict] = None) -> Optional[Path]:
+    """Return a readable blank PDF for ``fp``, or None.
+
+    Prefer the persisted Mapping Review copy. Then a shipped pa_form. Then
+    the Template Library PDF this map was imported from (by ``template_id``
+    or ``form_label``).
+    """
+    stored = _blank_pdf_path(fp)
+    if stored.is_file():
+        return stored
+    if data is None:
+        data = CanonicalMapCache().get_full(fp) or {}
+    form_id = (data.get("source_form_id") or "").strip()
+    if form_id:
+        candidate = _FORMS_DIR / f"{form_id}.pdf"
+        if candidate.is_file():
+            return candidate
+    label = (data.get("form_label") or "").strip()
+    if label:
+        by_name = _FORMS_DIR / label
+        if by_name.is_file():
+            return by_name
+        stem = Path(label).stem
+        by_stem = _FORMS_DIR / f"{stem}.pdf"
+        if by_stem.is_file():
+            return by_stem
+    tid = find_template_id(data)
+    if tid:
+        found = _template_pdf_path(tid)
+        if found is not None:
+            return found
+    return None
+
+
+def _request_actor(request: Request) -> str:
+    user = getattr(request.state, "user", None) or {}
+    email = str(user.get("email") or "").strip()
+    if email:
+        return email
+    key = getattr(request.state, "api_key", None) or {}
+    return str(key.get("owner") or key.get("name") or "admin").strip() or "admin"
+
+
+def _stamp_actor(cache: CanonicalMapCache, fp: str, actor: str) -> None:
+    data = cache.get_full(fp)
+    if not data:
+        return
+    data["actor"] = actor
+    cache.save_full(fp, data)
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +252,12 @@ def _detail(cache: CanonicalMapCache, fp: str) -> dict:
                     data = cache.get_full(fp) or data
         except Exception as exc:
             print(f"  ⚠️  mapping detail FormSpec refresh skipped: {exc}")
+        # Backfill missing stamp boxes from blank PDF AcroForm (non-destructive).
+        try:
+            _ensure_signature_placements(fp, overwrite=False)
+            spec = FormSpecCache().get(sig) or spec
+        except Exception:
+            pass
 
     labels: Dict[str, str] = data.get("field_labels", {}) or {}
     mappings: Dict[str, dict] = data.get("mappings", {}) or {}
@@ -162,15 +295,22 @@ def _detail(cache: CanonicalMapCache, fp: str) -> dict:
             gated_rows.append(row)
         rows.append(row)
 
+    tid = find_template_id(data)
     return {
         "fingerprint": data.get("fingerprint", fp),
         "signature": sig,
         "form_label": data.get("form_label"),
+        "source_form_id": data.get("source_form_id"),
+        "template_id": tid or data.get("template_id"),
+        "source_path": data.get("source_path"),
+        "actor": data.get("actor"),
         "reviewed": bool(data.get("reviewed", False)),
         "cached_at": data.get("cached_at"),
         "updated_at": data.get("updated_at"),
         "field_count": len(rows),
         "mapped_count": sum(1 for r in rows if r["canonical"] and r["canonical"] != "other"),
+        "has_blank_pdf": _resolve_blank_pdf(fp, data) is not None,
+        "template_pdf_url": f"/api/v1/templates/{tid}/pdf" if tid else None,
         "rows": rows,
         "gated_rows": gated_rows,
         "catalog": _catalog(),
@@ -303,7 +443,19 @@ def _ai_enrich_one(cache: CanonicalMapCache, svc: CanonicalFieldService, fp: str
 @router.get("", summary="List canonical mapping drafts and locked maps")
 async def list_mappings():
     cache = CanonicalMapCache()
-    return {"mappings": cache.list_entries()}
+    entries = cache.list_entries()
+    from ...repositories.template_repository import TemplateRepository
+
+    known = {m.id for m in TemplateRepository().list_all()}
+    for e in entries:
+        tid = (e.get("template_id") or "").strip()
+        if not tid and e.get("form_label"):
+            tid = _template_id_from_label(e["form_label"])
+        if tid:
+            e["template_id"] = tid
+            if not e.get("actor") and tid in known:
+                e["actor"] = "import"
+    return {"mappings": entries}
 
 
 @router.get("/catalog", summary="Canonical paths for the review editor dropdown")
@@ -318,6 +470,39 @@ async def get_catalog():
 @router.get("/{fp}", summary="Get one canonical mapping (per-field rows)")
 async def get_mapping(fp: str):
     return _detail(CanonicalMapCache(), fp)
+
+
+@router.get("/{fp}/pdf", summary="Blank PDF for side-by-side Mapping Review")
+async def get_mapping_pdf(fp: str):
+    """Serve the blank (PHI-free) form PDF used when this map was built.
+
+    Used by the review UI as a left-pane preview. Auth is the same admin
+    API key as other /mappings routes — the UI fetches as a blob (iframes
+    cannot send X-API-Key).
+    """
+    cache = CanonicalMapCache()
+    data = cache.get_full(fp)
+    if data is None:
+        raise HTTPException(404, f"Mapping '{fp}' not found")
+    path = _resolve_blank_pdf(fp, data)
+    if path is None:
+        raise HTTPException(
+            404,
+            "No blank PDF stored for this map. Rebuild the draft from the "
+            "PDF or a shipped form to enable side-by-side preview.",
+        )
+    # Backfill a persisted copy when we resolved a shipped form or template.
+    if not _blank_pdf_path(fp).is_file():
+        _persist_blank_pdf(fp, path)
+        path = _blank_pdf_path(fp) if _blank_pdf_path(fp).is_file() else path
+    filename = data.get("form_label") or f"{fp}.pdf"
+    if not str(filename).lower().endswith(".pdf"):
+        filename = f"{filename}.pdf"
+    return FileResponse(
+        path=str(path),
+        media_type="application/pdf",
+        filename=str(filename),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -377,7 +562,49 @@ class QuestionUpdate(BaseModel):
 
 
 class SignatureRoleUpdate(BaseModel):
-    role: str = ""
+    """Patch a signature field's role and/or locked stamp placement."""
+
+    role: Optional[str] = None
+    placement: Optional[dict] = None  # {page_index,x_pct,y_pct,width_pct,height_pct}
+    clear_placement: bool = False
+
+
+def _ensure_signature_placements(fp: str, *, overwrite: bool = False) -> list[str]:
+    """Fill missing SignatureField.placement from the blank PDF AcroForm.
+
+    Returns labels still missing a stamp box after the attempt.
+    """
+    from ...services.esign_service import (
+        attach_placements_to_form_spec,
+        missing_signature_placements,
+    )
+    from ...services.vision_service import VisionService
+
+    cache = CanonicalMapCache()
+    data = cache.get_full(fp) or {}
+    try:
+        sig = _signature_for(fp)
+    except HTTPException:
+        return []
+    spec = FormSpecCache().get(sig)
+    if spec is None:
+        return []
+    pdf = _resolve_blank_pdf(fp, data)
+    if pdf is None or not pdf.is_file():
+        return missing_signature_placements(spec)
+
+    vs = VisionService(
+        (settings.GEMINI_API_KEY or "").strip() or "-",
+        settings.DEFAULT_AI_BASE_URL,
+        settings.DEFAULT_AI_MODEL,
+    )
+    try:
+        fields_info = vs._get_fields_with_coords(str(pdf))
+    except Exception:
+        return missing_signature_placements(spec)
+    attach_placements_to_form_spec(spec, fields_info, pdf, overwrite=overwrite)
+    FormSpecCache()._force_save(spec)
+    return missing_signature_placements(spec)
 
 
 @router.get("/{fp}/form-spec", summary="This form's questions, narratives and signatures")
@@ -408,6 +635,13 @@ async def get_form_spec(fp: str):
         except Exception as exc:
             print(f"  ⚠️  form-spec signature refresh skipped: {exc}")
 
+    # Fill any missing stamp boxes from AcroForm (does not overwrite locked ones).
+    try:
+        _ensure_signature_placements(fp, overwrite=False)
+        spec = FormSpecCache().get(sig) or spec
+    except Exception:
+        pass
+
     return spec.model_dump(mode="json")
 
 
@@ -435,13 +669,42 @@ async def patch_question(fp: str, question_id: str, body: QuestionUpdate):
 
 @router.patch(
     "/{fp}/form-spec/signatures/{field}",
-    summary="Assign a signer role to a signature field",
+    summary="Assign signer role and/or locked e-sign stamp placement",
 )
 async def patch_signature_role(fp: str, field: str, body: SignatureRoleUpdate):
     sig = _signature_for(fp)
-    if not FormSpecCache().set_signature_role(sig, field, body.role):
+    # Role-only clients always send ``role``; placement-only omit it.
+    has_role = "role" in body.model_fields_set if hasattr(body, "model_fields_set") else body.role is not None
+    ok = FormSpecCache().update_signature(
+        sig,
+        field,
+        role=body.role if has_role else None,
+        placement=body.placement,
+        clear_placement=body.clear_placement,
+    )
+    if not ok:
         raise HTTPException(404, f"Signature field '{field}' not found")
     return FormSpecCache().get(sig).model_dump(mode="json")
+
+
+@router.post(
+    "/{fp}/form-spec/signatures/placements/from-acro",
+    summary="Fill signature stamp boxes from AcroForm field geometry",
+)
+async def apply_signature_placements_from_acro(
+    fp: str,
+    overwrite: bool = False,
+):
+    """Derive locked placements from the blank PDF's AcroForm widgets."""
+    missing = _ensure_signature_placements(fp, overwrite=overwrite)
+    sig = _signature_for(fp)
+    spec = FormSpecCache().get(sig)
+    if spec is None:
+        raise HTTPException(404, "No form spec built for this form yet")
+    return {
+        "missing": missing,
+        "form_spec": spec.model_dump(mode="json"),
+    }
 
 
 class QuestionMerge(BaseModel):
@@ -502,7 +765,7 @@ class MappingUpdate(BaseModel):
 
 
 @router.patch("/{fp}", summary="Correct field -> canonical entries")
-async def patch_mapping(fp: str, body: MappingUpdate):
+async def patch_mapping(fp: str, body: MappingUpdate, request: Request):
     if not body.updates:
         raise HTTPException(400, "No updates provided")
     valid = set(BY_PATH.keys()) | {"other", "", None}
@@ -520,6 +783,7 @@ async def patch_mapping(fp: str, body: MappingUpdate):
     cache = CanonicalMapCache()
     if not cache.update_fields(fp, body.updates):
         raise HTTPException(404, f"Mapping '{fp}' not found")
+    _stamp_actor(cache, fp, _request_actor(request))
     return _detail(cache, fp)
 
 
@@ -536,19 +800,30 @@ def _sync_form_spec_reviewed(fp: str, reviewed: bool) -> None:
 
 
 @router.post("/{fp}/lock", summary="Mark a mapping reviewed (locked/authoritative)")
-async def lock_mapping(fp: str):
+async def lock_mapping(fp: str, request: Request):
     cache = CanonicalMapCache()
     if not cache.set_reviewed(fp, True):
         raise HTTPException(404, f"Mapping '{fp}' not found")
+    _stamp_actor(cache, fp, _request_actor(request))
+    # Lock stamp boxes with the map: derive any missing placements from AcroForm.
+    missing = []
+    try:
+        missing = _ensure_signature_placements(fp, overwrite=False)
+    except Exception as exc:
+        print(f"  ⚠️  signature placement lock enrich skipped: {exc}")
     _sync_form_spec_reviewed(fp, True)
-    return _detail(cache, fp)
+    detail = _detail(cache, fp)
+    if missing:
+        detail["signature_placement_warnings"] = missing
+    return detail
 
 
 @router.post("/{fp}/unlock", summary="Clear the reviewed flag (back to draft)")
-async def unlock_mapping(fp: str):
+async def unlock_mapping(fp: str, request: Request):
     cache = CanonicalMapCache()
     if not cache.set_reviewed(fp, False):
         raise HTTPException(404, f"Mapping '{fp}' not found")
+    _stamp_actor(cache, fp, _request_actor(request))
     _sync_form_spec_reviewed(fp, False)
     return _detail(cache, fp)
 
@@ -594,14 +869,20 @@ async def ai_suggest_one(fp: str):
 
 
 @router.post("/lock-batch", summary="Lock (approve) many mappings at once")
-async def lock_batch(body: LockBatch):
+async def lock_batch(body: LockBatch, request: Request):
     if not body.fingerprints:
         raise HTTPException(400, "No fingerprints provided")
     cache = CanonicalMapCache()
+    actor = _request_actor(request)
     results = []
     for fp in body.fingerprints:
         ok = bool(cache.set_reviewed(fp, True))
         if ok:
+            _stamp_actor(cache, fp, actor)
+            try:
+                _ensure_signature_placements(fp, overwrite=False)
+            except Exception:
+                pass
             _sync_form_spec_reviewed(fp, True)
         results.append({"fingerprint": fp, "ok": ok})
     return {"locked": sum(1 for r in results if r["ok"]), "results": results}
@@ -613,11 +894,13 @@ async def lock_batch(body: LockBatch):
 
 @router.post("/build", summary="Build a canonical mapping draft from a blank PDF or shipped form")
 async def build_mapping(
+    request: Request,
     file: Optional[UploadFile] = File(default=None, description="Blank fillable PDF"),
     form_id: Optional[str] = Form(default=None, description="Shipped pa_forms id (filename stem)"),
 ):
     # Resolve the source PDF.
     tmp_path: Optional[Path] = None
+    source_form_id: Optional[str] = None
     if file is not None:
         if not file.filename or not file.filename.lower().endswith(".pdf"):
             raise HTTPException(400, "File must be a PDF")
@@ -626,12 +909,16 @@ async def build_mapping(
         tmp_path.write_bytes(await file.read())
         pdf_path = tmp_path
         form_label = file.filename
+        if acroform_has_filled_values(pdf_path):
+            tmp_path.unlink(missing_ok=True)
+            raise HTTPException(400, FILLED_PDF_MSG)
     elif form_id:
         pdf_path = _FORMS_DIR / f"{form_id}.pdf"
         if not pdf_path.exists():
             available = [f.stem for f in _FORMS_DIR.glob("*.pdf")] if _FORMS_DIR.exists() else []
             raise HTTPException(404, f"Form '{form_id}' not found. Available: {available}")
         form_label = pdf_path.name
+        source_form_id = form_id
     else:
         raise HTTPException(400, "Provide either a PDF 'file' or a 'form_id'")
 
@@ -667,6 +954,8 @@ async def build_mapping(
         # Stamp a human-friendly form label for the listing.
         data = cache.get_full(fp) or {}
         data["form_label"] = form_label
+        if source_form_id:
+            data["source_form_id"] = source_form_id
         data.setdefault("signature", sig)
         cache.save_full(fp, data)
 
@@ -690,11 +979,23 @@ async def build_mapping(
         mappings, spec = apply_intake_annotations(
             mappings, fields_info, label_data, spec, widget_key=vs._widget_key,
         )
+        # Lock e-sign stamp boxes from AcroForm geometry at build time.
+        try:
+            from ...services.esign_service import attach_placements_to_form_spec
+
+            attach_placements_to_form_spec(spec, fields_info, pdf_path)
+        except Exception as exc:
+            print(f"  ⚠️  signature placement attach skipped: {exc}")
         data = cache.get_full(fp) or data
         data["mappings"] = mappings
         data["form_label"] = form_label
+        if source_form_id:
+            data["source_form_id"] = source_form_id
         data.setdefault("signature", sig)
         data = sync_field_kinds(data, fields_info)
+        # Keep a blank copy for side-by-side review (before tmp upload is deleted).
+        data["has_blank_pdf"] = _persist_blank_pdf(fp, pdf_path)
+        data["actor"] = _request_actor(request)
         cache.save_full(fp, data)
         FormSpecCache().save(spec)
 

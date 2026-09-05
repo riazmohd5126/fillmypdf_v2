@@ -109,6 +109,10 @@ class TemplateManifest(BaseModel):
     version: Optional[str] = None
     pages: Optional[int] = None
     is_public: bool = True
+    # Private clinic uploads: not listed in the shared catalog for other orgs.
+    visibility: str = "shared"  # "shared" | "private"
+    owner_id: Optional[str] = None
+    org_id: Optional[str] = None
     created_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -145,7 +149,12 @@ class TemplateListItem(BaseModel):
     tags: List[str] = Field(default_factory=list)
     pages: Optional[int] = None
     question_count: int = 0
+    field_count: int = 0
     is_public: bool = True
+    visibility: str = "shared"
+    owner_id: Optional[str] = None
+    org_id: Optional[str] = None
+    pinned: Optional[bool] = None
     # Optional readiness (from GET /templates/readiness or enriched clients)
     map_ready: Optional[bool] = None
     map_fingerprint: Optional[str] = None

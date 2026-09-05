@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -323,6 +324,62 @@ class CanonicalMapCache:
     # ------------------------------------------------------------------
     # Listing
     # ------------------------------------------------------------------
+    def dir_stamp(self) -> tuple:
+        """``(dir, count, newest_mtime_ns, total_size)`` for the cache — stats only.
+
+        Callers key their derived indexes on this, so locking or editing a map is
+        picked up on the next request without an explicit cache bust. Size is
+        part of the stamp because an in-place edit may land inside the mtime
+        resolution of the underlying filesystem.
+        """
+        directory = self.cache_dir
+        count = 0
+        newest = 0
+        total = 0
+        try:
+            with os.scandir(directory) as it:
+                for entry in it:
+                    if not entry.name.endswith(".json"):
+                        continue
+                    try:
+                        st = entry.stat()
+                    except OSError:
+                        continue
+                    count += 1
+                    total += st.st_size
+                    if st.st_mtime_ns > newest:
+                        newest = st.st_mtime_ns
+        except OSError:
+            return (str(directory), 0, 0, 0)
+        return (str(directory), count, newest, total)
+
+    def list_index(self) -> List[dict]:
+        """Identity + lock state for every entry, without the coverage math.
+
+        :meth:`list_entries` walks every mapping to build reviewer stats. Code
+        that only needs to match a blank form to its locked map uses this.
+        """
+        out: List[dict] = []
+        for p in self.cache_dir.glob("*.json"):
+            data = self._read_payload(p)
+            if not data:
+                continue
+            labels = data.get("field_labels")
+            mappings = data.get("mappings")
+            n_labels = len(labels) if isinstance(labels, dict) else 0
+            n_maps = len(mappings) if isinstance(mappings, dict) else 0
+            out.append(
+                {
+                    "fingerprint": data.get("fingerprint", p.stem),
+                    "signature": data.get("signature"),
+                    "form_label": data.get("form_label"),
+                    "reviewed": bool(data.get("reviewed", False)),
+                    "has_mappings": isinstance(mappings, dict),
+                    "field_count": max(n_labels, n_maps),
+                }
+            )
+        return out
+
     def list_entries(self) -> List[dict]:
         """Summary of all cached canonical mappings (for admin / review routes).
 
@@ -371,6 +428,9 @@ class CanonicalMapCache:
                     "fingerprint": data.get("fingerprint", p.stem),
                     "signature": data.get("signature"),
                     "form_label": data.get("form_label"),
+                    "template_id": data.get("template_id"),
+                    "source_path": data.get("source_path"),
+                    "actor": data.get("actor"),
                     "cached_at": data.get("cached_at"),
                     "updated_at": data.get("updated_at"),
                     "reviewed": bool(data.get("reviewed", False)),

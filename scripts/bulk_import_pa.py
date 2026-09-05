@@ -3,7 +3,7 @@ Bulk-import PA forms from a source tree into the Template Library and build a
 draft canonical map for each (PHI-free; deterministic first, Gemini tail-fill).
 
 Usage:
-    PYTHONPATH="$PWD" python scripts/bulk_import_pa.py [LIMIT] [--dirs acroform,flat-digital] [--no-ai]
+    PYTHONPATH="$PWD" python scripts/bulk_import_pa.py [LIMIT] [--src PATH] [--dirs acroform,form-flat] [--no-ai]
 
 - Imports each PDF as a template (category=prior_authorization). Skips ones that
   already exist.
@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import sys
 import time
 import traceback
@@ -40,7 +41,7 @@ from fillmypdf.services.form_spec_builder import (
 from fillmypdf.services.form_spec_cache import FormSpecCache
 from fillmypdf.models.template import TemplateManifest, TemplatePayer
 
-SRC = Path("/Users/riazmohd/Downloads/test_set")
+DEFAULT_SRC = Path("/Users/riazmohd/Downloads/test_set")
 LOG = Path("bulk_import.log")
 
 
@@ -56,22 +57,51 @@ def sanitize(s: str) -> str:
     return (s[:120] or "form")
 
 
+def persist_blank(fp: str, pdf_path: Path) -> bool:
+    """Copy the fillable PDF so Mapping Review can preview without a rebuild."""
+    if not fp or not pdf_path.is_file():
+        return False
+    dest = settings.STORAGE_DIR / "blank_forms" / f"{fp}.pdf"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if dest.is_file() and dest.stat().st_size > 0:
+            return True
+        shutil.copy2(pdf_path, dest)
+        return True
+    except OSError:
+        return False
+
+
+def stamp_import_meta(data: dict, *, tid: str, source: Path, fillable: Path, fp: str) -> dict:
+    data["template_id"] = tid
+    data["source_path"] = str(source)
+    data.setdefault("actor", "import")
+    data["has_blank_pdf"] = persist_blank(fp, fillable)
+    return data
+
+
 def main() -> None:
     limit = None
+    src = DEFAULT_SRC
     dirs = ["acroform", "flat-digital"]
     use_ai = True
     args = sys.argv[1:]
     for a in args:
-        if a.startswith("--dirs"):
-            dirs = a.split("=", 1)[1].split(",") if "=" in a else dirs
+        if a.startswith("--src="):
+            src = Path(a.split("=", 1)[1]).expanduser()
+        elif a.startswith("--dirs="):
+            dirs = [x.strip() for x in a.split("=", 1)[1].split(",") if x.strip()]
         elif a == "--no-ai":
             use_ai = False
         elif a.isdigit():
             limit = int(a)
 
+    if not src.is_dir():
+        raise SystemExit(f"Source folder not found: {src}")
+
     forms: list[tuple[str, Path]] = []
     for d in dirs:
-        for p in sorted((SRC / d).rglob("*.pdf")):
+        for p in sorted((src / d).rglob("*.pdf")):
             forms.append((d, p))
     if limit:
         forms = forms[:limit]
@@ -138,9 +168,26 @@ def main() -> None:
             # locked), don't rebuild — just ensure it has a friendly label.
             existing = cache.find_by_signature(sig)
             if existing is not None:
+                fp_exist = existing.get("fingerprint") or sig
+                dirty = False
                 if not existing.get("form_label"):
                     existing["form_label"] = stem.replace("_", " ")[:200]
-                    cache.save_full(existing.get("fingerprint", sig), existing)
+                    dirty = True
+                if not existing.get("template_id"):
+                    existing["template_id"] = tid
+                    dirty = True
+                if not existing.get("source_path"):
+                    existing["source_path"] = str(p)
+                    dirty = True
+                if not existing.get("actor"):
+                    existing["actor"] = "import"
+                    dirty = True
+                copied = persist_blank(fp_exist, fillable)
+                if copied and not existing.get("has_blank_pdf"):
+                    existing["has_blank_pdf"] = True
+                    dirty = True
+                if dirty:
+                    cache.save_full(fp_exist, existing)
                 if not FormSpecCache().exists(sig):
                     FormSpecCache().save(spec)
                 already += 1
@@ -172,6 +219,7 @@ def main() -> None:
                 if not data.get("form_label"):
                     data["form_label"] = stem.replace("_", " ")[:200]
                 data.setdefault("signature", sig)
+                stamp_import_meta(data, tid=tid, source=p, fillable=fillable, fp=fp)
                 cache.save_full(fp, data)
 
             mapped += 1

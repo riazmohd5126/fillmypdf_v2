@@ -183,6 +183,55 @@ class FormSpecCache:
                 return self._force_save(spec)
         return False
 
+    def set_signature_placement(
+        self,
+        signature: str,
+        field: str,
+        placement: Optional[dict],
+    ) -> bool:
+        """Set or clear the locked e-sign stamp box for one signature field."""
+        from ..models.form_spec import SignaturePlacement
+
+        spec = self.get(signature)
+        if spec is None:
+            return False
+        for s in spec.signatures:
+            if s.field != field:
+                continue
+            if placement is None:
+                s.placement = None
+            else:
+                s.placement = SignaturePlacement.model_validate(placement)
+            return self._force_save(spec)
+        return False
+
+    def update_signature(
+        self,
+        signature: str,
+        field: str,
+        *,
+        role: Optional[str] = None,
+        placement: Optional[dict] = None,
+        clear_placement: bool = False,
+    ) -> bool:
+        """Patch role and/or placement on one signature field."""
+        from ..models.form_spec import SignaturePlacement
+
+        spec = self.get(signature)
+        if spec is None:
+            return False
+        for s in spec.signatures:
+            if s.field != field:
+                continue
+            if role is not None:
+                s.role = role or None
+            if clear_placement:
+                s.placement = None
+            elif placement is not None:
+                s.placement = SignaturePlacement.model_validate(placement)
+            return self._force_save(spec)
+        return False
+
     def _force_save(self, spec: FormSpec) -> bool:
         payload = {
             "version": self.CACHE_VERSION,

@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Multi-Party Signing — FillMyPDF</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
   <style>
     body { font-family: system-ui,-apple-system,sans-serif; }
     .typed-sig { font-family: 'Georgia','Times New Roman',serif; font-style:italic; color:#0a2864; font-size:1.8rem; }
@@ -15,11 +17,9 @@
 
   <!-- Nav -->
   <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
-    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-    </a>
     <span class="font-semibold text-gray-800">Multi-Party Signing</span>
-    <button onclick="showCreateModal()" class="ml-auto flex items-center gap-1.5 bg-indigo-600 text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-indigo-700">
+    <a href="/ui/sign.html?mode=multi" class="ml-auto text-xs text-violet-700 hover:underline mr-2">Create via E-Signature →</a>
+    <button onclick="showCreateModal()" class="flex items-center gap-1.5 bg-indigo-600 text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-indigo-700">
       + New Session
     </button>
   </nav>
@@ -135,10 +135,22 @@
           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
       </div>
 
-      <div>
-        <label class="text-xs font-medium text-gray-600 mb-1 block">Base PDF Filename <span class="text-gray-400">(from a previous fill output)</span></label>
-        <input id="cs-pdf" type="text" placeholder="filled_abc123.pdf"
-          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+      <div class="space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <label class="text-xs font-medium text-gray-600 block">Base PDF <span class="text-gray-400">(from a previous fill)</span></label>
+          <button type="button" onclick="loadOutputPdfs()" class="text-[11px] text-indigo-600 hover:underline">Refresh PDFs</button>
+        </div>
+        <select id="cs-pdf-select"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+          onchange="onCsPdfSelectChange()">
+          <option value="">Loading recent PDFs…</option>
+        </select>
+        <div id="cs-pdf-manual-row" class="hidden">
+          <label class="text-xs text-gray-500 mb-1 block">Or type filename manually</label>
+          <input id="cs-pdf" type="text" placeholder="filled_abc123.pdf"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
+        </div>
+        <p id="cs-pdf-hint" class="text-[11px] text-gray-400">Pick a filled PDF from the server output folder. Certificates are hidden.</p>
       </div>
 
       <div>
@@ -161,6 +173,7 @@
 <script>
   const API = '';
   function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
+  function authH(extra){ return Object.assign({}, window.fmpAuthHeaders ? fmpAuthHeaders() : {}, extra||{}); }
   let activeSession = null;
   let spTabMode = 'draw';
 
@@ -191,10 +204,11 @@
 
   // ── Load sessions ─────────────────────────────────────────────────────────
   async function loadSessions() {
+    await (window.fmpAuthReady || Promise.resolve());
     const key = getKey();
-    if (!key) { document.getElementById('sessions-list').innerHTML = '<p class="text-sm text-red-500 text-center py-4">No API key. <a href="/ui/index.html" class="underline">Set it.</a></p>'; return; }
+    if (!key && !window.fmpUser) { document.getElementById('sessions-list').innerHTML = '<p class="text-sm text-red-500 text-center py-4">Sign in first. <a href="/ui/login.html?next=/ui/multisign.html" class="underline">Clinic login</a></p>'; return; }
     try {
-      const r = await fetch(`${API}/api/v1/signing-sessions`, { headers: { 'X-API-Key': key } });
+      const r = await fetch(`${API}/api/v1/signing-sessions`, { headers: authH(), credentials: 'same-origin' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       renderSessions(data.sessions || []);
@@ -230,7 +244,7 @@
   // ── Open session (signing panel) ──────────────────────────────────────────
   async function openSession(sessionId) {
     const key = getKey();
-    const r = await fetch(`${API}/api/v1/signing-sessions/${sessionId}`, { headers: { 'X-API-Key': key } });
+    const r = await fetch(`${API}/api/v1/signing-sessions/${sessionId}`, { headers: authH(), credentials: 'same-origin' });
     if (!r.ok) return;
     activeSession = await r.json();
     renderSignPanel();
@@ -313,7 +327,7 @@
 
     try {
       const r = await fetch(`${API}/api/v1/signing-sessions/${activeSession.session_id}/sign`, {
-        method: 'POST', headers: { 'X-API-Key': key }, body: fd,
+        method: 'POST', headers: authH(), credentials: 'same-origin', body: fd,
       });
       if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.detail || `HTTP ${r.status}`); }
       const data = await r.json();
@@ -325,7 +339,7 @@
       const certLink = document.getElementById('sp-cert-link');
       certLink.onclick = async (ev) => {
         ev.preventDefault();
-        const cr = await fetch(sr.certificate_url, { headers: { 'X-API-Key': key } });
+        const cr = await fetch(sr.certificate_url, { headers: authH(), credentials: 'same-origin' });
         const cb = await cr.blob();
         const cu = URL.createObjectURL(cb);
         const a = document.createElement('a'); a.href=cu; a.download=`cert_${sr.audit_id}.pdf`; a.click();
@@ -351,7 +365,7 @@
   async function downloadFinal(e, sessionId) {
     e.preventDefault();
     const key = getKey();
-    const r = await fetch(`${API}/api/v1/signing-sessions/${sessionId}/download`, { headers: { 'X-API-Key': key } });
+    const r = await fetch(`${API}/api/v1/signing-sessions/${sessionId}/download`, { headers: authH(), credentials: 'same-origin' });
     if (!r.ok) { alert('Could not download file.'); return; }
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
@@ -361,6 +375,108 @@
 
   // ── Create session modal ───────────────────────────────────────────────────
   let signerCount = 0;
+  let outputPdfs = [];
+
+  function fmtBytes(n) {
+    if (!n && n !== 0) return '';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    try { return new Date(iso).toLocaleString(); } catch { return iso; }
+  }
+
+  function selectedBasePdf() {
+    const sel = document.getElementById('cs-pdf-select');
+    const val = (sel && sel.value) || '';
+    if (val === '__manual__') {
+      return (document.getElementById('cs-pdf').value || '').trim();
+    }
+    return val.trim();
+  }
+
+  function onCsPdfSelectChange() {
+    const sel = document.getElementById('cs-pdf-select');
+    const manual = document.getElementById('cs-pdf-manual-row');
+    const isManual = sel.value === '__manual__';
+    manual.classList.toggle('hidden', !isManual);
+    if (!isManual && sel.value) {
+      document.getElementById('cs-pdf').value = sel.value;
+    }
+  }
+
+  function renderPdfSelect(preferred) {
+    const sel = document.getElementById('cs-pdf-select');
+    const hint = document.getElementById('cs-pdf-hint');
+    const prev = preferred || selectedBasePdf() || '';
+    sel.innerHTML = '';
+
+    const opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = outputPdfs.length
+      ? `Select a PDF (${outputPdfs.length} recent)`
+      : 'No filled PDFs found — fill a form first, or enter manually';
+    sel.appendChild(opt0);
+
+    for (const p of outputPdfs) {
+      const opt = document.createElement('option');
+      opt.value = p.filename;
+      const when = p.modified_at ? fmtDate(p.modified_at) : '';
+      opt.textContent = `${p.filename}  ·  ${fmtBytes(p.size_bytes)}${when ? '  ·  ' + when : ''}`;
+      sel.appendChild(opt);
+    }
+
+    const optM = document.createElement('option');
+    optM.value = '__manual__';
+    optM.textContent = 'Other… (type filename)';
+    sel.appendChild(optM);
+
+    if (prev && outputPdfs.some(p => p.filename === prev)) {
+      sel.value = prev;
+      document.getElementById('cs-pdf-manual-row').classList.add('hidden');
+      document.getElementById('cs-pdf').value = prev;
+    } else if (prev) {
+      sel.value = '__manual__';
+      document.getElementById('cs-pdf-manual-row').classList.remove('hidden');
+      document.getElementById('cs-pdf').value = prev;
+    } else {
+      onCsPdfSelectChange();
+    }
+
+    hint.textContent = outputPdfs.length
+      ? 'Pick a filled PDF from the server output folder. Certificates are hidden.'
+      : 'No PDFs in output yet. Use Guided Fill / Templates, then Refresh PDFs — or choose Other…';
+  }
+
+  async function loadOutputPdfs() {
+    const sel = document.getElementById('cs-pdf-select');
+    const key = getKey();
+    if (!key && !window.fmpUser) {
+      outputPdfs = [];
+      sel.innerHTML = '<option value="">Set API key to load PDFs</option><option value="__manual__">Other… (type filename)</option>';
+      document.getElementById('cs-pdf-manual-row').classList.remove('hidden');
+      return;
+    }
+    const keep = selectedBasePdf();
+    sel.innerHTML = '<option value="">Loading recent PDFs…</option>';
+    try {
+      const r = await fetch(`${API}/api/v1/approvals/output-pdfs?limit=80`, {
+        headers: authH(), credentials: 'same-origin',
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `HTTP ${r.status}`);
+      outputPdfs = data.pdfs || [];
+      renderPdfSelect(keep);
+    } catch (e) {
+      outputPdfs = [];
+      sel.innerHTML = '<option value="">Could not load PDFs — use Other…</option><option value="__manual__">Other… (type filename)</option>';
+      document.getElementById('cs-pdf-manual-row').classList.remove('hidden');
+      document.getElementById('cs-pdf-hint').textContent = e.message || 'Failed to load PDF list.';
+    }
+  }
 
   function showCreateModal() {
     document.getElementById('cs-title').value = '';
@@ -370,6 +486,7 @@
     signerCount = 0;
     addSignerRow(); addSignerRow();
     document.getElementById('create-modal').classList.remove('hidden');
+    loadOutputPdfs();
   }
   function closeCreateModal() { document.getElementById('create-modal').classList.add('hidden'); }
 
@@ -389,10 +506,10 @@
 
   async function createSession() {
     const key = getKey();
-    if (!key) { showCsErr('No API key.'); return; }
+    if (!key && !window.fmpUser) { showCsErr('No API key.'); return; }
     const title = document.getElementById('cs-title').value.trim() || 'Untitled';
-    const pdf = document.getElementById('cs-pdf').value.trim();
-    if (!pdf) { showCsErr('Enter the base PDF filename.'); return; }
+    const pdf = selectedBasePdf();
+    if (!pdf) { showCsErr('Select a base PDF from the dropdown (or Other… and type the filename).'); return; }
 
     const rows = document.querySelectorAll('#signer-rows > div');
     const signers = [];
@@ -409,7 +526,7 @@
     try {
       const r = await fetch(`${API}/api/v1/signing-sessions`, {
         method: 'POST',
-        headers: { 'X-API-Key': key, 'Content-Type': 'application/json' },
+        headers: Object.assign(authH(), { 'Content-Type': 'application/json' }), credentials: 'same-origin',
         body: JSON.stringify({ title, base_pdf_filename: pdf, signers }),
       });
       if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.detail || `HTTP ${r.status}`); }

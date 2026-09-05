@@ -178,8 +178,75 @@ class TestListAndFilter:
 
 
 # ---------------------------------------------------------------------------
-# Update manifest
+# State inference
 # ---------------------------------------------------------------------------
+
+
+class TestResolveState:
+
+    def test_payer_state_wins(self, tmp_repo):
+        m = _manifest()
+        tmp_repo.save(m, FAKE_PDF)
+        items = tmp_repo.list_items()
+        assert items[0].state == "TX"
+
+    def test_custom_state_when_payer_missing(self, tmp_repo):
+        m = TemplateManifest(
+            id="clinic_form",
+            name="Clinic Form",
+            category="prior_authorization",
+            custom={"state": "nm"},
+        )
+        tmp_repo.save(m, FAKE_PDF)
+        assert tmp_repo.list_items()[0].state == "NM"
+
+    def test_infer_from_name_token(self, tmp_repo):
+        m = TemplateManifest(id="Aetna AZ", name="Aetna AZ", category="prior_authorization")
+        tmp_repo.save(m, FAKE_PDF)
+        assert tmp_repo.list_items()[0].state == "AZ"
+
+    def test_infer_from_id_slug(self, tmp_repo):
+        m = TemplateManifest(
+            id="aetna_az-prescription-drug-prior-authorizathion-request-_263213f9cd4c",
+            name="aetna az-prescription-drug-prior-authorizathion-request- 263213f9cd4c",
+            category="prior_authorization",
+        )
+        tmp_repo.save(m, FAKE_PDF)
+        assert tmp_repo.list_items()[0].state == "AZ"
+
+    def test_infer_full_state_name(self, tmp_repo):
+        m = TemplateManifest(
+            id="aetna_new-mexico-uniform-pa-form",
+            name="aetna new mexico uniform pa form",
+            category="prior_authorization",
+        )
+        tmp_repo.save(m, FAKE_PDF)
+        assert tmp_repo.list_items()[0].state == "NM"
+
+    def test_pa_token_is_not_pennsylvania(self, tmp_repo):
+        m = TemplateManifest(
+            id="bcbstx_medicaid-rx-pa-request-form-tx",
+            name="bcbstx medicaid-rx-pa-request-form-tx",
+            category="prior_authorization",
+        )
+        tmp_repo.save(m, FAKE_PDF)
+        assert tmp_repo.list_items()[0].state == "TX"
+
+    def test_filter_uses_inferred_state(self, tmp_repo):
+        tmp_repo.save(
+            TemplateManifest(id="Aetna AZ", name="Aetna AZ", category="prior_authorization"),
+            FAKE_PDF,
+        )
+        tmp_repo.save(
+            TemplateManifest(
+                id="carefirst_form",
+                name="carefirst preauthorization-request-form",
+                category="prior_authorization",
+            ),
+            FAKE_PDF,
+        )
+        items = tmp_repo.list_items(state="AZ")
+        assert [i.id for i in items] == ["Aetna AZ"]
 
 
 class TestUpdateManifest:

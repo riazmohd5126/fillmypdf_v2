@@ -3,7 +3,7 @@ API Key Routes
 ==============
 Admin-only CRUD for API keys.
 
-Note: every endpoint here requires an admin-tier API key.
+Note: every endpoint here requires an admin session or an admin-tier API key.
 Users self-managing their own keys is a future feature; for now keys are
 issued centrally by the operator.
 """

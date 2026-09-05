@@ -5,15 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Fill History — FillMyPDF</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
   <style>body { font-family: system-ui,-apple-system,sans-serif; }</style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
   <!-- Nav -->
   <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
-    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-    </a>
     <span class="font-semibold text-gray-800">Fill History</span>
     <button onclick="loadJobs()" class="ml-auto text-sm text-gray-500 hover:text-indigo-600 flex items-center gap-1">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -105,15 +104,17 @@
   };
 
   async function loadJobs() {
-    const key = getKey();
-    if (!key) { document.getElementById('job-list').innerHTML = '<p class="text-red-500 text-sm text-center py-8">No API key. <a href="/ui/index.html" class="underline">Set it on the dashboard.</a></p>'; return; }
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+      document.getElementById('job-list').innerHTML = '<p class="text-red-500 text-sm text-center py-8">Sign in first. <a href="/ui/login.html?next=/ui/jobs.html" class="underline">Clinic login</a></p>';
+      return;
+    }
     try {
       const status = document.getElementById('f-status').value;
       const kind   = document.getElementById('f-kind').value;
       const params = new URLSearchParams({limit: 100});
       if (status) params.set('status', status);
       if (kind)   params.set('kind', kind);
-      const r = await fetch(`/api/v1/jobs?${params}`, { headers: {'X-API-Key': key} });
+      const r = await fetch(`/api/v1/jobs?${params}`, { headers: fmpAuthHeaders(), credentials: 'same-origin' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       allJobs = data.jobs || [];
@@ -244,10 +245,9 @@
   function closeDetail() { document.getElementById('detail-modal').classList.add('hidden'); currentJobId = null; }
 
   async function downloadJob() {
-    const key = getKey();
     const j = allJobs.find(x => x.id === currentJobId);
     if (!j?.download_url) return;
-    const r = await fetch(j.download_url, { headers: {'X-API-Key': key} });
+    const r = await fetch(j.download_url, { headers: fmpAuthHeaders(), credentials: 'same-origin' });
     if (!r.ok) { alert('Download failed: ' + r.status); return; }
     const blob = await r.blob();
     const filename = j.download_url.split('/').pop() || 'result.zip';
@@ -257,9 +257,8 @@
   }
 
   async function retryWebhook() {
-    const key = getKey();
     const r = await fetch(`/api/v1/jobs/${currentJobId}/retry-webhook`, {
-      method: 'POST', headers: {'X-API-Key': key}
+      method: 'POST', headers: fmpAuthHeaders(), credentials: 'same-origin'
     });
     alert(r.ok ? 'Webhook re-queued.' : 'Failed: ' + r.status);
   }

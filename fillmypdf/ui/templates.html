@@ -5,52 +5,105 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Templates — FillMyPDF</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>body { font-family: system-ui,-apple-system,sans-serif; }</style>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
+  <style>
+    body { font-family: system-ui,-apple-system,sans-serif; }
+    .pin-switch { width: 36px; height: 20px; border-radius: 999px; background: #e5e7eb; position: relative; cursor: pointer; border: 0; padding: 0; flex-shrink: 0; }
+    .pin-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 99px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.15); transition: transform .15s ease; }
+    .pin-switch.is-on { background: #4f46e5; }
+    .pin-switch.is-on::after { transform: translateX(16px); }
+    .tpl-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); transition: border-color .15s ease, box-shadow .15s ease; }
+    .tpl-card:hover, .tpl-card.is-hot { border-color: #818cf8; box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+    .tpl-ini { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; letter-spacing: .02em; flex-shrink: 0; }
+    .tpl-table { width: 100%; border-collapse: collapse; }
+    .tpl-table th:first-child, .tpl-table td:first-child { padding-left: 18px; }
+    .tpl-table th:last-child, .tpl-table td:last-child { padding-right: 18px; text-align: right; }
+    .tpl-table td { padding: 14px 12px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+    .tpl-row { cursor: pointer; }
+    .tpl-row:hover td { background: #f9fafb; }
+    .chip { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: #e0f2fe; color: #0369a1; white-space: nowrap; }
+    .btn-fill { display: inline-flex; align-items: center; justify-content: center; background: #4f46e5; color: #fff; border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 600; text-decoration: none; }
+    .btn-fill:hover { background: #4338ca; }
+    .btn-fill-ghost { display: inline-flex; align-items: center; justify-content: center; background: #fff; color: #4f46e5; border: 1px solid #c7d2fe; border-radius: 10px; padding: 7px 12px; font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+    .btn-fill-ghost:hover { background: #eef2ff; }
+    .btn-csv { display: inline-flex; align-items: center; justify-content: center; background: #fff; color: #4b5563; border: 1px solid #e5e7eb; border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 600; text-decoration: none; }
+    .btn-csv:hover { background: #f9fafb; }
+  </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
-  <!-- Nav -->
-  <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
-    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-    </a>
-    <span class="font-semibold text-gray-800">Template Library</span>
-    <span id="template-count" class="ml-auto text-sm text-gray-400"></span>
-    <button onclick="showUploadModal()" class="flex items-center gap-1.5 bg-indigo-600 text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-indigo-700">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-      Upload
-    </button>
-  </nav>
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
 
-  <main class="max-w-5xl mx-auto px-4 py-8">
-
-    <!-- Search + filters -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
-      <div class="flex flex-wrap gap-3">
-        <input id="search-input" type="text" placeholder="Search by name, drug, payer…"
-          oninput="applyFilters()"
-          class="flex-1 min-w-48 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-        <select id="f-category" onchange="applyFilters()"
-          class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-          <option value="">All categories</option>
-        </select>
-        <select id="f-state" onchange="applyFilters()"
-          class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-          <option value="">All states</option>
-        </select>
-        <button onclick="clearFilters()" class="text-sm text-gray-400 hover:text-indigo-600 px-3 py-2">Clear</button>
+    <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Template Library</h1>
+        <p id="template-count" class="text-sm text-gray-500 mt-1">Loading…</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 text-sm text-gray-600 select-none">
+          <span>Show pinned</span>
+          <button type="button" id="pin-toggle" class="pin-switch is-on" onclick="toggleShowPinned()" aria-pressed="true" title="Show pinned forms"></button>
+        </div>
+        <button onclick="showUploadModal()" class="flex items-center gap-1.5 bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Upload
+        </button>
       </div>
     </div>
 
-    <!-- Template grid -->
-    <div id="template-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-    <div id="empty-state" class="hidden text-center py-16 text-gray-400">
-      <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-      </svg>
-      <p class="font-medium">No templates match your filters</p>
-      <button onclick="clearFilters()" class="text-sm text-indigo-600 mt-2 hover:underline">Clear filters</button>
+    <div class="flex flex-wrap items-center gap-2.5 mb-8">
+      <div class="relative flex-1 min-w-[16rem]">
+        <svg class="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+        </svg>
+        <input id="search-input" type="text" placeholder="Search by name, drug, payer…"
+          oninput="applyFilters()"
+          class="w-full border border-gray-300 rounded-full pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white" />
+      </div>
+      <select id="f-category" onchange="applyFilters()"
+        class="border border-gray-300 rounded-full px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
+        <option value="">All categories</option>
+      </select>
+      <select id="f-state" onchange="applyFilters()"
+        class="border border-gray-300 rounded-full px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
+        <option value="">All states</option>
+      </select>
+      <button onclick="clearFilters()" class="text-sm text-gray-400 hover:text-indigo-600 px-3 py-2">Clear</button>
     </div>
+
+    <section id="pinned-section" class="mb-10 hidden">
+      <div class="mb-3">
+        <h2 class="text-base font-semibold text-gray-900">Pinned to My Forms</h2>
+        <p class="text-sm text-gray-400">the handful you run every day</p>
+      </div>
+      <div id="pinned-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="tpl-table">
+          <thead>
+            <tr>
+              <th>Template</th>
+              <th>Payer</th>
+              <th>Category</th>
+              <th>State</th>
+              <th>Fields</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="template-table"></tbody>
+        </table>
+      </div>
+      <div id="empty-state" class="hidden text-center py-16 text-gray-400">
+        <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <p class="font-medium">No templates match your filters</p>
+        <button onclick="clearFilters()" class="text-sm text-indigo-600 mt-2 hover:underline">Clear filters</button>
+      </div>
+    </section>
   </main>
 
   <!-- Template Detail + Fill Modal -->
@@ -276,7 +329,7 @@
         </div>
 
         <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-          <input id="up-public" type="checkbox" checked class="text-indigo-600 rounded"> Public (visible to all API keys)
+          <input id="up-public" type="checkbox" class="text-indigo-600 rounded"> Shared catalog (admin only — default is private to this clinic)
         </label>
 
         <div id="up-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
@@ -294,42 +347,119 @@
   let allTemplates = [];
   let currentTemplateId = null;
   let readinessById = {};
+  const LS_SHOW_PINNED = 'fmp_tpl_show_pinned';
+  let showPinned = true;
+  try { showPinned = localStorage.getItem(LS_SHOW_PINNED) !== '0'; } catch (_) {}
+
+  const INI_PALETTE = [
+    ['#fee2e2', '#b91c1c'],
+    ['#dcfce7', '#15803d'],
+    ['#dbeafe', '#1d4ed8'],
+    ['#ede9fe', '#6d28d9'],
+    ['#ffedd5', '#c2410c'],
+    ['#e0f2fe', '#0369a1'],
+    ['#fce7f3', '#be185d'],
+    ['#ecfccb', '#4d7c0f'],
+  ];
+
+  function tplPayer(t) { return t.payer_name || t.payer?.name || ''; }
+  function tplDrug(t) { return t.drug_name || t.drug?.name || ''; }
+  function tplFields(t) { return t.field_count || t.question_count || 0; }
+  function catLabel(c) {
+    if (!c) return 'General';
+    return String(c).replace(/[_-]+/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+  }
+  function initials(name) {
+    const parts = String(name || '').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'FM';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  function iniStyle(name) {
+    let h = 0;
+    const s = String(name || '');
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    const [bg, fg] = INI_PALETTE[h % INI_PALETTE.length];
+    return `background:${bg};color:${fg}`;
+  }
+  function tplSub(t) {
+    const bits = [];
+    if (t.description) bits.push(t.description);
+    else if (tplDrug(t)) bits.push(tplDrug(t));
+    if (t.pages) bits.push(t.pages + (t.pages === 1 ? ' page' : ' pages'));
+    return bits.join(' · ');
+  }
+  function isReady(t) { return !!readinessById[t.id]?.ready; }
+
+  function syncPinToggle() {
+    const btn = document.getElementById('pin-toggle');
+    if (!btn) return;
+    btn.classList.toggle('is-on', showPinned);
+    btn.setAttribute('aria-pressed', showPinned ? 'true' : 'false');
+  }
+  function toggleShowPinned() {
+    showPinned = !showPinned;
+    try { localStorage.setItem(LS_SHOW_PINNED, showPinned ? '1' : '0'); } catch (_) {}
+    syncPinToggle();
+    applyFilters();
+  }
+
+  function libraryError(html) {
+    document.getElementById('pinned-section').classList.add('hidden');
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('template-table').innerHTML =
+      `<tr><td colspan="6" class="text-center text-red-500 py-10">${html}</td></tr>`;
+  }
 
   // ── Load templates ────────────────────────────────────────────
   async function loadTemplates() {
-    const key = getKey();
-    if (!key) { document.getElementById('template-grid').innerHTML = '<p class="col-span-3 text-center text-red-500 py-8">No API key. <a href="/ui/index.html" class="underline">Set it on the dashboard.</a></p>'; return; }
+    const headers = window.fmpAuthHeaders ? fmpAuthHeaders() : { 'X-API-Key': getKey() };
+    const ok = await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey()));
+    if (!ok) {
+      libraryError('Sign in first. <a href="/ui/login.html?next=/ui/templates.html" class="underline">Clinic login</a>');
+      return;
+    }
     try {
-      const [r, readyR] = await Promise.all([
-        fetch('/api/v1/templates', { headers: { 'X-API-Key': key } }),
-        fetch('/api/v1/templates/readiness', { headers: { 'X-API-Key': key } }),
+      const [r, ready] = await Promise.all([
+        fetch('/api/v1/templates', { headers, credentials: 'same-origin' }),
+        window.fmpReadiness
+          ? fmpReadiness()
+          : fetch('/api/v1/templates/readiness', { headers, credentials: 'same-origin' })
+              .then(x => x.ok ? x.json() : { items: [] }).catch(() => ({ items: [] })),
       ]);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       allTemplates = data.templates || [];
       readinessById = {};
-      if (readyR.ok) {
-        const ready = await readyR.json();
-        (ready.items || []).forEach(x => { readinessById[x.template_id] = x; });
-      }
+      (ready.items || []).forEach(x => { readinessById[x.template_id] = x; });
       const readyN = Object.values(readinessById).filter(x => x.ready).length;
-      document.getElementById('template-count').textContent =
-        `${allTemplates.length} template${allTemplates.length !== 1 ? 's' : ''} · ${readyN} ready for Guided Fill`;
+      const needsN = allTemplates.filter(t => !isReady(t)).length;
+      document.getElementById('template-count').innerHTML =
+        `${allTemplates.length} template${allTemplates.length !== 1 ? 's' : ''}` +
+        ` · <span class="text-emerald-700 font-medium">${readyN} ready for Guided Fill</span>` +
+        ` · ${needsN} need${needsN === 1 ? 's' : ''} mapping`;
       buildFilterOptions();
-      renderGrid(allTemplates);
+      syncPinToggle();
+      applyFilters();
       await loadProfileOptions(null);
       const tid = new URLSearchParams(location.search).get('template_id');
       if (tid) openDetail(tid, 'fill');
-    } catch (e) { document.getElementById('template-grid').innerHTML = `<p class="col-span-3 text-center text-red-500 py-8">${e.message}</p>`; }
+    } catch (e) { libraryError(esc(e.message)); }
   }
 
   function buildFilterOptions() {
     const cats = [...new Set(allTemplates.map(t => t.category).filter(Boolean))].sort();
     const states = [...new Set(allTemplates.map(t => t.state).filter(Boolean))].sort();
     const catSel = document.getElementById('f-category');
-    cats.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; catSel.appendChild(o); });
     const stateSel = document.getElementById('f-state');
+    const catVal = catSel.value;
+    const stateVal = stateSel.value;
+    catSel.innerHTML = '<option value="">All categories</option>';
+    stateSel.innerHTML = '<option value="">All states</option>';
+    cats.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = catLabel(c); catSel.appendChild(o); });
     states.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; stateSel.appendChild(o); });
+    catSel.value = cats.includes(catVal) ? catVal : '';
+    stateSel.value = states.includes(stateVal) ? stateVal : '';
   }
 
   function applyFilters() {
@@ -337,11 +467,11 @@
     const cat = document.getElementById('f-category').value;
     const state = document.getElementById('f-state').value;
     const filtered = allTemplates.filter(t =>
-      (!q || [t.name, t.drug?.name, t.payer?.name, t.description].join(' ').toLowerCase().includes(q)) &&
+      (!q || [t.name, tplDrug(t), tplPayer(t), t.description].join(' ').toLowerCase().includes(q)) &&
       (!cat || t.category === cat) &&
       (!state || t.state === state)
     );
-    renderGrid(filtered);
+    renderLibrary(filtered);
   }
 
   function clearFilters() {
@@ -351,55 +481,89 @@
     applyFilters();
   }
 
-  const CAT_COLORS = {
-    'prior-authorization': 'bg-blue-100 text-blue-700',
-    'tax': 'bg-green-100 text-green-700',
-    'employment': 'bg-yellow-100 text-yellow-700',
-    'real-estate': 'bg-orange-100 text-orange-700',
-  };
+  function fillActions(t, kind) {
+    const ready = isReady(t);
+    const fp = readinessById[t.id]?.fingerprint;
+    if (ready) {
+      if (kind === 'card') {
+        return `<div class="flex gap-2 mt-auto">
+          <a href="/ui/form_fill.html?template_id=${encodeURIComponent(t.id)}" onclick="event.stopPropagation()" class="btn-fill flex-1">Guided Fill →</a>
+          <a href="/ui/guided_batch.html?template_id=${encodeURIComponent(t.id)}" onclick="event.stopPropagation()" class="btn-csv">CSV</a>
+        </div>`;
+      }
+      return `<a href="/ui/form_fill.html?template_id=${encodeURIComponent(t.id)}" onclick="event.stopPropagation()" class="btn-fill-ghost">Guided Fill</a>`;
+    }
+    if (window.fmpIsAdmin && fmpIsAdmin()) {
+      const href = fp ? '/ui/mapping_review.html?fp=' + encodeURIComponent(fp) : '/ui/mapping_review.html';
+      return `<a href="${href}" onclick="event.stopPropagation()" class="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 hover:bg-amber-100">Review map →</a>`;
+    }
+    return `<span class="text-xs text-amber-700">Needs mapping</span>`;
+  }
 
-  function renderGrid(list) {
-    const grid = document.getElementById('template-grid');
+  function renderLibrary(list) {
     const empty = document.getElementById('empty-state');
-    if (!list.length) { grid.innerHTML = ''; empty.classList.remove('hidden'); return; }
-    empty.classList.add('hidden');
-    // Ready forms first
-    const sorted = list.slice().sort((a, b) =>
-      Number(!!readinessById[b.id]?.ready) - Number(!!readinessById[a.id]?.ready)
-      || String(a.name || a.id).localeCompare(String(b.name || b.id)));
-    grid.innerHTML = sorted.map(t => {
-      const ready = !!readinessById[t.id]?.ready;
-      const fp = readinessById[t.id]?.fingerprint;
-      const status = ready
-        ? '<span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">Ready</span>'
-        : '<span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Needs mapping</span>';
-      const primary = ready
-        ? `<div class="mt-auto space-y-1.5">
-             <a href="/ui/form_fill.html?template_id=${encodeURIComponent(t.id)}" onclick="event.stopPropagation()"
-               class="block text-sm text-center bg-indigo-600 text-white rounded-lg px-3 py-2 font-medium hover:bg-indigo-700">Guided Fill →</a>
-             <a href="/ui/guided_batch.html?template_id=${encodeURIComponent(t.id)}" onclick="event.stopPropagation()"
-               class="block text-xs text-center text-indigo-700 hover:underline">Guided Batch (CSV) →</a>
-           </div>`
-        : `<a href="${fp ? '/ui/mapping_review.html?fp='+encodeURIComponent(fp) : '/ui/mapping_review.html'}" onclick="event.stopPropagation()"
-             class="mt-auto text-sm text-center bg-amber-50 text-amber-800 border border-amber-200 rounded-lg px-3 py-2 font-medium hover:bg-amber-100">Review map →</a>`;
-      return `
-      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition cursor-pointer" onclick="openDetail('${esc(t.id)}')">
-        <div class="flex items-start justify-between gap-2">
-          <span class="text-xs px-2 py-0.5 rounded-full font-medium ${CAT_COLORS[t.category] || 'bg-gray-100 text-gray-600'}">${esc(t.category || 'general')}</span>
-          <div class="flex items-center gap-1 flex-wrap justify-end">
-            ${status}
-            ${t.state ? `<span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">${esc(t.state)}</span>` : ''}
+    const tbody = document.getElementById('template-table');
+    const pinnedWrap = document.getElementById('pinned-section');
+    const pinnedGrid = document.getElementById('pinned-grid');
+    const tableScroller = tbody.closest('.overflow-x-auto');
+
+    const pinned = list.filter(t => t.pinned);
+    if (showPinned && pinned.length) {
+      pinnedWrap.classList.remove('hidden');
+      pinnedGrid.innerHTML = pinned.map(t => `
+        <div class="tpl-card" onclick="openDetail('${esc(t.id)}')">
+          <div class="flex items-start gap-3">
+            <span class="tpl-ini" style="${iniStyle(t.name)}">${esc(initials(t.name))}</span>
+            <div class="min-w-0 flex-1">
+              <h3 class="font-semibold text-gray-900 text-[15px] leading-snug">${esc(t.name)}</h3>
+              <p class="text-xs text-gray-400 mt-1 truncate">${esc([tplPayer(t), (t.category || '').replace(/_/g, ' '), tplFields(t) ? tplFields(t) + ' fields' : ''].filter(Boolean).join(' · '))}</p>
+            </div>
+            <button type="button" title="Unpin" onclick="event.stopPropagation(); pinTemplate('${esc(t.id)}', true)"
+              class="text-indigo-500 hover:text-indigo-700 text-sm leading-none px-1">★</button>
           </div>
-        </div>
-        <div>
-          <h3 class="font-semibold text-gray-900 text-sm leading-snug">${esc(t.name)}</h3>
-          ${t.drug_name ? `<p class="text-xs text-gray-400 mt-1">${esc(t.drug_name)}</p>` : ''}
-          ${t.payer_name ? `<p class="text-xs text-gray-400">${esc(t.payer_name)}</p>` : ''}
-        </div>
-        ${primary}
-        <button onclick="event.stopPropagation(); openDetail('${esc(t.id)}', 'fill')"
-          class="text-xs text-gray-500 hover:text-indigo-700 text-left">Classic AI fill…</button>
-      </div>`;
+          ${fillActions(t, 'card')}
+        </div>`).join('');
+    } else {
+      pinnedWrap.classList.add('hidden');
+      pinnedGrid.innerHTML = '';
+    }
+
+    if (!list.length) {
+      tbody.innerHTML = '';
+      if (tableScroller) tableScroller.classList.add('hidden');
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    if (tableScroller) tableScroller.classList.remove('hidden');
+    const sorted = list.slice().sort((a, b) =>
+      Number(!!b.pinned) - Number(!!a.pinned)
+      || Number(isReady(b)) - Number(isReady(a))
+      || String(a.name || a.id).localeCompare(String(b.name || b.id)));
+    tbody.innerHTML = sorted.map(t => {
+      const n = tplFields(t);
+      const sub = tplSub(t);
+      return `<tr class="tpl-row" onclick="openDetail('${esc(t.id)}')">
+        <td>
+          <div class="flex items-start gap-3">
+            <span class="tpl-ini" style="${iniStyle(t.name)}">${esc(initials(t.name))}</span>
+            <div class="min-w-0">
+              <div class="font-semibold text-gray-900 text-sm">${esc(t.name)}</div>
+              ${sub ? `<div class="text-xs text-gray-400 mt-0.5">${esc(sub)}</div>` : ''}
+            </div>
+          </div>
+        </td>
+        <td class="text-sm text-gray-700">${esc(tplPayer(t) || '—')}</td>
+        <td>${t.category ? `<span class="chip">${esc(catLabel(t.category))}</span>` : '—'}</td>
+        <td class="text-sm text-gray-700">${esc(t.state || '—')}</td>
+        <td class="text-sm text-gray-700 tabular-nums">${n || '—'}</td>
+        <td class="text-right whitespace-nowrap">
+          <button type="button" title="${t.pinned ? 'Unpin' : 'Pin to My forms'}"
+            onclick="event.stopPropagation(); pinTemplate('${esc(t.id)}', ${t.pinned ? 'true' : 'false'})"
+            class="text-sm mr-2 ${t.pinned ? 'text-indigo-500' : 'text-gray-300 hover:text-indigo-500'}">${t.pinned ? '★' : '☆'}</button>
+          ${fillActions(t, 'row')}
+        </td>
+      </tr>`;
     }).join('');
   }
 
@@ -467,10 +631,9 @@
   }
 
   async function loadProfileOptions(category) {
-    const key = getKey();
-    if (!key) return;
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) return;
     try {
-      const r = await fetch('/api/v1/profiles', { headers: { 'X-API-Key': key } });
+      const r = await fetch('/api/v1/profiles', { headers: fmpAuthHeaders(), credentials: 'same-origin' });
       if (!r.ok) return;
       allProfilesCache = await r.json();
     } catch { allProfilesCache = []; }
@@ -503,9 +666,8 @@
   async function loadPickerData(pickerId) {
     const id = document.getElementById(pickerId)?.value;
     if (!id) return;
-    const key = getKey();
     try {
-      const r = await fetch(`/api/v1/profiles/${id}`, { headers: { 'X-API-Key': key } });
+      const r = await fetch(`/api/v1/profiles/${id}`, { headers: fmpAuthHeaders(), credentials: 'same-origin' });
       if (!r.ok) throw new Error();
       const p = await r.json();
       const cur = document.getElementById('fill-data').value.trim();
@@ -517,8 +679,9 @@
   }
 
   async function fillTemplate() {
-    const key = getKey();
-    if (!key) { showFillErr('No API key set.'); return; }
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+      showFillErr('Sign in first.'); return;
+    }
     const aiKey = document.getElementById('fill-ai-key').value.trim();
     if (!aiKey) { showFillErr('Gemini API key is required.'); return; }
     const rawData = document.getElementById('fill-data').value.trim();
@@ -544,7 +707,7 @@
 
     try {
       const r = await fetch(`/api/v1/templates/${currentTemplateId}/fill`, {
-        method: 'POST', headers: { 'X-API-Key': key }, body: fd,
+        method: 'POST', headers: fmpAuthHeaders(), body: fd, credentials: 'same-origin',
       });
       if (!r.ok) { const e = await r.json().catch(() => {}); throw new Error(e?.detail || `HTTP ${r.status}`); }
       const result = await r.json();
@@ -554,7 +717,7 @@
       const dlBtn = document.getElementById('fill-download-btn');
       dlBtn.onclick = async (ev) => {
         ev.preventDefault();
-        const dlR = await fetch(dlUrl, { headers: { 'X-API-Key': key } });
+        const dlR = await fetch(dlUrl, { headers: fmpAuthHeaders(), credentials: 'same-origin' });
         const blob = await dlR.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url;
@@ -584,11 +747,10 @@
 
   // ── Fields ────────────────────────────────────────────────────
   async function loadFields() {
-    const key = getKey();
-    if (!key || !currentTemplateId) return;
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey()))) || !currentTemplateId) return;
     document.getElementById('fields-load-btn').textContent = 'Loading…';
     try {
-      const r = await fetch(`/api/v1/templates/${currentTemplateId}/fields`, { headers: { 'X-API-Key': key } });
+      const r = await fetch(`/api/v1/templates/${currentTemplateId}/fields`, { headers: fmpAuthHeaders(), credentials: 'same-origin' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       const list = document.getElementById('fields-list');
@@ -609,7 +771,7 @@
   function showUploadModal() {
     ['up-id','up-name','up-drug','up-payer','up-state','up-tags'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('up-category').value = 'prior_authorization';
-    document.getElementById('up-public').checked = true;
+    document.getElementById('up-public').checked = false;
     document.getElementById('up-pdf-name').textContent = 'Click to select PDF';
     document.getElementById('up-pdf').value = '';
     document.getElementById('up-error').classList.add('hidden');
@@ -617,39 +779,58 @@
   }
   function closeUploadModal() { document.getElementById('upload-modal').classList.add('hidden'); }
 
+  async function pinTemplate(id, pinned) {
+    const headers = fmpAuthHeaders();
+    const method = pinned ? 'DELETE' : 'POST';
+    try {
+      const r = await fetch('/api/v1/account/library/' + encodeURIComponent(id), { method, headers, credentials: 'same-origin' });
+      if (!r.ok) throw new Error('Could not update library');
+      await loadTemplates();
+    } catch (e) { alert(e.message); }
+  }
+
   async function uploadTemplate() {
-    const key = getKey();
-    if (!key) { showUpErr('No API key.'); return; }
+    const headers = fmpAuthHeaders();
     const pdf = document.getElementById('up-pdf').files[0];
     if (!pdf)  { showUpErr('Select a PDF file.'); return; }
     const id   = document.getElementById('up-id').value.trim();
     const name = document.getElementById('up-name').value.trim();
-    if (!id || !name) { showUpErr('Template ID and Name are required.'); return; }
+    if (!name && !id) { showUpErr('Name is required.'); return; }
 
-    const drug  = document.getElementById('up-drug').value.trim();
-    const payer = document.getElementById('up-payer').value.trim();
-    const state = document.getElementById('up-state').value.trim();
-    const tags  = document.getElementById('up-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
-
-    const manifest = {
-      id, name,
-      category: document.getElementById('up-category').value,
-      is_public: document.getElementById('up-public').checked,
-      ...(drug  ? { drug:  { name: drug  } } : {}),
-      ...(payer ? { payer: { name: payer } } : {}),
-      ...(state ? { custom: { state } } : {}),
-      ...(tags.length ? { tags } : {}),
-    };
-
-    const fd = new FormData();
-    fd.append('file', pdf);
-    fd.append('manifest_json', JSON.stringify(manifest));
-
+    const shared = document.getElementById('up-public').checked;
     const btn = document.querySelector('#upload-modal button[onclick="uploadTemplate()"]');
     btn.disabled = true; btn.textContent = 'Uploading…';
     try {
-      const r = await fetch('/api/v1/templates', { method:'POST', headers:{'X-API-Key': key}, body: fd });
-      if (!r.ok) { const d = await r.json().catch(()=>({})); showUpErr(d.detail || `HTTP ${r.status}`); return; }
+      if (shared) {
+        const drug  = document.getElementById('up-drug').value.trim();
+        const payer = document.getElementById('up-payer').value.trim();
+        const state = document.getElementById('up-state').value.trim();
+        const tags  = document.getElementById('up-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+        const manifest = {
+          id: id || ('tpl_' + Date.now()),
+          name: name || pdf.name.replace(/\.pdf$/i,''),
+          category: document.getElementById('up-category').value,
+          is_public: true,
+          visibility: 'shared',
+          ...(drug  ? { drug:  { name: drug  } } : {}),
+          ...(payer ? { payer: { name: payer } } : {}),
+          ...(state ? { custom: { state } } : {}),
+          ...(tags.length ? { tags } : {}),
+        };
+        const fd = new FormData();
+        fd.append('file', pdf);
+        fd.append('manifest_json', JSON.stringify(manifest));
+        const r = await fetch('/api/v1/templates', { method:'POST', headers, body: fd, credentials: 'same-origin' });
+        if (!r.ok) { const d = await r.json().catch(()=>({})); showUpErr(d.detail || `HTTP ${r.status} — shared catalog requires an admin key`); return; }
+      } else {
+        const fd = new FormData();
+        fd.append('file', pdf);
+        if (name) fd.append('name', name);
+        if (id) fd.append('template_id', id);
+        fd.append('category', document.getElementById('up-category').value);
+        const r = await fetch('/api/v1/account/library/uploads', { method:'POST', headers, body: fd, credentials: 'same-origin' });
+        if (!r.ok) { const d = await r.json().catch(()=>({})); showUpErr(d.detail || `HTTP ${r.status}`); return; }
+      }
       closeUploadModal();
       await loadTemplates();
     } catch(e) { showUpErr(e.message); }
@@ -711,13 +892,12 @@
   }
 
   async function loadSignatureFields(templateId) {
-    const key = getKey();
     sigFields = [];
     selectedSigFieldKey = null;
     document.getElementById('sig-result').classList.add('hidden');
     document.getElementById('sig-error').classList.add('hidden');
     try {
-      const r = await fetch(`/api/v1/templates/${templateId}/signature-fields`, { headers: { 'X-API-Key': key } });
+      const r = await fetch(`/api/v1/templates/${templateId}/signature-fields`, { headers: fmpAuthHeaders(), credentials: 'same-origin' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       sigFields = data.signature_fields || [];
@@ -741,8 +921,9 @@
   }
 
   async function applyTemplateSign() {
-    const key = getKey();
-    if (!key) { showSigErr('No API key set.'); return; }
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+      showSigErr('Sign in first.'); return;
+    }
     if (!selectedSigFieldKey) { showSigErr('Select a signature field.'); return; }
     if (!document.getElementById('sig-consent').checked) { showSigErr('Accept the consent to proceed.'); return; }
 
@@ -771,7 +952,7 @@
 
     try {
       const r = await fetch(`/api/v1/templates/${currentTemplateId}/sign`, {
-        method: 'POST', headers: { 'X-API-Key': key }, body: fd,
+        method: 'POST', headers: fmpAuthHeaders(), body: fd, credentials: 'same-origin',
       });
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e?.detail || `HTTP ${r.status}`); }
       const data = await r.json();
@@ -780,7 +961,7 @@
       const pdfLink = document.getElementById('sig-result-pdf');
       pdfLink.onclick = async (ev) => {
         ev.preventDefault();
-        const dlR = await fetch(data.download_url, { headers: { 'X-API-Key': key } });
+        const dlR = await fetch(data.download_url, { headers: fmpAuthHeaders(), credentials: 'same-origin' });
         const blob = await dlR.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url; a.download = data.filename; a.click();
@@ -791,7 +972,7 @@
       const certLink = document.getElementById('sig-result-cert');
       certLink.onclick = async (ev) => {
         ev.preventDefault();
-        const cr = await fetch(data.certificate_url, { headers: { 'X-API-Key': key } });
+        const cr = await fetch(data.certificate_url, { headers: fmpAuthHeaders(), credentials: 'same-origin' });
         const cb = await cr.blob();
         const cu = URL.createObjectURL(cb);
         const a = document.createElement('a'); a.href = cu; a.download = `certificate_${data.audit_id}.pdf`; a.click();
@@ -809,7 +990,11 @@
     el.textContent = msg; el.classList.remove('hidden');
   }
 
-  loadTemplates();
+  (async function(){
+    await (window.fmpAuthReady || Promise.resolve());
+    if (window.fmpPaintNavAuth) fmpPaintNavAuth('nav-auth');
+    loadTemplates();
+  })();
 </script>
 </body>
 </html>

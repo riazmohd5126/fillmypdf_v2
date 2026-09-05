@@ -5,22 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>PDF Tools — FillMyPDF</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
   <style>body{font-family:system-ui,-apple-system,sans-serif;}</style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
   <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
-    <a href="/ui/index.html" class="text-gray-400 hover:text-indigo-600">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-    </a>
     <span class="font-semibold text-gray-800">PDF Tools</span>
-    <a href="/ui/make_fillable.html" class="ml-auto text-xs text-teal-700 hover:underline">Make Fillable →</a>
+    <a href="/ui/make_fillable.html" id="nav-make-fillable" class="ml-auto text-xs text-teal-700 hover:underline">Make Fillable →</a>
   </nav>
 
   <main class="max-w-3xl mx-auto px-4 py-10 space-y-8">
 
     <!-- Make fillable CTA -->
-    <a href="/ui/make_fillable.html"
+    <a href="/ui/make_fillable.html" id="cta-make-fillable"
       class="block bg-teal-50 border border-teal-200 rounded-2xl p-5 hover:bg-teal-100 transition">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center text-xl">📝</div>
@@ -113,6 +112,7 @@
 
 <script>
   function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
+  function authH(extra){ return Object.assign({}, window.fmpAuthHeaders ? fmpAuthHeaders() : {}, extra||{}); }
   let mergeFiles = [];
 
   // ── Merge ─────────────────────────────────────────────────────────────────
@@ -145,8 +145,9 @@
   }
 
   async function doMerge() {
+    await (window.fmpAuthReady || Promise.resolve());
     const key = getKey();
-    if (!key) { showErr('merge','No API key set.'); return; }
+    if (!key && !window.fmpUser) { showErr('merge','Sign in first.'); return; }
     if (mergeFiles.length < 2) { showErr('merge','Upload at least 2 PDF files.'); return; }
     const btn = document.getElementById('merge-btn');
     btn.disabled = true; btn.textContent = 'Merging…';
@@ -157,14 +158,14 @@
     const name = document.getElementById('merge-name').value.trim();
     if (name) fd.append('output_name', name);
     try {
-      const r = await fetch('/api/v1/pdf/merge', { method:'POST', headers:{'X-API-Key':key}, body:fd });
+      const r = await fetch('/api/v1/pdf/merge', { method:'POST', headers: authH(), credentials: 'same-origin', body:fd });
       if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.detail||`HTTP ${r.status}`); }
       const data = await r.json();
       document.getElementById('merge-result-info').textContent = `${data.files_merged} files · ${data.total_pages} pages`;
       const dlLink = document.getElementById('merge-download');
       dlLink.onclick = async(ev) => {
         ev.preventDefault();
-        const dr = await fetch(data.download_url,{headers:{'X-API-Key':key}});
+        const dr = await fetch(data.download_url,{headers: authH(), credentials: 'same-origin'});
         const blob=await dr.blob(); const url=URL.createObjectURL(blob);
         const a=document.createElement('a'); a.href=url; a.download=data.filename; a.click(); URL.revokeObjectURL(url);
       };
@@ -184,8 +185,9 @@
   }
 
   async function doSplit() {
+    await (window.fmpAuthReady || Promise.resolve());
     const key = getKey();
-    if (!key) { showErr('split','No API key set.'); return; }
+    if (!key && !window.fmpUser) { showErr('split','Sign in first.'); return; }
     const file = document.getElementById('split-input').files[0];
     if (!file) { showErr('split','Upload a PDF first.'); return; }
     const mode = document.querySelector('input[name="split-mode"]:checked').value;
@@ -202,7 +204,7 @@
       fd.append('page_ranges', ranges);
     }
     try {
-      const r = await fetch('/api/v1/pdf/split', { method:'POST', headers:{'X-API-Key':key}, body:fd });
+      const r = await fetch('/api/v1/pdf/split', { method:'POST', headers: authH(), credentials: 'same-origin', body:fd });
       if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.detail||`HTTP ${r.status}`); }
       const data = await r.json();
       const linksEl = document.getElementById('split-file-links');
@@ -221,8 +223,7 @@
 
   async function dlSplit(e, url, name) {
     e.preventDefault();
-    const key = getKey();
-    const r = await fetch(url, {headers:{'X-API-Key':key}});
+    const r = await fetch(url, {headers: authH(), credentials: 'same-origin'});
     const blob = await r.blob();
     const u = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u);
@@ -236,8 +237,8 @@
 
   // ── Send for Approval ─────────────────────────────────────────────────────
   async function doApproval() {
-    const key = getKey();
-    if (!key) { showErr('appr', 'No API key set.'); return; }
+    await (window.fmpAuthReady || Promise.resolve());
+    if (!getKey() && !window.fmpUser) { showErr('appr', 'Sign in first.'); return; }
     const filename = document.getElementById('appr-filename').value.trim();
     const title    = document.getElementById('appr-title').value.trim();
     const email    = document.getElementById('appr-email').value.trim();
@@ -252,7 +253,7 @@
     fd.append('pdf_filename', filename);
     if (email) fd.append('reviewer_email', email);
     try {
-      const r = await fetch('/api/v1/approvals', { method:'POST', headers:{'X-API-Key':key}, body:fd });
+      const r = await fetch('/api/v1/approvals', { method:'POST', headers: authH(), credentials: 'same-origin', body:fd });
       if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.detail||`HTTP ${r.status}`); }
       const data = await r.json();
       const link = location.origin + data.review_url;
@@ -262,6 +263,10 @@
     } catch(e) { showErr('appr', e.message); }
     finally { btn.disabled=false; btn.textContent='Send for Approval'; }
   }
+
+  (async function(){
+    await (window.fmpAuthReady || Promise.resolve());
+  })();
 </script>
 
 <!-- Send for Approval section (appended after split) -->

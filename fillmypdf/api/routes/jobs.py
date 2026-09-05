@@ -53,7 +53,8 @@ from ...repositories.job_repository import JobRepository
 from ...services.job_runner import get_runner
 from ...services.ai_provider import prepare_ai_config
 from ...services.template_service import TemplateService
-from ..dependencies.auth import require_api_key, get_current_key_id
+from ...services.template_access import LOCK_REQUIRED_MSG, template_has_locked_map
+from ..dependencies.auth import require_api_key, require_admin, get_current_key_id
 from ..openapi_form_examples import (
     EX_AI_API_KEY,
     EX_AI_BASE_URL,
@@ -74,6 +75,15 @@ router = APIRouter(
 
 def _repo() -> JobRepository:
     return JobRepository()
+
+
+def _job_or_404(job, api_key: dict):
+    if job is None:
+        raise HTTPException(404, "Job not found")
+    owner = getattr(job, "api_key_id", None)
+    if owner and api_key.get("tier") != "admin" and owner != api_key.get("id"):
+        raise HTTPException(404, "Job not found")
+    return job
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +135,7 @@ async def submit_batch_job(
         description="Secret for X-FillMyPDF-Signature (overrides WEBHOOK_SIGNING_SECRET)",
         examples=[EX_WEBHOOK_SECRET],
     ),
+    _admin: dict = Depends(require_admin),
 ):
     """
     Submit a batch fill job and return **immediately** with a job ID.
@@ -252,6 +263,9 @@ async def submit_template_batch_job(
     if len(data_list) > 500:
         raise HTTPException(400, "Maximum 500 records per job")
 
+    if not template_has_locked_map(template_id):
+        raise HTTPException(409, LOCK_REQUIRED_MSG)
+
     key_id = get_current_key_id(request)
     parsed_ids = [p.strip() for p in profile_ids.split(",") if p.strip()] if profile_ids else None
 
@@ -259,8 +273,6 @@ async def submit_template_batch_job(
     try:
         tpl = TemplateService().get(template_id)
         tpl_category = tpl.category
-    except KeyError:
-        raise HTTPException(404, f"Template '{template_id}' not found")
     except Exception:
         tpl_category = None
 
@@ -271,6 +283,7 @@ async def submit_template_batch_job(
             request_model=ai_model,
             provider_hint=ai_provider,
             category=tpl_category,
+            require_cloud_key=False,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc))
@@ -338,6 +351,7 @@ async def submit_xlsx_job(
         description="Webhook HMAC secret (overrides WEBHOOK_SIGNING_SECRET)",
         examples=[EX_WEBHOOK_SECRET],
     ),
+    _admin: dict = Depends(require_admin),
 ):
     """Queue a spreadsheet batch job and return immediately with a ``job_id``."""
     fn = xlsx_file.filename.lower() if xlsx_file.filename else ""
@@ -460,7 +474,7 @@ async def submit_extract_job(
 
 
 @router.get("/{job_id}", response_model=JobSummary, summary="Get job status")
-async def get_job(job_id: str):
+async def get_job(job_id: str, api_key: dict = Depends(require_api_key)):
     """
     Poll job status.
 
@@ -469,9 +483,7 @@ async def get_job(job_id: str):
     When `status == 'failed'`, see `error` for the reason.
     """
     repo = _repo()
-    job = repo.get(job_id)
-    if job is None:
-        raise HTTPException(404, f"Job '{job_id}' not found")
+    job = _job_or_404(repo.get(job_id), api_key)
     return repo.to_summary(job)
 
 
@@ -481,7 +493,7 @@ async def get_job(job_id: str):
     status_code=202,
     summary="Re-queue completion webhook",
 )
-async def retry_job_webhook(job_id: str):
+async def retry_job_webhook(job_id: str, api_key: dict = Depends(require_api_key)):
     """
     Queue another POST to ``webhook_url`` with the latest job snapshot.
 
@@ -490,9 +502,7 @@ async def retry_job_webhook(job_id: str):
     Uses the same HMAC signing and exponential retry policy as automatic delivery.
     """
     repo = _repo()
-    job = repo.get(job_id)
-    if job is None:
-        raise HTTPException(404, f"Job '{job_id}' not found")
+    job = _job_or_404(repo.get(job_id), api_key)
     if job.status in ("queued", "running"):
         raise HTTPException(
             409,
@@ -514,16 +524,14 @@ async def retry_job_webhook(job_id: str):
 
 
 @router.get("/{job_id}/download", summary="Download job result (redirect)")
-async def download_job_result(job_id: str):
+async def download_job_result(job_id: str, api_key: dict = Depends(require_api_key)):
     """
     Redirect to the filled ZIP / PDF once the job is done.
 
     Returns 404 if the job doesn't exist, 409 if still running.
     """
     repo = _repo()
-    job = repo.get(job_id)
-    if job is None:
-        raise HTTPException(404, f"Job '{job_id}' not found")
+    job = _job_or_404(repo.get(job_id), api_key)
     if job.status in ("queued", "running"):
         raise HTTPException(409, f"Job '{job_id}' is still {job.status}")
     if job.status in ("failed", "cancelled"):
@@ -562,6 +570,7 @@ async def download_job_result(job_id: str):
 
 @router.get("", response_model=JobListResponse, summary="List recent jobs")
 async def list_jobs(
+    api_key: dict = Depends(require_api_key),
     limit: int = Query(50, ge=1, description="Maximum jobs to return (capped server-side)."),
     status: Optional[JobStatus] = Query(
         None,
@@ -575,7 +584,13 @@ async def list_jobs(
     """List recent jobs (**newest first**), optionally filtered by ``status`` and/or ``kind``."""
     limit = min(limit, settings.JOB_MAX_LISTED)
     repo = _repo()
-    jobs = repo.list_recent(limit=limit, status=status, kind=kind)
+    jobs = repo.list_recent(
+        limit=limit,
+        status=status,
+        kind=kind,
+        api_key_id=api_key.get("id"),
+        admin=api_key.get("tier") == "admin",
+    )
     return JobListResponse(
         jobs=[repo.to_summary(j) for j in jobs],
         total=len(jobs),
@@ -592,7 +607,7 @@ async def list_jobs(
     status_code=204,
     summary="Cancel or delete a job",
 )
-async def cancel_job(job_id: str):
+async def cancel_job(job_id: str, api_key: dict = Depends(require_api_key)):
     """
     Cancel a queued job or delete the record of a completed one.
 
@@ -600,9 +615,7 @@ async def cancel_job(job_id: str):
     interrupted (it will finish its current record before stopping).
     """
     repo = _repo()
-    job = repo.get(job_id)
-    if job is None:
-        raise HTTPException(404, f"Job '{job_id}' not found")
+    job = _job_or_404(repo.get(job_id), api_key)
 
     if job.status in ("queued",):
         repo.update_status(job_id, status="cancelled")

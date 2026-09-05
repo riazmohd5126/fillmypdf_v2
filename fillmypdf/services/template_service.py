@@ -200,6 +200,7 @@ class TemplateService:
             output_path=str(output_path),
             user_data=ai_input,
             dpi=dpi,
+            skip_ai=preserve_input,
         )
 
         return TemplateFillResponse(
@@ -336,6 +337,7 @@ class TemplateService:
                     output_path=str(output_path),
                     user_data=ai_input,
                     dpi=dpi,
+                    skip_ai=preserve_input,
                 )
                 signed = 0
                 if result["success"] and sig_mode == "typed" and sig_rows:

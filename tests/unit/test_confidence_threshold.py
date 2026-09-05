@@ -131,3 +131,22 @@ class TestConfidenceThresholdMissingConfidence:
             result = vs.autofill_pipeline("fake.pdf", "out.pdf", {})
 
         assert "no_conf_field" in result["mappings"]
+
+
+def test_skip_ai_does_not_call_mapper():
+    """Guided Batch must fill from the locked map without calling Gemini."""
+    vs = _make_vision_service()
+    fields_info = [{"name": "a", "type": "text", "page": 1, "x0": 0, "y": 0, "x1": 10}]
+    mapper = MagicMock(side_effect=RuntimeError("Connection error."))
+    with patch.object(vs, "_get_fields_with_coords", return_value=fields_info), \
+         patch.object(vs, "_extract_labels_for_fields", return_value={}), \
+         patch.object(vs, "_flatten_field_labels", return_value={"a": "A"}), \
+         patch.object(vs, "_map_fields_with_ai", mapper), \
+         patch.object(vs, "_fill_pdf", return_value=True), \
+         patch("fillmypdf.services.vision_service.settings",
+               FILL_CONFIDENCE_THRESHOLD=0.0, CANONICAL_FORK_ENABLED=False):
+        result = vs.autofill_pipeline(
+            "fake.pdf", "out.pdf", {"patient.dob": "1990-01-01"}, skip_ai=True
+        )
+    mapper.assert_not_called()
+    assert result["success"] is True
