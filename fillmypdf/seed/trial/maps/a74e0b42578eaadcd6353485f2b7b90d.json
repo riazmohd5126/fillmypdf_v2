@@ -1,0 +1,653 @@
+{
+  "version": 1,
+  "schema_version": "606a74102b36",
+  "cached_at": "2026-07-22T23:44:16.003362",
+  "fingerprint": "a74e0b42578eaadcd6353485f2b7b90d",
+  "signature": "0e318b018731",
+  "form_label": "BCBS New Mexico Uniform PA",
+  "reviewed": true,
+  "field_labels": {
+    "standard box": "New Mexico Uniform Prior Authorization Form / To file via facsimile, send to / Services scheduled for Urgent/Expedited",
+    "urgent/expedited box": "New Mexico Uniform Prior Authorization Form / To file via facsimile, send to / Provider certifies that applying",
+    "Scheduled for date": "Scheduled for date",
+    "extension box": "New Mexico Uniform Prior Authorization Form / To file via facsimile, send to / Extension",
+    "previous authorization box": "New Mexico Uniform Prior Authorization Form / To file via facsimile, send to / Previous Authorization #",
+    "Previous Authrorization": "Previous Authorization",
+    "Enrollee name": "Enrollee name",
+    "Enrollee DOB": "Enrollee name",
+    "Subcriber/Member ID": "Subcriber/Member ID",
+    "Enrollee street address": "Subcriber/Member ID",
+    "City": "City",
+    "State": "City",
+    "Zip code": "Zip code",
+    "ordering provider box": "2. Enrollee Information / 3. Provider Information: Ordering Provider / Rendering Provider",
+    "rendering provider box": "2. Enrollee Information / 3. Provider Information: Ordering Provider / Both",
+    "both box": "2. Enrollee Information / 3. Provider Information: Ordering Provider / both box",
+    "Provider name": "provider name",
+    "Provider type": "provider name",
+    "administrative contact": "administrative contact",
+    "NPI": "administrative contact",
+    "DEA": "DEA",
+    "Clinic/facility name": "Clinic/facility name",
+    "Clinic/facility address": "Clinic/facility name",
+    "City, State, Zip": "City, State, Zip",
+    "Phone number and ext": "City, State, Zip",
+    "Facsimile/Email": "Facsimile/Email",
+    "Service description": "Facsimile/Email",
+    "office box": "Setting/CMS POS Code Outpatient Inpatient Home Office Other* / requested) / Other*",
+    "outpatient box": "Setting/CMS POS Code Outpatient Inpatient Home Office Other* / requested) / Inpatient",
+    "inpatient box": "Setting/CMS POS Code Outpatient Inpatient Home Office Other* / requested) / Home",
+    "home box": "Setting/CMS POS Code Outpatient Inpatient Home Office Other* / requested) / Office",
+    "other box": "Setting/CMS POS Code Outpatient Inpatient Home Office Other* / requested) / treatment/procedure/device",
+    "Specify if other": "Specify if other",
+    "Latest ICD-10 Code 1": "Specify if other",
+    "HCPCS/CPT/CDT Code 1": "HCPCS/CPT/CDT Code 1",
+    "Medical Reason 1": "HCPCS/CPT/CDT Code 1",
+    "Latest ICD-10 Code 2": "Latest ICD-10 Code 2",
+    "HCPCS/CPT/CDT Code 2": "HCPCS/CPT/CDT Code 2",
+    "Medical Reason 2": "Medical Reason 2",
+    "Latest ICD-10 Code 3": "Latest ICD-10 Code 3",
+    "HCPCS/CPT/CDT Code 3": "HCPCS/CPT/CDT Code 3",
+    "Medical Reason 3": "Medical Reason 3",
+    "Latest ICD-10 Code 4": "Latest ICD-10 Code 4",
+    "HCPCS/CPT/CDT Code 4": "HCPCS/CPT/CDT Code 4",
+    "Medical Reason 4": "Medical Reason 4",
+    "Latest ICD-10 Code 5": "Latest ICD-10 Code 5",
+    "HCPCS/CPT/CDT Code 5": "HCPCS/CPT/CDT Code 5",
+    "Medical Reason 5": "Medical Reason 5",
+    "section 6 box 1": "section 6 box 1",
+    "section 6 box 2": "section 6 box 1",
+    "Type of service": "Type of service",
+    "Name of therapy/agency": "Type of service",
+    "Units/Volume": "Units/Volume",
+    "Frequency/length": "Units/Volume",
+    "Diagnosis name and code": "Diagnosis name and code",
+    "Patient height": "Diagnosis name and code",
+    "Patient weight": "Patient weight",
+    "section 7 box 1": "section 7 box 1",
+    "section 7 box 2": "section 7 box 1",
+    "section 7 box 3": "section 7 box 3",
+    "section 7 box 4": "section 7 box 4",
+    "section 7 box 5": "section 7 box 5",
+    "Explain if \"other\"": "Patient weight",
+    "section 7 box 6": "section 7 box 6",
+    "section 7 box 7": "section 7 box 7",
+    "section 7 box 8": "section 7 box 8",
+    "section 7 box 9": "section 7 box 9",
+    "Medication requested 1": "Medication requested 1",
+    "Strength 1": "Medication requested 1",
+    "Dosing 1": "Dosing 1",
+    "Quantity 1": "Dosing 1",
+    "Medication requested 2": "Medication requested 2",
+    "Strength 2": "Medication requested 2",
+    "Dosing 2": "Dosing 2",
+    "Quantity 2": "Dosing 2",
+    "Medication requested 3": "Medication requested 3",
+    "Strength 3": "Medication requested 3",
+    "Dosing 3": "Dosing 3",
+    "Quantity 3": "Dosing 3",
+    "Medication requested 4": "Medication requested 4",
+    "Strength 4": "Medication requested 4",
+    "Dosing 4": "Dosing 4",
+    "Quantity 4": "Dosing 4",
+    "Medication requested 5": "Medication requested 5",
+    "Dosing 5": "Dosing 5",
+    "Quantity 5": "Dosing 5",
+    "Strength 5": "Medication requested 5",
+    "Medication requested 6": "Medication requested 6",
+    "Strength 6": "Medication requested 6",
+    "Dosing 6": "Dosing 6",
+    "Quantity 6": "Dosing 6",
+    "Medication requested 7": "Medication requested 7",
+    "Strength 7": "Medication requested 7",
+    "Dosing 7": "Dosing 7",
+    "Quantity 7": "Dosing 7",
+    "Medication requested 8": "Medication requested 8",
+    "Strength 8": "Medication requested 8",
+    "Dosing 8": "Dosing 8",
+    "Quantity 8": "Dosing 8",
+    "Check Box 6": "BCBSNM Commercial/Retail plans / *If \u201cYes,\u201d when was the treatment with the requested medication started / No",
+    "Check Box 7": "BCBSNM Commercial/Retail plans / currently treated with the requested medication(s)? Yes* / Check Box 7",
+    "If Yes": "If Yes",
+    "Anticipated Medication Date": "Anticipated Medication Date",
+    "General prior authorization": "General prior authorization",
+    "section blank box 3": "section blank box 3",
+    "section blank box 4": "section blank box 4",
+    "section blank box 5": "section blank box 5",
+    "section blank box 6": "section blank box 6",
+    "section blank box 7": "section blank box 7",
+    "Required explanations": "General prior authorization",
+    "Other medications list": "Other medications list",
+    "Drug allergies list": "Other medications list",
+    "Previous services 1": "Previous services 1",
+    "Date Discontinued 1": "Previous services 1",
+    "Previous services 2": "Previous services 2",
+    "Date Discontinued 2": "Date Discontinued 2",
+    "Previous services 3": "Previous services 3",
+    "Date Discontinued 3": "Date Discontinued 3",
+    "Attestation date": "Date Discontinued 3",
+    "Signature Field 1": "BCBSNM Commercial/Retail plans / Requester Signature",
+    "Authorization #": "Date Discontinued 3",
+    "Contact name": "Contact name",
+    "Credentials": "Contact name"
+  },
+  "mappings": {
+    "Scheduled for date": {
+      "canonical": "request.date_of_request",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Previous Authrorization": {
+      "canonical": "request.previous_auth_number",
+      "confidence": "high",
+      "source": "ai",
+      "linked_field": "previous authorization box",
+      "rule": {
+        "field": "to_file_via_facsimile_send_to",
+        "equals": null,
+        "all": null,
+        "any": null,
+        "source": "linked_field",
+        "raw": null
+      }
+    },
+    "Enrollee name": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Enrollee DOB": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Subcriber/Member ID": {
+      "canonical": "insurance.member_id",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Enrollee street address": {
+      "canonical": "insurance.member_id",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "City": {
+      "canonical": "patient.city",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "State": {
+      "canonical": "patient.city",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Zip code": {
+      "canonical": "patient.zip",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Provider name": {
+      "canonical": "prescriber.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Provider type": {
+      "canonical": "prescriber.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "administrative contact": {
+      "canonical": "prescriber.contact_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "NPI": {
+      "canonical": "prescriber.contact_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "DEA": {
+      "canonical": "prescriber.dea",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Clinic/facility name": {
+      "canonical": "facility.name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Clinic/facility address": {
+      "canonical": "facility.name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "City, State, Zip": {
+      "canonical": "patient.state",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Phone number and ext": {
+      "canonical": "patient.state",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Facsimile/Email": {
+      "canonical": "patient.email",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Service description": {
+      "canonical": "patient.email",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Latest ICD-10 Code 1": {
+      "canonical": "clinical.primary_diagnosis_code",
+      "confidence": "high",
+      "source": "catalog-name"
+    },
+    "HCPCS/CPT/CDT Code 1": {
+      "canonical": "medication.hcpcs_jcode",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Medical Reason 1": {
+      "canonical": "medication.hcpcs_jcode",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Latest ICD-10 Code 2": {
+      "canonical": "clinical.primary_diagnosis_code",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "HCPCS/CPT/CDT Code 2": {
+      "canonical": "medication.hcpcs_jcode",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Medical Reason 2": {
+      "canonical": "clinical.clinical_rationale",
+      "confidence": "medium",
+      "source": "ai"
+    },
+    "Latest ICD-10 Code 3": {
+      "canonical": "clinical.primary_diagnosis_code",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "HCPCS/CPT/CDT Code 3": {
+      "canonical": "medication.hcpcs_jcode",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Medical Reason 3": {
+      "canonical": "clinical.clinical_rationale",
+      "confidence": "medium",
+      "source": "ai"
+    },
+    "Latest ICD-10 Code 4": {
+      "canonical": "clinical.primary_diagnosis_code",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "HCPCS/CPT/CDT Code 4": {
+      "canonical": "medication.hcpcs_jcode",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Medical Reason 4": {
+      "canonical": "clinical.clinical_rationale",
+      "confidence": "medium",
+      "source": "ai"
+    },
+    "Latest ICD-10 Code 5": {
+      "canonical": "clinical.primary_diagnosis_code",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "HCPCS/CPT/CDT Code 5": {
+      "canonical": "medication.hcpcs_jcode",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Medical Reason 5": {
+      "canonical": "clinical.clinical_rationale",
+      "confidence": "medium",
+      "source": "ai"
+    },
+    "Type of service": {
+      "canonical": "request.request_type",
+      "confidence": "medium",
+      "source": "ai"
+    },
+    "Name of therapy/agency": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog-name"
+    },
+    "Units/Volume": {
+      "canonical": "patient.address_line2",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Frequency/length": {
+      "canonical": "patient.address_line2",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Diagnosis name and code": {
+      "canonical": "clinical.primary_diagnosis_code",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Patient height": {
+      "canonical": "clinical.primary_diagnosis_code",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Patient weight": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Explain if \"other\"": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Medication requested 1": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Strength 1": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Dosing 1": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Quantity 1": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Medication requested 2": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Strength 2": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Dosing 2": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Quantity 2": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Medication requested 3": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Strength 3": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Dosing 3": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Quantity 3": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Medication requested 4": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Strength 4": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Dosing 4": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Quantity 4": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Medication requested 5": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Dosing 5": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Quantity 5": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Strength 5": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Medication requested 6": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Strength 6": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Dosing 6": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Quantity 6": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Medication requested 7": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Strength 7": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Dosing 7": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Quantity 7": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Medication requested 8": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Strength 8": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Dosing 8": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Quantity 8": {
+      "canonical": "medication.sig",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Anticipated Medication Date": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    }
+  },
+  "updated_at": "2026-09-05T15:21:23.273903",
+  "field_kinds": {
+    "standard box": "choice",
+    "urgent/expedited box": "choice",
+    "Scheduled for date": "data",
+    "extension box": "choice",
+    "previous authorization box": "choice",
+    "Previous Authrorization": "data",
+    "Enrollee name": "data",
+    "Enrollee DOB": "data",
+    "Subcriber/Member ID": "data",
+    "Enrollee street address": "data",
+    "City": "data",
+    "State": "data",
+    "Zip code": "data",
+    "ordering provider box": "choice",
+    "rendering provider box": "choice",
+    "both box": "choice",
+    "Provider name": "data",
+    "Provider type": "data",
+    "administrative contact": "data",
+    "NPI": "data",
+    "DEA": "data",
+    "Clinic/facility name": "data",
+    "Clinic/facility address": "data",
+    "City, State, Zip": "data",
+    "Phone number and ext": "data",
+    "Facsimile/Email": "data",
+    "Service description": "data",
+    "office box": "choice",
+    "outpatient box": "choice",
+    "inpatient box": "choice",
+    "home box": "choice",
+    "other box": "choice",
+    "Specify if other": "data",
+    "Latest ICD-10 Code 1": "data",
+    "HCPCS/CPT/CDT Code 1": "data",
+    "Medical Reason 1": "data",
+    "Latest ICD-10 Code 2": "data",
+    "HCPCS/CPT/CDT Code 2": "data",
+    "Medical Reason 2": "data",
+    "Latest ICD-10 Code 3": "data",
+    "HCPCS/CPT/CDT Code 3": "data",
+    "Medical Reason 3": "data",
+    "Latest ICD-10 Code 4": "data",
+    "HCPCS/CPT/CDT Code 4": "data",
+    "Medical Reason 4": "data",
+    "Latest ICD-10 Code 5": "data",
+    "HCPCS/CPT/CDT Code 5": "data",
+    "Medical Reason 5": "data",
+    "section 6 box 1": "choice",
+    "section 6 box 2": "choice",
+    "Type of service": "data",
+    "Name of therapy/agency": "data",
+    "Units/Volume": "data",
+    "Frequency/length": "data",
+    "Diagnosis name and code": "data",
+    "Patient height": "data",
+    "Patient weight": "data",
+    "section 7 box 1": "choice",
+    "section 7 box 2": "choice",
+    "section 7 box 3": "choice",
+    "section 7 box 4": "choice",
+    "section 7 box 5": "choice",
+    "Explain if \"other\"": "data",
+    "section 7 box 6": "choice",
+    "section 7 box 7": "choice",
+    "section 7 box 8": "choice",
+    "section 7 box 9": "choice",
+    "Medication requested 1": "data",
+    "Strength 1": "data",
+    "Dosing 1": "data",
+    "Quantity 1": "data",
+    "Medication requested 2": "data",
+    "Strength 2": "data",
+    "Dosing 2": "data",
+    "Quantity 2": "data",
+    "Medication requested 3": "data",
+    "Strength 3": "data",
+    "Dosing 3": "data",
+    "Quantity 3": "data",
+    "Medication requested 4": "data",
+    "Strength 4": "data",
+    "Dosing 4": "data",
+    "Quantity 4": "data",
+    "Medication requested 5": "data",
+    "Dosing 5": "data",
+    "Quantity 5": "data",
+    "Strength 5": "data",
+    "Medication requested 6": "data",
+    "Strength 6": "data",
+    "Dosing 6": "data",
+    "Quantity 6": "data",
+    "Medication requested 7": "data",
+    "Strength 7": "data",
+    "Dosing 7": "data",
+    "Quantity 7": "data",
+    "Medication requested 8": "data",
+    "Strength 8": "data",
+    "Dosing 8": "data",
+    "Quantity 8": "data",
+    "Check Box 6": "choice",
+    "Check Box 7": "choice",
+    "If Yes": "data",
+    "Anticipated Medication Date": "data",
+    "General prior authorization": "longtext",
+    "section blank box 3": "choice",
+    "section blank box 4": "choice",
+    "section blank box 5": "choice",
+    "section blank box 6": "choice",
+    "section blank box 7": "choice",
+    "Required explanations": "longtext",
+    "Other medications list": "longtext",
+    "Drug allergies list": "longtext",
+    "Previous services 1": "longtext",
+    "Date Discontinued 1": "longtext",
+    "Previous services 2": "longtext",
+    "Date Discontinued 2": "longtext",
+    "Previous services 3": "longtext",
+    "Date Discontinued 3": "longtext",
+    "Attestation date": "longtext",
+    "Signature Field 1": "signature",
+    "Authorization #": "longtext",
+    "Contact name": "longtext",
+    "Credentials": "longtext"
+  },
+  "template_id": "bcbsnm_nm-uniform-pa-form_cd9b542477db",
+  "actor": "seed"
+}

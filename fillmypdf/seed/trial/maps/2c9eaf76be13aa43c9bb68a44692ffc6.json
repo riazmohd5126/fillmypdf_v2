@@ -1,0 +1,337 @@
+{
+  "version": 1,
+  "schema_version": "606a74102b36",
+  "cached_at": "2026-07-22T23:44:23.055253",
+  "fingerprint": "2c9eaf76be13aa43c9bb68a44692ffc6",
+  "signature": "2f9c19ec9b95",
+  "form_label": "Highmark Member Prescription Drug",
+  "reviewed": true,
+  "field_labels": {
+    "1": "PATIENT INFORMATION / Subscriber ID Number",
+    "4": "PATIENT INFORMATION / Group Number",
+    "2": "PATIENT INFORMATION / Highmark Coverage / MA-PD q",
+    "3": "PATIENT INFORMATION / Highmark Coverage / PDP",
+    "5": "PATIENT INFORMATION / Patient Name",
+    "6": "PATIENT INFORMATION / Patient Telephone Number",
+    "7": "PATIENT INFORMATION / Date of Birth",
+    "8": "PATIENT INFORMATION / Patient Address",
+    "9": "PATIENT INFORMATION - City",
+    "10": "PATIENT INFORMATION - State",
+    "11": "PATIENT INFORMATION - Zip Code",
+    "12": "CLINICAL / MEDICATION INFORMATION - Drug Name",
+    "13": "CLINICAL / MEDICATION INFORMATION / Strength or Dose",
+    "14": "CLINICAL / MEDICATION INFORMATION / Requested Quantity per Month",
+    "15": "CLINICAL / MEDICATION INFORMATION / Diagnosis",
+    "16": "CLINICAL / MEDICATION INFORMATION / Name of the Carrier who paid for Most Recent Transplant",
+    "24": "CLINICAL / MEDICATION INFORMATION / Type of Transplant Date of Most Recent Transplant Most / Commercial",
+    "17": "CLINICAL / MEDICATION INFORMATION / Type of Transplant Date of Most Recent Transplant Most / Lung",
+    "18": "CLINICAL / MEDICATION INFORMATION / Type of Transplant Date of Most Recent Transplant Most / Heart q",
+    "19": "CLINICAL / MEDICATION INFORMATION / Type of Transplant Date of Most Recent Transplant Most / Kidney q",
+    "20": "CLINICAL / MEDICATION INFORMATION / Type of Transplant Date of Most Recent Transplant Most / GVH",
+    "22": "Other",
+    "23": "Date of Most Recent Transplant",
+    "25": "CLINICAL / MEDICATION INFORMATION / group_1 / Medicare Advantage",
+    "21": "CLINICAL / MEDICATION INFORMATION / group_2 / Other",
+    "26": "CLINICAL / MEDICATION INFORMATION / group_3 / Medicare FFS",
+    "27": "Alternatives Tried / Used By Patient - Drug Name",
+    "28": "Alternatives Tried / Used By Patient - Strength",
+    "29": "Alternatives Tried / Used By Patient / Documentation of Failure of Therapy",
+    "30": "Alternatives Tried / Used By Patient - Drug Name",
+    "31": "Alternatives Tried / Used By Patient - Strength",
+    "32": "Alternatives Tried / Used By Patient / Documentation of Failure of Therapy",
+    "33": "Alternatives Tried / Used By Patient - Drug Name",
+    "34": "Alternatives Tried / Used By Patient - Strength",
+    "35": "Alternatives Tried / Used By Patient / Documentation of Failure of Therapy",
+    "36": "Medical Rationale / Reason for Drug Therapy / Treatment Plan",
+    "37": "Medical Rationale / Reason for Drug Therapy / Treatment Plan",
+    "38": "PHYSICIAN INFORMATION / Physician Name",
+    "39": "PHYSICIAN INFORMATION / NPI or Tax ID # (Required)",
+    "40": "PHYSICIAN INFORMATION / Phone",
+    "41": "PHYSICIAN INFORMATION / Fax",
+    "42": "PHYSICIAN INFORMATION / Physician Address",
+    "43": "PHYSICIAN INFORMATION - City",
+    "44": "PHYSICIAN INFORMATION - State",
+    "45": "PHYSICIAN INFORMATION - Zip Code",
+    "46": "PHYSICIAN INFORMATION / Suite / Building",
+    "47": "PHYSICIAN INFORMATION / Physician Signature",
+    "48": "PHYSICIAN INFORMATION / Date",
+    "49": "MEDICARE COMMERCIAL REQUEST TYPE / MEDICARE COMMERCIAL REQUEST TYPE / Tiering Exception",
+    "52": "MEDICARE COMMERCIAL REQUEST TYPE - Non-Formulary",
+    "54": "MEDICARE COMMERCIAL REQUEST TYPE / REQUEST TYPE / Standard Request q",
+    "56": "MEDICARE COMMERCIAL REQUEST TYPE / MEDICARE COMMERCIAL REQUEST TYPE / Peer to Peer",
+    "50": "group_4 / MEDICARE COMMERCIAL REQUEST TYPE - Non-Formulary",
+    "53": "group_4 / MEDICARE COMMERCIAL REQUEST TYPE - Prior Authorization",
+    "55": "MEDICARE COMMERCIAL REQUEST TYPE / REQUEST TYPE / Expedited Request q",
+    "57": "MEDICARE COMMERCIAL REQUEST TYPE / group_4 / Expedited Appeal",
+    "51": "group_5 / MEDICARE COMMERCIAL REQUEST TYPE - Prior Authorization",
+    "58": "MEDICARE COMMERCIAL REQUEST TYPE / group_5 / Standard Appeal"
+  },
+  "mappings": {
+    "1": {
+      "canonical": "insurance.member_id",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "4": {
+      "canonical": "insurance.group_number",
+      "confidence": "high",
+      "source": "catalog",
+      "linked_field": "3",
+      "rule": {
+        "field": "highmark_coverage",
+        "equals": "MA-PD q",
+        "all": null,
+        "any": null,
+        "source": "linked_field",
+        "raw": null
+      }
+    },
+    "5": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "6": {
+      "canonical": "patient.phone",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "7": {
+      "canonical": "patient.dob",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "8": {
+      "canonical": "patient.address_line1",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "9": {
+      "canonical": "patient.city",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "10": {
+      "canonical": "patient.state",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "11": {
+      "canonical": "patient.zip",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "12": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "13": {
+      "canonical": "medication.strength",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "14": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "15": {
+      "canonical": "clinical.primary_diagnosis_description",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "16": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "22": {
+      "canonical": "clinical.secondary_diagnoses",
+      "confidence": "high",
+      "source": "catalog",
+      "linked_field": "21",
+      "rule": {
+        "field": "select_one_clinical_medication_information",
+        "equals": "Medicare Advantage",
+        "all": null,
+        "any": null,
+        "source": "linked_field",
+        "raw": null
+      }
+    },
+    "27": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "28": {
+      "canonical": "medication.strength",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "29": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "30": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "31": {
+      "canonical": "medication.strength",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "32": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "33": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "34": {
+      "canonical": "medication.strength",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "35": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "36": {
+      "canonical": "clinical.clinical_rationale",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "37": {
+      "canonical": "clinical.clinical_rationale",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "38": {
+      "canonical": "prescriber.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "39": {
+      "canonical": "facility.tax_id",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "40": {
+      "canonical": "prescriber.phone",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "41": {
+      "canonical": "prescriber.fax",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "42": {
+      "canonical": "prescriber.address_line1",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "43": {
+      "canonical": "prescriber.city",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "44": {
+      "canonical": "prescriber.state",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "45": {
+      "canonical": "prescriber.zip",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "46": {
+      "canonical": "prescriber.address_line1",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "47": {
+      "canonical": "prescriber.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "48": {
+      "canonical": "medication.dosage_form",
+      "confidence": "high",
+      "source": "catalog"
+    }
+  },
+  "updated_at": "2026-09-05T15:21:34.768538",
+  "field_kinds": {
+    "1": "data",
+    "4": "data",
+    "2": "choice",
+    "3": "choice",
+    "5": "data",
+    "6": "data",
+    "7": "data",
+    "8": "data",
+    "9": "data",
+    "10": "data",
+    "11": "data",
+    "12": "data",
+    "13": "data",
+    "14": "data",
+    "15": "data",
+    "16": "data",
+    "24": "choice",
+    "17": "choice",
+    "18": "choice",
+    "19": "choice",
+    "20": "choice",
+    "22": "data",
+    "23": "longtext",
+    "25": "choice",
+    "21": "choice",
+    "26": "choice",
+    "27": "data",
+    "28": "data",
+    "29": "data",
+    "30": "data",
+    "31": "data",
+    "32": "data",
+    "33": "data",
+    "34": "data",
+    "35": "data",
+    "36": "data",
+    "37": "data",
+    "38": "data",
+    "39": "data",
+    "40": "data",
+    "41": "data",
+    "42": "data",
+    "43": "data",
+    "44": "data",
+    "45": "data",
+    "46": "data",
+    "47": "data",
+    "48": "data",
+    "49": "choice",
+    "52": "choice",
+    "54": "choice",
+    "56": "choice",
+    "50": "choice",
+    "53": "choice",
+    "55": "choice",
+    "57": "choice",
+    "51": "choice",
+    "58": "choice"
+  },
+  "template_id": "highmark_member-prescription-drug-medication-neny_3ede160b290b",
+  "actor": "seed"
+}

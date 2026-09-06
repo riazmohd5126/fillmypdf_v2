@@ -1,0 +1,22 @@
+{
+  "id": "aetna_az-prescription-drug-prior-authorizathion-request-_263213f9cd4c",
+  "name": "Aetna Arizona Prescription Drug PA",
+  "category": "prior_authorization",
+  "payer": {
+    "name": "Aetna",
+    "state": "AZ"
+  },
+  "tags": [
+    "trial",
+    "locked",
+    "shared"
+  ],
+  "is_public": true,
+  "visibility": "shared",
+  "owner_id": null,
+  "org_id": null,
+  "custom": {
+    "trial": true,
+    "locked_by": "admin"
+  }
+}

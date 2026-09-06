@@ -1,0 +1,22 @@
+{
+  "id": "spbm_Standard-20PA-20Fillable-20Form_02dd2b2e0909",
+  "name": "SPBM Standard Prior Authorization",
+  "category": "prior_authorization",
+  "payer": {
+    "name": "SPBM",
+    "state": null
+  },
+  "tags": [
+    "trial",
+    "locked",
+    "shared"
+  ],
+  "is_public": true,
+  "visibility": "shared",
+  "owner_id": null,
+  "org_id": null,
+  "custom": {
+    "trial": true,
+    "locked_by": "admin"
+  }
+}

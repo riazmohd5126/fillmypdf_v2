@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "schema_version": "81229afb6611",
+  "cached_at": "2026-09-04T16:40:56.152684",
+  "fingerprint": "f2beea6611267ec87dc2c2db2e8a5e9e",
+  "signature": "8970bb1b4a2e",
+  "form_label": "Connecticut DSS MAP Prior Authorization",
+  "reviewed": true,
+  "field_labels": {
+    "Prescribers Name Last First": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / Prescriber\u2019s Name (Last, First)",
+    "Member s Name Last First": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / Member s Name (Last, First)",
+    "Prescribers NPI": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / Prescriber\u2019s NPI",
+    "Member s ID": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / Member s ID",
+    "Prescribers Phone": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / Prescriber\u2019s Phone",
+    "Patients Date of Birth": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / Patient\u2019s Date of Birth (MMDDCCYY)",
+    "Prescribers Fax": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / Patient\u2019s Date of Birth (MMDDCCYY):_Prescriber\u2019s Fax",
+    "Drug Requested": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / Drug Requested",
+    "Quantity Requested": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / Quantity Requested",
+    "undefined": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / symptoms not adequately controlled with inhaled corticosteroids / Yes",
+    "undefined no": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / symptoms not adequately controlled with inhaled corticosteroids / No",
+    "undefined_2": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / maintenance treatment / Yes",
+    "undefined_2 no": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / maintenance treatment / No",
+    "undefined_3": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / exposure, while also planning to use food allergen avoidance / Yes",
+    "undefined_3 no": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / exposure, while also planning to use food allergen avoidance / No",
+    "undefined_4": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / symptomatic despite H1 antihistamine treatment / Yes",
+    "undefined_4 no": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / symptomatic despite H1 antihistamine treatment / No",
+    "Date MMDDCCYY": "STATE OF CONNECTICUT DEPARTMENT OF SOCIAL SERVICES TELEPHONE / Date (MM/DD/CCYY"
+  },
+  "field_types": {
+    "Prescribers Name Last First": "/Tx",
+    "Member s Name Last First": "/Tx",
+    "Prescribers NPI": "/Tx",
+    "Member s ID": "/Tx",
+    "Prescribers Phone": "/Tx",
+    "Patients Date of Birth": "/Tx",
+    "Prescribers Fax": "/Tx",
+    "Drug Requested": "/Tx",
+    "Quantity Requested": "/Tx",
+    "undefined": "/Btn",
+    "undefined no": "/Btn",
+    "undefined_2": "/Btn",
+    "undefined_2 no": "/Btn",
+    "undefined_3": "/Btn",
+    "undefined_3 no": "/Btn",
+    "undefined_4": "/Btn",
+    "undefined_4 no": "/Btn",
+    "Date MMDDCCYY": "/Tx"
+  },
+  "field_kinds": {
+    "Prescribers Name Last First": "data",
+    "Member s Name Last First": "data",
+    "Prescribers NPI": "data",
+    "Member s ID": "data",
+    "Prescribers Phone": "data",
+    "Patients Date of Birth": "data",
+    "Prescribers Fax": "data",
+    "Drug Requested": "data",
+    "Quantity Requested": "data",
+    "undefined": "choice",
+    "undefined no": "choice",
+    "undefined_2": "choice",
+    "undefined_2 no": "choice",
+    "undefined_3": "choice",
+    "undefined_3 no": "choice",
+    "undefined_4": "choice",
+    "undefined_4 no": "choice",
+    "Date MMDDCCYY": "data"
+  },
+  "mappings": {
+    "Prescribers Name Last First": {
+      "canonical": "patient.phone",
+      "confidence": "medium",
+      "source": "catalog"
+    },
+    "Member s Name Last First": {
+      "canonical": "patient.phone",
+      "confidence": "medium",
+      "source": "catalog"
+    },
+    "Prescribers NPI": {
+      "canonical": "patient.phone",
+      "confidence": "medium",
+      "source": "catalog"
+    },
+    "Member s ID": {
+      "canonical": "patient.phone",
+      "confidence": "medium",
+      "source": "catalog"
+    },
+    "Prescribers Phone": {
+      "canonical": "patient.phone",
+      "confidence": "medium",
+      "source": "catalog"
+    },
+    "Patients Date of Birth": {
+      "canonical": "patient.dob",
+      "confidence": "medium",
+      "source": "catalog"
+    },
+    "Prescribers Fax": {
+      "canonical": "patient.dob",
+      "confidence": "medium",
+      "source": "catalog"
+    },
+    "Drug Requested": {
+      "canonical": "patient.phone",
+      "confidence": "medium",
+      "source": "catalog"
+    },
+    "Quantity Requested": {
+      "canonical": "patient.phone",
+      "confidence": "medium",
+      "source": "catalog"
+    },
+    "Date MMDDCCYY": {
+      "canonical": "patient.phone",
+      "confidence": "medium",
+      "source": "catalog"
+    }
+  },
+  "updated_at": "2026-09-05T10:12:21.181443",
+  "actor": "seed",
+  "template_id": "ctdssmap_get-download-file_1980b3d04d34"
+}

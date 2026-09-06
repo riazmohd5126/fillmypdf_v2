@@ -58,6 +58,7 @@
         <button id="flt-needs" onclick="setListFilter('needs')" class="px-2 py-1 rounded-full bg-gray-100 text-gray-600">Needs mapping</button>
       </div>
       <p id="tpl-count" class="text-[11px] text-gray-400"></p>
+      <p class="text-[11px] text-gray-500">Ready forms are locked by an admin. New PDFs: upload on Templates.</p>
     </div>
     <div id="tpl-list" class="flex-1 overflow-y-auto p-2 space-y-2 text-sm min-h-0">
       <div class="text-gray-400 text-xs px-1">Loading…</div>
@@ -98,13 +99,15 @@
   <div id="split-handle" title="Drag to resize" class="hidden lg:flex w-1.5 shrink-0 cursor-col-resize bg-gray-200 hover:bg-indigo-400 active:bg-indigo-500 items-stretch"></div>
 
   <section id="editor-pane" class="min-h-0 min-w-0 flex flex-col bg-gray-50 overflow-hidden" style="flex: 50 1 0; min-width: 280px;">
-      <div id="form-empty" class="m-4 bg-white rounded-2xl border border-dashed border-gray-300 p-10 text-center text-gray-400 text-sm">
-        Select a form on the left to begin. The PDF will appear beside the fields.
+      <div id="form-empty" class="m-4 bg-white rounded-2xl border border-dashed border-gray-300 p-8 text-sm text-gray-600 space-y-4">
+        <p class="text-gray-500 text-center">Select a <strong>Ready</strong> form on the left. Ready means an admin already locked the mapping.</p>
+        <div data-fmp-how-new-pdf></div>
       </div>
 
       <div id="not-reviewed" class="hidden m-4 bg-amber-50 border border-amber-200 rounded-2xl p-6 text-sm text-amber-800 space-y-3">
-        <p class="font-semibold mb-1">This form isn't reviewed yet.</p>
-        <p>An admin must lock the mapping in Mapping Review before Guided Fill. Clinic fills never run AI on an unlocked form.</p>
+        <p class="font-semibold mb-1">Waiting for an admin to lock this mapping.</p>
+        <p>Clinics cannot lock or run AI on an unlocked form. After an admin reviews it in Mapping Review, it will show as Ready and Guided Fill will use that locked map.</p>
+        <p class="text-xs">If this is a new PDF, upload it from <a href="/ui/templates.html" class="underline font-semibold">Templates</a> (that is the mapping request).</p>
         <a id="not-reviewed-link" href="/ui/mapping_review.html"
           class="admin-only hidden inline-flex items-center gap-1 bg-amber-600 text-white rounded-lg px-3 py-2 text-xs font-semibold hover:bg-amber-700">
           Open Mapping Review →
@@ -117,7 +120,7 @@
             <p class="font-semibold text-gray-800 truncate" id="form-title">—</p>
             <p class="text-xs text-gray-400 truncate" id="form-sub">—</p>
           </div>
-          <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">LOCKED mapping</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800" title="An admin reviewed and locked this mapping">Admin-locked mapping</span>
           <div class="ml-auto flex gap-2 flex-wrap">
             <button onclick="downloadCsv()" id="csv-btn"
               class="bg-gray-100 text-gray-700 rounded-lg px-3 py-2 font-semibold text-xs hover:bg-gray-200 transition">
@@ -203,7 +206,7 @@
             <p class="font-medium text-green-800 mb-1.5" id="fill-success-msg">PDF filled successfully!</p>
             <div id="locked-badge" class="hidden items-center gap-1.5 bg-emerald-100 text-emerald-800 rounded-full px-2.5 py-1 text-xs font-medium mb-1.5 w-max">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-              Reviewed mapping used (locked, no AI)
+              Admin-locked mapping used (no AI)
             </div>
             <div class="flex flex-wrap gap-2">
               <a id="dl-btn" href="#" class="inline-flex items-center gap-2 bg-green-600 text-white rounded-lg px-3 py-1.5 text-xs font-medium hover:bg-green-700">Download PDF</a>

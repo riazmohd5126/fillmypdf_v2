@@ -1,0 +1,22 @@
+{
+  "id": "highmark_member-prescription-drug-medication-neny_3ede160b290b",
+  "name": "Highmark Member Prescription Drug",
+  "category": "prior_authorization",
+  "payer": {
+    "name": "Highmark",
+    "state": null
+  },
+  "tags": [
+    "trial",
+    "locked",
+    "shared"
+  ],
+  "is_public": true,
+  "visibility": "shared",
+  "owner_id": null,
+  "org_id": null,
+  "custom": {
+    "trial": true,
+    "locked_by": "admin"
+  }
+}

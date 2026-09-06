@@ -23,10 +23,12 @@
   <div class="bg-indigo-600 rounded-2xl p-6 text-white">
     <h1 class="text-2xl font-bold">Static → Fillable PDF</h1>
     <p class="text-indigo-200 text-sm mt-1">
-      Upload a flat form. We detect text boxes and checkboxes (CommonForms) and
-      return an AcroForm PDF you can open in Preview, Adobe, or keep for Guided Fill.
+      Step 1 for a new flat PDF. After convert, upload it on Templates so an
+      <strong>admin</strong> can lock the mapping. Clinics cannot lock maps.
     </p>
   </div>
+
+  <div data-fmp-how-new-pdf></div>
 
   <div id="no-key" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
     Sign in at <a href="/ui/login.html" class="underline font-semibold">login</a> first to convert a PDF.
@@ -50,8 +52,8 @@
     <label id="save-tpl-row" class="flex items-start gap-2 cursor-pointer">
       <input id="save-tpl" type="checkbox" class="mt-0.5 accent-indigo-600" onchange="toggleTplFields()"/>
       <span class="text-sm text-gray-700">
-        Also save as Template Library entry
-        <span class="block text-[11px] text-gray-400">Admin only — then you can open Guided Fill.</span>
+        Also save as a shared Template Library entry
+        <span class="block text-[11px] text-gray-400">Admin only. Clinics request a lock via Templates → Upload after convert.</span>
       </span>
     </label>
 
@@ -102,7 +104,15 @@
       <a id="tpl-link" href="/ui/templates.html" class="hidden inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-200">
         Template Library →
       </a>
+      <button type="button" id="request-lock-btn" onclick="requestAdminLock()"
+        class="hidden inline-flex items-center gap-1.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-lg px-4 py-2 text-sm font-medium hover:bg-amber-100">
+        Request admin lock
+      </button>
     </div>
+    <p id="request-lock-note" class="hidden text-xs text-gray-500">
+      Uploads the fillable PDF to your clinic library. An admin must lock the mapping before Guided Fill.
+    </p>
+    <p id="request-lock-ok" class="hidden text-xs text-emerald-700"></p>
   </div>
 
 </main>
@@ -116,6 +126,7 @@ function showErr(m){
 function clearErr(){ document.getElementById('error-box').classList.add('hidden'); }
 
 let selectedFile = null;
+let lastConvert = null;
 
 const drop = document.getElementById('drop');
 const fileInput = document.getElementById('file-input');
@@ -230,19 +241,65 @@ async function doConvert(){
 
     const guided = document.getElementById('guided-link');
     const tplLink = document.getElementById('tpl-link');
+    const reqBtn = document.getElementById('request-lock-btn');
+    const reqNote = document.getElementById('request-lock-note');
+    document.getElementById('request-lock-ok').classList.add('hidden');
+    lastConvert = data;
     if(data.template && data.template.guided_fill_url){
       guided.href = data.template.guided_fill_url;
       guided.classList.remove('hidden');
       tplLink.classList.remove('hidden');
+      reqBtn.classList.add('hidden');
+      reqNote.classList.add('hidden');
     } else {
       guided.classList.add('hidden');
-      tplLink.classList.add('hidden');
+      tplLink.classList.remove('hidden');
+      const canRequest = data.download_url && !(window.fmpIsAdmin && fmpIsAdmin());
+      reqBtn.classList.toggle('hidden', !canRequest);
+      reqNote.classList.toggle('hidden', !canRequest);
     }
   } catch(e){
     showErr(e.message || String(e));
   } finally {
     btn.disabled = false;
     btn.textContent = 'Convert to fillable';
+  }
+}
+
+async function requestAdminLock(){
+  if(!lastConvert || !lastConvert.download_url){ showErr('Convert a PDF first.'); return; }
+  const btn = document.getElementById('request-lock-btn');
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+  try {
+    const r = await fetch(lastConvert.download_url, {
+      credentials: 'same-origin',
+      headers: window.fmpAuthHeaders ? fmpAuthHeaders() : { 'X-API-Key': getKey() },
+    });
+    if(!r.ok) throw new Error('Could not download the fillable PDF (HTTP ' + r.status + ')');
+    const blob = await r.blob();
+    const name = (lastConvert.filename || 'form_fillable.pdf').replace(/\.pdf$/i, '');
+    const fd = new FormData();
+    fd.append('file', blob, name + '.pdf');
+    fd.append('name', name.replace(/[_-]+/g, ' '));
+    fd.append('category', 'prior_authorization');
+    const up = await fetch('/api/v1/account/library/uploads', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: window.fmpAuthHeaders ? fmpAuthHeaders() : { 'X-API-Key': getKey() },
+      body: fd,
+    });
+    const d = await up.json().catch(() => ({}));
+    if(!up.ok) throw new Error(d.detail || ('HTTP ' + up.status));
+    const ok = document.getElementById('request-lock-ok');
+    ok.textContent = 'Requested. The form is in your library as Waiting for admin lock. Guided Fill opens after an admin locks the mapping.';
+    ok.classList.remove('hidden');
+    document.getElementById('request-lock-note').classList.add('hidden');
+    btn.textContent = 'Requested';
+  } catch(e){
+    btn.disabled = false;
+    btn.textContent = 'Request admin lock';
+    showErr(e.message || String(e));
   }
 }
 

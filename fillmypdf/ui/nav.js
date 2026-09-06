@@ -190,6 +190,15 @@
     "html.fmp-nav-collapsed .fmp-nav-brand{justify-content:center;padding:14px 0}",
     "html.fmp-nav-collapsed .fmp-nav-link{justify-content:center;padding:9px 0;border-left-color:transparent}",
     "html.fmp-nav-collapsed .fmp-nav-link.is-active{background:#eef2ff}",
+    ".fmp-how-new{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px 18px;box-shadow:0 1px 2px rgba(15,23,42,.04)}",
+    ".fmp-how-new h3{margin:0 0 4px;font-size:14px;font-weight:700;color:#111827}",
+    ".fmp-how-new .fmp-how-lead{margin:0 0 10px;font-size:13px;color:#4b5563;line-height:1.45}",
+    ".fmp-how-new .fmp-how-lead strong{color:#4338ca}",
+    ".fmp-how-new ol{margin:0;padding-left:18px;color:#374151;font-size:13px;line-height:1.5}",
+    ".fmp-how-new ol li{margin:0 0 6px}",
+    ".fmp-how-new ol a{color:#4f46e5;font-weight:600;text-decoration:none}",
+    ".fmp-how-new ol a:hover{text-decoration:underline}",
+    ".fmp-how-new .fmp-how-admin{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;background:#eef2ff;color:#4338ca;border-radius:999px;padding:2px 7px;vertical-align:middle}",
     ".fmp-nav-avatar{display:none;width:28px;height:28px;border-radius:8px;background:#eef2ff;color:#4338ca;font-size:12px;font-weight:700;align-items:center;justify-content:center}",
     "html.fmp-nav-collapsed .fmp-nav-footer{padding:10px 0;display:flex;justify-content:center}",
     "html.fmp-nav-collapsed #fmp-nav-provider{display:none !important}",
@@ -498,8 +507,28 @@
     } catch (e) {}
   }
 
+  function renderHowNewPdf(host) {
+    if (!host || host.dataset.ready) return;
+    host.dataset.ready = "1";
+    host.classList.add("fmp-how-new");
+    host.innerHTML =
+      "<h3>How a new PDF becomes Ready</h3>" +
+      "<p class=\"fmp-how-lead\">Locked mapping is done by an <strong>admin</strong> — clinics upload, they do not lock.</p>" +
+      "<ol>" +
+      "<li><a href=\"/ui/make_fillable.html\">Make Fillable</a> if the PDF is a flat scan (no clickable fields).</li>" +
+      "<li><a href=\"/ui/templates.html\">Templates → Upload</a> the blank form. It stays private to your clinic. That is the mapping request.</li>" +
+      "<li>An admin locks the mapping in Mapping Review <span class=\"fmp-how-admin\">Admin only</span></li>" +
+      "<li>The form shows <strong>Ready</strong>. Open <a href=\"/ui/form_fill.html\">Guided Fill</a> — autofill uses the locked map only (no AI on clinical fields).</li>" +
+      "</ol>";
+  }
+
+  function paintHowNewPdf() {
+    document.querySelectorAll("[data-fmp-how-new-pdf]").forEach(renderHowNewPdf);
+  }
+
   function mount() {
     injectCss();
+    paintHowNewPdf();
     if (document.getElementById("fmp-sidebar")) return;
     document.body.insertAdjacentHTML("afterbegin", markup());
     bind();
@@ -536,4 +565,5 @@
   window.fmpSetNeedsMapping = setNeedsMappingBadge;
   window.fmpReadiness = readiness;
   window.fmpReadinessBust = function () { readinessCache = null; };
+  window.fmpRenderHowNewPdf = renderHowNewPdf;
 })();

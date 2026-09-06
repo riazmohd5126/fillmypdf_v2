@@ -1,0 +1,22 @@
+{
+  "id": "ctdssmap_get-download-file_1980b3d04d34",
+  "name": "Connecticut DSS MAP Prior Authorization",
+  "category": "prior_authorization",
+  "payer": {
+    "name": "Connecticut DSS",
+    "state": "CT"
+  },
+  "tags": [
+    "trial",
+    "locked",
+    "shared"
+  ],
+  "is_public": true,
+  "visibility": "shared",
+  "owner_id": null,
+  "org_id": null,
+  "custom": {
+    "trial": true,
+    "locked_by": "admin"
+  }
+}

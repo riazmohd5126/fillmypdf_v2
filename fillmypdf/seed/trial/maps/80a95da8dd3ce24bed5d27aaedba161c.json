@@ -1,0 +1,259 @@
+{
+  "version": 1,
+  "schema_version": "606a74102b36",
+  "cached_at": "2026-07-22T23:44:55.762577",
+  "fingerprint": "80a95da8dd3ce24bed5d27aaedba161c",
+  "signature": "dfaf8dee3596",
+  "form_label": "SPBM Standard Prior Authorization",
+  "reviewed": true,
+  "field_labels": {
+    "Request Date": "Request Date",
+    "undefined_2": "Review Type Requested / Standard",
+    "undefined_3": "Review Type Requested / Urgent",
+    "IndividualCaregiver": "Individual/Caregiver",
+    "Pharmacist": "Pharmacist",
+    "Other Healthcare Provider": "Other Healthcare Provider",
+    "Home": "Home",
+    "LongTerm Care Setting NFICF": "Long-Term Care Setting (NF/ICF",
+    "Hospice": "Hospice",
+    "Pharmacy": "Pharmacy",
+    "Other": "Other",
+    "Individual Full Name Last First": "Individual Full Name (Last, First)",
+    "Individual Medicaid ID Number": "Individual Medicaid ID Number",
+    "Month": "Month",
+    "Year": "Year",
+    "Day": "Day",
+    "Weight": "Weight",
+    "Sex": "Sex",
+    "Height": "Height",
+    "Age": "Age",
+    "Prescribers Full Name Last First": "Prescriber\u2019s Full Name (Last, First)",
+    "Prescribers Address": "Prescriber\u2019s Address",
+    "Prescribers NPI Number": "Prescriber\u2019s NPI Number",
+    "Prescribers Phone Number1": "Prescriber\u2019s Phone Number1",
+    "Prescribers Phone Number2": "Prescriber\u2019s Phone Number2",
+    "Fax Number1": "Fax Number1",
+    "Prescribers Phone Number3": "Prescriber\u2019s Phone Number3",
+    "Fax Number2": "Fax Number2",
+    "Fax Number3": "Fax Number3",
+    "If Known Pharmacy Name": "(If Known) Pharmacy Name",
+    "Pharmacy Phone Number1": "Pharmacy Phone Number1",
+    "Pharmacy Phone Number2": "Pharmacy Phone Number2",
+    "Pharmacy Phone Number3": "Pharmacy Phone Number3",
+    "undefined_4": "Requesting approval of brand",
+    "Strength": "Strength",
+    "Drug Requested": "Drug Requested",
+    "Route": "Route",
+    "Frequency": "Frequency",
+    "Duration of Therapy": "Duration of Therapy",
+    "Quantity": "Quantity",
+    "New": "New",
+    "Renewal": "Renewal",
+    "Diagnosis and ICD10 code MUST BE INCLUDED TO AVOID DELAYS": "Diagnosis and ICD-10 code (MUST BE INCLUDED TO AVOID DELAYS)",
+    "interactions lab results etc": "interactions, lab results, etc",
+    "I attest that I am a member of the prescribers staff in accordance with Ohio Administrative Code rule": "I attest that I am a member of the prescriber\u2019s staff in accordance with Ohio Administrative Code rule",
+    "Prescribers Signature or staff of prescriber": "Prescriber\u2019s Signature (or staff of prescriber",
+    "Date": "Date",
+    "IF a staff member is attesting please print your name": "IF a staff member is attesting, please print your name"
+  },
+  "mappings": {
+    "Request Date": {
+      "canonical": "request.date_of_request",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Individual Full Name Last First": {
+      "canonical": "patient.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Individual Medicaid ID Number": {
+      "canonical": "insurance.member_id",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Day": {
+      "canonical": "request.date_of_request",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Weight": {
+      "canonical": "patient.weight_kg",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Sex": {
+      "canonical": "patient.sex",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Height": {
+      "canonical": "patient.height_cm",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Age": {
+      "canonical": "other",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "Prescribers Full Name Last First": {
+      "canonical": "prescriber.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Prescribers NPI Number": {
+      "canonical": "prescriber.npi",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "Prescribers Phone Number1": {
+      "canonical": "prescriber.phone",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "Prescribers Phone Number2": {
+      "canonical": "prescriber.phone_ext",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "Fax Number1": {
+      "canonical": "prescriber.fax",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Prescribers Phone Number3": {
+      "canonical": "prescriber.phone",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "Fax Number2": {
+      "canonical": "prescriber.fax",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Fax Number3": {
+      "canonical": "prescriber.fax",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "If Known Pharmacy Name": {
+      "canonical": "prescriber.contact_name",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "Pharmacy Phone Number1": {
+      "canonical": "other",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "Pharmacy Phone Number2": {
+      "canonical": "other",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "Pharmacy Phone Number3": {
+      "canonical": "other",
+      "confidence": "high",
+      "source": "manual"
+    },
+    "Strength": {
+      "canonical": "medication.strength",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Drug Requested": {
+      "canonical": "medication.drug_name",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Route": {
+      "canonical": "medication.route",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Frequency": {
+      "canonical": "medication.frequency",
+      "confidence": "high",
+      "source": "ai"
+    },
+    "Duration of Therapy": {
+      "canonical": "request.requested_duration",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Quantity": {
+      "canonical": "medication.quantity",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Diagnosis and ICD10 code MUST BE INCLUDED TO AVOID DELAYS": {
+      "canonical": "clinical.primary_diagnosis_code",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "Date": {
+      "canonical": "request.date_of_request",
+      "confidence": "high",
+      "source": "catalog"
+    },
+    "IF a staff member is attesting please print your name": {
+      "canonical": "prescriber.full_name",
+      "confidence": "high",
+      "source": "catalog"
+    }
+  },
+  "updated_at": "2026-09-04T17:32:15.530669",
+  "field_kinds": {
+    "Request Date": "data",
+    "undefined_2": "choice",
+    "undefined_3": "choice",
+    "IndividualCaregiver": "choice",
+    "Pharmacist": "choice",
+    "Other Healthcare Provider": "choice",
+    "Home": "choice",
+    "LongTerm Care Setting NFICF": "choice",
+    "Hospice": "choice",
+    "Pharmacy": "choice",
+    "Other": "choice",
+    "Individual Full Name Last First": "data",
+    "Individual Medicaid ID Number": "data",
+    "Month": "data",
+    "Year": "data",
+    "Day": "data",
+    "Weight": "data",
+    "Sex": "data",
+    "Height": "data",
+    "Age": "data",
+    "Prescribers Full Name Last First": "data",
+    "Prescribers Address": "longtext",
+    "Prescribers NPI Number": "data",
+    "Prescribers Phone Number1": "data",
+    "Prescribers Phone Number2": "data",
+    "Fax Number1": "data",
+    "Prescribers Phone Number3": "data",
+    "Fax Number2": "data",
+    "Fax Number3": "data",
+    "If Known Pharmacy Name": "data",
+    "Pharmacy Phone Number1": "data",
+    "Pharmacy Phone Number2": "data",
+    "Pharmacy Phone Number3": "data",
+    "undefined_4": "choice",
+    "Strength": "data",
+    "Drug Requested": "data",
+    "Route": "data",
+    "Frequency": "data",
+    "Duration of Therapy": "data",
+    "Quantity": "data",
+    "New": "choice",
+    "Renewal": "choice",
+    "Diagnosis and ICD10 code MUST BE INCLUDED TO AVOID DELAYS": "data",
+    "interactions lab results etc": "longtext",
+    "I attest that I am a member of the prescribers staff in accordance with Ohio Administrative Code rule": "choice",
+    "Prescribers Signature or staff of prescriber": "signature",
+    "Date": "data",
+    "IF a staff member is attesting please print your name": "data"
+  },
+  "template_id": "spbm_Standard-20PA-20Fillable-20Form_02dd2b2e0909",
+  "actor": "seed"
+}

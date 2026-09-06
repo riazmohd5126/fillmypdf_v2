@@ -1,0 +1,39 @@
+{
+  "templates": [
+    {
+      "id": "aetna_az-prescription-drug-prior-authorizathion-request-_263213f9cd4c",
+      "name": "Aetna Arizona Prescription Drug PA",
+      "payer": "Aetna",
+      "fingerprint": "10096af8e2a9a872e8c2720354ccb0fe",
+      "kb": 1719
+    },
+    {
+      "id": "highmark_member-prescription-drug-medication-neny_3ede160b290b",
+      "name": "Highmark Member Prescription Drug",
+      "payer": "Highmark",
+      "fingerprint": "2c9eaf76be13aa43c9bb68a44692ffc6",
+      "kb": 87
+    },
+    {
+      "id": "bcbsnm_nm-uniform-pa-form_cd9b542477db",
+      "name": "BCBS New Mexico Uniform PA",
+      "payer": "BCBS New Mexico",
+      "fingerprint": "a74e0b42578eaadcd6353485f2b7b90d",
+      "kb": 256
+    },
+    {
+      "id": "spbm_Standard-20PA-20Fillable-20Form_02dd2b2e0909",
+      "name": "SPBM Standard Prior Authorization",
+      "payer": "SPBM",
+      "fingerprint": "80a95da8dd3ce24bed5d27aaedba161c",
+      "kb": 275
+    },
+    {
+      "id": "ctdssmap_get-download-file_1980b3d04d34",
+      "name": "Connecticut DSS MAP Prior Authorization",
+      "payer": "Connecticut DSS",
+      "fingerprint": "f2beea6611267ec87dc2c2db2e8a5e9e",
+      "kb": 172
+    }
+  ]
+}

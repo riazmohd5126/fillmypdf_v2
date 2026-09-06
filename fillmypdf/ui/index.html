@@ -192,7 +192,8 @@
           <h2 class="text-base font-semibold text-gray-900">Clinic fill</h2>
           <span class="q-badge ready">Locked mappings</span>
         </div>
-        <p class="text-sm text-gray-500 mb-5">Deterministic fills for Ready templates — no AI guessing on clinical fields.</p>
+        <p class="text-sm text-gray-500 mb-4">Ready forms use an <strong>admin-locked</strong> mapping — no AI guessing on clinical fields.</p>
+        <div data-fmp-how-new-pdf class="mb-5"></div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
           <a href="/ui/form_fill.html" class="act-card is-primary">
@@ -216,7 +217,7 @@
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
             </div>
             <h3>Template Library</h3>
-            <p id="card-templates-copy">Browse Ready vs Needs-mapping forms. Open a fill or a review.</p>
+            <p id="card-templates-copy">Ready forms are admin-locked. Upload a new PDF to request a mapping.</p>
             <span class="go">Browse →</span>
           </a>
         </div>
@@ -1067,8 +1068,8 @@
     if (u && (u.clinic_name || u.name || u.email)) {
       document.getElementById('dash-title').textContent = u.clinic_name || u.name || u.email;
       document.getElementById('dash-sub').textContent = u.email && u.clinic_name
-        ? u.email + ' · deterministic fills for Ready templates.'
-        : 'Deterministic fills for Ready templates — no AI guessing on clinical fields.';
+        ? u.email + ' · Ready forms use an admin-locked mapping.'
+        : 'Ready forms use an admin-locked mapping — no AI on clinical fields.';
     }
     setStyle(currentStyle());
     setView(currentView());
