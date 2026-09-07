@@ -56,6 +56,25 @@ def test_copied_as_is_returns_a_warning(client, admin_api_key, isolated_storage)
     assert "No fillable fields were detected" in (body.get("warning") or "")
 
 
+def test_copied_as_is_does_not_save_template(client, admin_api_key, isolated_storage):
+    with patch.object(
+        pdf_utils_routes._pdf_service,
+        "convert_to_fillable_detailed",
+        _fake_report("copied_as_is", 0),
+    ):
+        r = client.post(
+            "/api/v1/pdf/convert-fillable",
+            headers={"X-API-Key": admin_api_key["plain"]},
+            files={"file": ("intake.pdf", _flat_pdf(), "application/pdf")},
+            data={"save_as_template": "true", "template_name": "Should Not Save"},
+        )
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body.get("template") is None
+    assert "Not saved as a template" in (body.get("warning") or "")
+
+
 def test_successful_conversion_has_no_warning(client, admin_api_key, isolated_storage):
     with patch.object(
         pdf_utils_routes._pdf_service,

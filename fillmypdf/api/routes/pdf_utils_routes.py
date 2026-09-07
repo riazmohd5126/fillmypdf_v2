@@ -311,7 +311,12 @@ async def convert_fillable(
             "map this form manually.",
         )
 
-    if save_as_template:
+    if save_as_template and fields_after == 0:
+        _warn(
+            result,
+            "Not saved as a template because no fillable fields were detected.",
+        )
+    elif save_as_template:
         user = getattr(request.state, "user", None) or {}
         is_admin = (
             (api_key.get("tier") or "").lower() == "admin"

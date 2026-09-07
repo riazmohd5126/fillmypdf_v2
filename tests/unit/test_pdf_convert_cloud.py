@@ -208,6 +208,18 @@ def test_zero_field_response_is_not_a_conversion(tmp_path, monkeypatch, cloud_mo
     assert report["field_count_after"] == 0
 
 
+def test_boolean_wrapper_is_false_when_copied_as_is(tmp_path, monkeypatch, cloud_mode):
+    src = tmp_path / "flat.pdf"
+    src.write_bytes(_flat_pdf())
+    out = tmp_path / "out.pdf"
+    _stub_httpx(monkeypatch, [_Resp(503, b"down", "text/plain")])
+    monkeypatch.setattr(
+        PDFService, "_convert_via_commonforms", lambda self, i, o: False
+    )
+
+    assert PDFService().convert_to_fillable(src, out) is False
+
+
 def test_missing_url_in_cloud_mode_falls_back(tmp_path, monkeypatch, cloud_mode):
     monkeypatch.setattr(settings, "CONVERT_SERVICE_URL", "", raising=False)
     src = tmp_path / "flat.pdf"

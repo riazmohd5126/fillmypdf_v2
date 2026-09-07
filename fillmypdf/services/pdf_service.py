@@ -21,13 +21,12 @@ class PDFService:
         """
         Convert a PDF to a fillable form and write to output_path.
 
-        Strategy:
-        1. If the PDF already has AcroForm fields, copy it as-is.
-        2. Otherwise attempt commonforms field detection/conversion.
-        3. If commonforms fails, fall back to a direct copy so the
-           pipeline can still proceed (fields_filled will just be 0).
+        Returns True only when the output actually has AcroForm fields
+        (already fillable, or newly converted). A field-less copy is a
+        failure so callers do not cache or fill an unchanged PDF.
         """
-        return bool(self.convert_to_fillable_detailed(input_path, output_path).get("ok"))
+        report = self.convert_to_fillable_detailed(input_path, output_path)
+        return report.get("status") in ("already_fillable", "converted")
 
     def convert_to_fillable_detailed(
         self, input_path: PathLike, output_path: PathLike

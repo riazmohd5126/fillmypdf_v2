@@ -92,26 +92,48 @@ class TemplateService:
     # Lazy fillable-PDF cache
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _fillable_field_count(path: Path) -> int:
+        try:
+            from pypdf import PdfReader
+
+            return len(PdfReader(str(path)).get_fields() or {})
+        except Exception:
+            return 0
+
     def _ensure_fillable(self, template_id: str) -> Path:
         """
         Return path to the fillable (AcroForm) version of the template PDF.
         If it doesn't exist yet, convert now and cache the result.
+
+        A previous failed conversion may have cached a field-less PDF.
+        Those are discarded so the converter can run again.
         """
-        if self.repo.has_fillable(template_id):
-            return self.repo.get_fillable_path(template_id)  # type: ignore[return-value]
+        cached = self.repo.get_fillable_path(template_id)
+        if cached is not None and cached.is_file():
+            if self._fillable_field_count(cached) > 0:
+                return cached
+            try:
+                cached.unlink()
+            except OSError:
+                pass
 
         static_pdf = self.get_pdf_path(template_id)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         tmp_out = settings.UPLOAD_DIR / f"{timestamp}_{template_id}_fillable_tmp.pdf"
 
-        ok = self.pdf_service.convert_to_fillable(
+        report = self.pdf_service.convert_to_fillable_detailed(
             input_path=str(static_pdf),
             output_path=str(tmp_out),
         )
-        if not ok:
-            raise RuntimeError(f"Could not convert template '{template_id}' to fillable PDF")
+        fields_after = int(report.get("field_count_after") or 0)
+        if report.get("status") not in ("already_fillable", "converted") or fields_after == 0:
+            tmp_out.unlink(missing_ok=True)
+            raise RuntimeError(
+                report.get("message")
+                or f"Could not convert template '{template_id}' to fillable PDF"
+            )
 
-        # Store in the template directory for future use
         fillable_bytes = tmp_out.read_bytes()
         tmp_out.unlink(missing_ok=True)
         return self.repo.save_fillable(template_id, fillable_bytes)
