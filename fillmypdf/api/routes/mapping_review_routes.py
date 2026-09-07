@@ -950,6 +950,7 @@ async def build_mapping(
         vs = VisionService(resolved_key, settings.DEFAULT_AI_BASE_URL, settings.DEFAULT_AI_MODEL)
 
         fields_info = vs._get_fields_with_coords(str(pdf_path))
+        convert_error = ""
         if not fields_info and source_template_id:
             try:
                 from ...services.template_service import TemplateService
@@ -958,9 +959,21 @@ async def build_mapping(
                 if converted is not None and converted.is_file():
                     pdf_path = converted
                     fields_info = vs._get_fields_with_coords(str(pdf_path))
+                if not fields_info:
+                    convert_error = "the converter found no form fields on its pages"
             except Exception as exc:
                 print(f"  ⚠️  fillable convert before map-build skipped: {exc}")
+                convert_error = f"the flat-to-fillable converter failed ({exc})"
         if not fields_info:
+            if source_template_id:
+                reason = convert_error or "it has no AcroForm fields"
+                raise HTTPException(
+                    400,
+                    f"'{form_label}' cannot be mapped yet because {reason}. "
+                    "This form is a flat PDF, so it must be made fillable first: "
+                    "run it through Make Fillable, then upload the result as the "
+                    "template. Scanned or image-only pages cannot be mapped.",
+                )
             raise HTTPException(400, "No fillable AcroForm fields found in this PDF")
 
         # Richest labels available — reuses the cached Gemini pass when the form

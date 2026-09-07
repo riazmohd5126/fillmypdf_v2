@@ -25,6 +25,11 @@ services:
         value: "true"
       - key: DEBUG
         value: "false"
+      # Flat -> fillable runs on the standalone converter, not in this container.
+      - key: COMMONFORMS_MODE
+        value: cloud
+      - key: CONVERT_SERVICE_URL
+        value: https://fillmypdf-backend.onrender.com/convert
     disk:
       name: fillmypdf-data
       mountPath: /app/fillmypdf/storage

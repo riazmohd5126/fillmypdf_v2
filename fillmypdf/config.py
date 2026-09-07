@@ -158,6 +158,11 @@ class Settings(BaseSettings):
     CONVERT_SERVICE_KEY: str = ""
     # Seconds to wait for the remote converter before failing over.
     CONVERT_SERVICE_TIMEOUT: float = 120.0
+    # Attempts per conversion; a scale-to-zero converter 5xx's while waking.
+    CONVERT_SERVICE_RETRIES: int = 3
+    # Converter upload limits — checked locally so we fail with a real reason.
+    CONVERT_SERVICE_MAX_MB: float = 10.0
+    CONVERT_SERVICE_MAX_PAGES: int = 20
 
     # Template mapping cache (Layer 3)
     # DEPRECATED: this cache stored FILLED VALUES (PHI) on disk. It is now

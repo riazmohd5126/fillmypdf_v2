@@ -66,18 +66,28 @@ class PDFService:
             from ..config import settings
             mode = (getattr(settings, "COMMONFORMS_MODE", "local") or "local").lower()
             engine_tried = "cloud" if mode == "cloud" else "commonforms"
+            tried = [engine_tried]
             converted = False
 
             if mode == "cloud":
                 converted = self._convert_via_cloud(input_path, output_path)
+                # The converter may be asleep or over its size limits. Try the
+                # in-process engine before giving up on field detection.
                 if not converted:
-                    print("  ⚠️  cloud converter unavailable, copying PDF as-is")
+                    print("  ⚠️  cloud converter unavailable, trying local commonforms")
+                    converted = self._convert_via_commonforms(input_path, output_path)
+                    tried.append("commonforms")
+                    if converted:
+                        engine_tried = "commonforms"
             else:
                 converted = self._convert_via_commonforms(input_path, output_path)
 
+            field_count_after = 0
             if converted and output_path.exists():
                 after = PdfReader(str(output_path))
                 field_count_after = len(after.get_fields() or {})
+            # A PDF with no widgets is not fillable, whatever the engine claims.
+            if field_count_after:
                 return {
                     "ok": True,
                     "status": "converted",
@@ -105,8 +115,8 @@ class PDFService:
                 "field_count_after": 0,
                 "page_count": page_count,
                 "message": (
-                    f"Conversion via {engine_tried} failed or found no fields; "
-                    "returned original PDF unchanged."
+                    f"No fillable fields detected by {' then '.join(tried)}; "
+                    "returned the original PDF unchanged."
                 ),
             }
 
@@ -155,34 +165,89 @@ class PDFService:
             print(f"  ⚠️  commonforms conversion failed ({cf_err}), copying as-is")
         return False
 
+    def _cloud_limit_error(self, input_path: Path) -> str:
+        """Reason this PDF exceeds the converter's documented limits, or ""."""
+        from ..config import settings
+
+        max_mb = float(getattr(settings, "CONVERT_SERVICE_MAX_MB", 10.0))
+        max_pages = int(getattr(settings, "CONVERT_SERVICE_MAX_PAGES", 20))
+        try:
+            size_mb = input_path.stat().st_size / (1024 * 1024)
+        except OSError:
+            return ""
+        if max_mb and size_mb > max_mb:
+            return f"PDF is {size_mb:.1f} MB; the converter accepts up to {max_mb:.0f} MB"
+        try:
+            pages = len(PdfReader(str(input_path)).pages)
+        except Exception:
+            return ""
+        if max_pages and pages > max_pages:
+            return f"PDF has {pages} pages; the converter accepts up to {max_pages}"
+        return ""
+
     def _convert_via_cloud(self, input_path: Path, output_path: Path) -> bool:
         """Offload flat->fillable to the remote converter service (no torch here).
 
         Sends ONLY the blank form (no patient values) to the converter and writes
         back the returned fillable PDF. Returns False on any failure so the caller
-        can fall back to a plain copy.
+        can fall back to local conversion or a plain copy.
+
+        The converter may be a scale-to-zero instance, so a 5xx or a timeout is
+        retried: the first request after an idle period pays the cold start.
         """
         from ..config import settings
+        import time
+
         url = (getattr(settings, "CONVERT_SERVICE_URL", "") or "").strip()
         if not url:
             print("  ⚠️  COMMONFORMS_MODE=cloud but CONVERT_SERVICE_URL is unset")
             return False
+
+        limit_err = self._cloud_limit_error(input_path)
+        if limit_err:
+            print(f"  ⚠️  cloud converter skipped: {limit_err}")
+            return False
+
         try:
             import httpx
+        except ImportError:
+            print("  ⚠️  httpx not installed, cannot reach the cloud converter")
+            return False
 
-            headers = {}
-            key = (getattr(settings, "CONVERT_SERVICE_KEY", "") or "").strip()
-            if key:
-                headers["X-Convert-Key"] = key
-            timeout = float(getattr(settings, "CONVERT_SERVICE_TIMEOUT", 120.0))
+        headers = {}
+        key = (getattr(settings, "CONVERT_SERVICE_KEY", "") or "").strip()
+        if key:
+            headers["X-Convert-Key"] = key
+        timeout = float(getattr(settings, "CONVERT_SERVICE_TIMEOUT", 120.0))
+        attempts = max(1, int(getattr(settings, "CONVERT_SERVICE_RETRIES", 3)))
 
-            with open(input_path, "rb") as fh:
-                files = {"file": (Path(input_path).name, fh, "application/pdf")}
-                resp = httpx.post(url, files=files, headers=headers, timeout=timeout)
+        for attempt in range(1, attempts + 1):
+            last = attempt == attempts
+            try:
+                with open(input_path, "rb") as fh:
+                    files = {"file": (Path(input_path).name, fh, "application/pdf")}
+                    resp = httpx.post(url, files=files, headers=headers, timeout=timeout)
+            except Exception as exc:
+                print(f"  ⚠️  cloud converter call failed ({exc}) [try {attempt}/{attempts}]")
+                if last:
+                    return False
+                time.sleep(2 * attempt)
+                continue
 
+            # 5xx is what a waking (or briefly crashed) instance returns.
+            if resp.status_code >= 500:
+                print(
+                    f"  ⚠️  cloud converter HTTP {resp.status_code} "
+                    f"[try {attempt}/{attempts}] — instance may be waking"
+                )
+                if last:
+                    return False
+                time.sleep(2 * attempt)
+                continue
             if resp.status_code != 200:
                 print(f"  ⚠️  cloud converter HTTP {resp.status_code}: {resp.text[:200]}")
                 return False
+
             ctype = resp.headers.get("content-type", "")
             if "application/pdf" not in ctype and not resp.content[:5] == b"%PDF-":
                 print(f"  ⚠️  cloud converter returned non-PDF ({ctype})")
@@ -191,11 +256,13 @@ class PDFService:
             with open(output_path, "wb") as out:
                 out.write(resp.content)
             field_count = len(PdfReader(str(output_path)).get_fields() or {})
+            if not field_count:
+                print("  ⚠️  cloud converter returned a PDF with no fields")
+                return False
             print(f"  ☁️  PDF converted via cloud converter ({field_count} fields)")
             return True
-        except Exception as exc:
-            print(f"  ⚠️  cloud converter call failed ({exc})")
-            return False
+
+        return False
 
     def get_form_fields(self, pdf_path: Path) -> Dict[str, str]:
         """

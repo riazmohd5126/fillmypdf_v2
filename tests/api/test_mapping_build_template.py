@@ -32,6 +32,12 @@ def _blank_fillable_bytes() -> bytes:
     return _writer_bytes(w)
 
 
+def _flat_pdf_bytes() -> bytes:
+    w = PdfWriter()
+    w.add_blank_page(width=612, height=792)
+    return _writer_bytes(w)
+
+
 class _FakeVisionService:
     model = "test"
 
@@ -130,3 +136,49 @@ def test_readiness_matches_stamped_template_id(client, admin_api_key, isolated_s
     hit = next(x for x in r.json()["items"] if x["template_id"] == tid)
     assert hit["ready"] is True
     assert hit["fingerprint"] == "fp_clinic_xyz"
+
+
+def test_unmapped_template_reports_not_ready(client, admin_api_key, isolated_storage):
+    """The Mapping Review rail builds its queue from these two responses."""
+    tid = "priv_clinic_unmapped_001"
+    TemplateService().add(
+        TemplateManifest(id=tid, name="Brand New Clinic Upload"),
+        _blank_fillable_bytes(),
+    )
+    headers = {"X-API-Key": admin_api_key["plain"]}
+
+    listing = client.get("/api/v1/templates", headers=headers)
+    assert listing.status_code == 200
+    assert any(t["id"] == tid for t in listing.json()["templates"])
+
+    readiness = client.get("/api/v1/templates/readiness", headers=headers)
+    assert readiness.status_code == 200
+    hit = next(x for x in readiness.json()["items"] if x["template_id"] == tid)
+    assert hit["ready"] is False
+    assert not hit.get("fingerprint")
+
+
+def test_flat_template_error_explains_conversion(client, admin_api_key, isolated_storage):
+    """A flat PDF must fail with the real cause, not a bare AcroForm message."""
+    tid = "priv_clinic_flat_002"
+    TemplateService().add(
+        TemplateManifest(id=tid, name="Scanned Intake Form"),
+        _flat_pdf_bytes(),
+    )
+
+    class _NoFields(_FakeVisionService):
+        def _get_fields_with_coords(self, path):
+            return []
+
+    with patch("fillmypdf.services.vision_service.VisionService", _NoFields), patch.object(
+        TemplateService, "_ensure_fillable", return_value=None
+    ):
+        r = client.post(
+            "/api/v1/mappings/build",
+            headers={"X-API-Key": admin_api_key["plain"]},
+            data={"template_id": tid},
+        )
+    assert r.status_code == 400
+    detail = r.json()["detail"]
+    assert "Scanned Intake Form" in detail
+    assert "Make Fillable" in detail

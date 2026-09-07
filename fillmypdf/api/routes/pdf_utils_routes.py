@@ -51,6 +51,12 @@ def _upload_dir() -> Path:
     return p
 
 
+def _warn(result: dict, message: str) -> None:
+    """Append to the response warning so no caveat overwrites another."""
+    existing = (result.get("warning") or "").strip()
+    result["warning"] = f"{existing} {message}".strip() if existing else message
+
+
 # ── Merge ──────────────────────────────────────────────────────────────────
 
 @router.post("/merge", summary="Merge multiple PDFs into one")
@@ -294,6 +300,17 @@ async def convert_fillable(
         "template": None,
     }
 
+    # A PDF with no fields is not a usable form, so never present it as a win.
+    fields_after = int(report.get("field_count_after") or 0)
+    if report.get("status") == "copied_as_is" or fields_after == 0:
+        _warn(
+            result,
+            "No fillable fields were detected, so this PDF was returned unchanged. "
+            "The converter may have been unreachable, or the pages may be scanned "
+            "images without recognisable form lines. Try again, or ask an admin to "
+            "map this form manually.",
+        )
+
     if save_as_template:
         user = getattr(request.state, "user", None) or {}
         is_admin = (
@@ -301,9 +318,10 @@ async def convert_fillable(
             or str(user.get("role") or "").lower() == "admin"
         )
         if not is_admin:
-            result["warning"] = (
-                "Converted OK, but save_as_template requires an admin account. "
-                "Download the fillable PDF below."
+            _warn(
+                result,
+                "save_as_template requires an admin account. "
+                "Download the fillable PDF below.",
             )
         else:
             tid = (template_id or "").strip()
@@ -346,9 +364,9 @@ async def convert_fillable(
                     f"{result['message']} Saved as template '{saved.id}'."
                 )
             except ValueError as exc:
-                result["warning"] = f"Converted OK, but template save failed: {exc}"
+                _warn(result, f"Template save failed: {exc}")
             except Exception as exc:
-                result["warning"] = f"Converted OK, but template save failed: {exc}"
+                _warn(result, f"Template save failed: {exc}")
 
     return result
 

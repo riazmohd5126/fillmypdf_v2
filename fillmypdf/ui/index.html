@@ -436,6 +436,15 @@
   let launcherQuery = '';
   let selectedLaunchId = null;
   let lastBatchJob = null;
+  // First template still awaiting a locked map — admin links open it directly.
+  let firstNeedsMappingId = null;
+
+  function mappingReviewHref(templateId) {
+    const tid = templateId || firstNeedsMappingId;
+    return tid
+      ? '/ui/mapping_review.html?template_id=' + encodeURIComponent(tid)
+      : '/ui/mapping_review.html';
+  }
 
   function ownerInitials() {
     const u = window.fmpUser || {};
@@ -491,8 +500,10 @@
       document.getElementById('stat-needs').textContent = needs.toLocaleString();
       const copy = document.getElementById('card-templates-copy');
       if (copy) copy.textContent = ready + ' Ready, ' + needs + ' Needs-mapping. Open a fill or a review.';
+      const pending = (d.items || []).find(i => !i.ready);
+      firstNeedsMappingId = pending ? pending.template_id : null;
       const link = document.getElementById('stat-needs-link');
-      if (link && window.fmpIsAdmin && fmpIsAdmin()) link.href = '/ui/mapping_review.html';
+      if (link && window.fmpIsAdmin && fmpIsAdmin()) link.href = mappingReviewHref();
       if (window.fmpSetNeedsMapping) fmpSetNeedsMapping(needs);
       paintFastLinks();
     } catch {}
@@ -694,9 +705,7 @@
       if (ready && templates.length > 12) return;
       const payer = t.payer && t.payer.name ? t.payer.name + ' · ' : '';
       const mapHref = isAdmin
-        ? (fp
-            ? '/ui/mapping_review.html?fp=' + encodeURIComponent(fp)
-            : '/ui/mapping_review.html?template_id=' + encodeURIComponent(t.id))
+        ? (fp ? '/ui/mapping_review.html?fp=' + encodeURIComponent(fp) : mappingReviewHref(t.id))
         : '/ui/templates.html';
       items.push({
         id: 'tmpl-' + t.id,
@@ -838,9 +847,7 @@
         fillHref: ready
           ? '/ui/form_fill.html?template_id=' + encodeURIComponent(t.id)
           : (isAdmin
-              ? (fp
-                  ? '/ui/mapping_review.html?fp=' + encodeURIComponent(fp)
-                  : '/ui/mapping_review.html?template_id=' + encodeURIComponent(t.id))
+              ? (fp ? '/ui/mapping_review.html?fp=' + encodeURIComponent(fp) : mappingReviewHref(t.id))
               : '/ui/templates.html'),
         batchHref: ready ? '/ui/guided_batch.html?template_id=' + encodeURIComponent(t.id) : '',
       };
@@ -907,7 +914,7 @@
   function paintFastLinks() {
     const isAdmin = window.fmpIsAdmin && fmpIsAdmin();
     document.querySelectorAll('a[data-fast="map"]').forEach(a => {
-      a.href = isAdmin ? '/ui/mapping_review.html' : '/ui/templates.html';
+      a.href = isAdmin ? mappingReviewHref() : '/ui/templates.html';
       const text = [...a.childNodes].find(n => n.nodeType === 3);
       if (text) text.textContent = isAdmin ? 'Mapping Review' : 'Templates';
     });

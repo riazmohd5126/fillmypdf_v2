@@ -279,6 +279,7 @@ let CATALOG = [];        // [{path,type,required,choices?}]
 let current = null;      // current detail payload
 let pendingEdits = {};   // {field: {canonical, value}}
 let allMaps = [];        // last fetched list
+let needsMapping = [];   // library templates with no locked map yet
 let filter = 'all';      // all | draft | locked
 let selected = new Set();// selected fingerprints for bulk actions
 let pdfObjectUrl = null; // blob URL for left-pane PDF preview
@@ -691,6 +692,47 @@ async function loadLibraryTemplates(){
   }
 }
 
+// ---- library templates that still have no map (the admin's real queue) ----
+async function loadNeedsMapping(){
+  try {
+    const [tpl, rdy] = await Promise.all([
+      api('/api/v1/templates'),
+      api('/api/v1/templates/readiness'),
+    ]);
+    const byId = {};
+    (rdy.items || []).forEach(i => { byId[i.template_id] = i; });
+    // A map already in the rail must not appear twice.
+    const known = new Set(allMaps.map(m => m.fingerprint));
+    needsMapping = (tpl.templates || [])
+      .map(t => ({ id: t.id, name: t.name || t.id, hit: byId[t.id] || {} }))
+      .filter(t => !t.hit.ready && !(t.hit.fingerprint && known.has(t.hit.fingerprint)))
+      .map(t => ({ id: t.id, name: t.name, fingerprint: t.hit.fingerprint || null }));
+  } catch(e){
+    needsMapping = [];
+  }
+  renderList();
+}
+
+function needsMappingHtml(){
+  if(filter === 'locked' || !needsMapping.length) return '';
+  return `
+    <div class="px-1 pt-1">
+      <p class="text-[11px] font-semibold text-amber-800 uppercase tracking-wide">Needs mapping</p>
+      <p class="text-[10px] text-gray-400 mb-1">Clinic uploads with no map yet. Click to build a draft and load the PDF.</p>
+    </div>` +
+    needsMapping.map(t=>`
+    <div class="flex items-start gap-2 px-2 py-2 rounded-lg border border-amber-200 bg-amber-50/40 hover:bg-amber-50">
+      <button onclick="openOrBuildTemplate('${esc(t.id)}')" class="flex-1 text-left min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="font-medium text-gray-800 truncate">${esc(t.name)}</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">no map</span>
+        </div>
+        <div class="text-[10px] text-gray-400 mt-0.5 truncate">${esc(t.id)}</div>
+      </button>
+    </div>`).join('') +
+    `<div class="border-t border-gray-100 my-1"></div>`;
+}
+
 // ---- list saved maps ----
 async function loadList(){
   clearErr();
@@ -703,6 +745,8 @@ async function loadList(){
     const fps = new Set(allMaps.map(m=>m.fingerprint));
     selected.forEach(fp=>{ if(!fps.has(fp)) selected.delete(fp); });
     renderList();
+    // Locking a map removes it from the queue, so recompute after every load.
+    loadNeedsMapping();
   } catch(e){ el.innerHTML=''; showErr(e.message); }
 }
 
@@ -751,9 +795,16 @@ function coverageLine(m){
 function renderList(){
   const el = document.getElementById('map-list');
   const maps = visibleMaps();
-  document.getElementById('list-count').textContent = `${maps.length} shown`;
-  if(!maps.length){ el.innerHTML = '<p class="text-gray-400 text-xs">No maps here. Build a draft or change the filter.</p>'; syncSelectAll(); updateBulkButtons(); return; }
-  el.innerHTML = maps.map(m=>{
+  const pending = (filter === 'locked') ? 0 : needsMapping.length;
+  document.getElementById('list-count').textContent =
+    pending ? `${maps.length} shown · ${pending} to map` : `${maps.length} shown`;
+  const head = needsMappingHtml();
+  if(!maps.length){
+    el.innerHTML = head +
+      '<p class="text-gray-400 text-xs px-1">No maps here. Build a draft or change the filter.</p>';
+    syncSelectAll(); updateBulkButtons(); return;
+  }
+  el.innerHTML = head + maps.map(m=>{
     const fp = m.fingerprint;
     const checked = selected.has(fp) ? ' checked' : '';
     const name = esc(m.form_label || (fp.slice(0,10)+'…'));
