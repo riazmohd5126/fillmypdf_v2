@@ -1953,7 +1953,7 @@ async function openTemplate(id, name){
         pendingReviewFp = d.fingerprint || readinessById[id]?.fingerprint || null;
         link.href = pendingReviewFp
           ? '/ui/mapping_review.html?fp='+encodeURIComponent(pendingReviewFp)
-          : '/ui/mapping_review.html';
+          : '/ui/mapping_review.html?template_id='+encodeURIComponent(id);
         link.classList.remove('hidden');
       }
       document.getElementById('not-reviewed').classList.remove('hidden');

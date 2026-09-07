@@ -49,6 +49,8 @@
         <div id="build-panel" class="hidden mt-2 space-y-2">
           <label class="label">Upload blank PDF</label>
           <input id="build-file" type="file" accept="application/pdf" class="text-[11px] w-full"/>
+          <div class="text-center text-[10px] text-gray-400">— or clinic / library template —</div>
+          <select id="build-template" class="inp text-xs"><option value="">Loading…</option></select>
           <div class="text-center text-[10px] text-gray-400">— or shipped form —</div>
           <select id="build-form" class="inp text-xs"><option value="">Loading…</option></select>
           <button onclick="buildDraft()" id="build-btn"
@@ -677,6 +679,17 @@ async function loadForms(){
       (d.forms||[]).map(f=>`<option value="${esc(f.id)}">${esc(f.label)}</option>`).join('');
   } catch(e){ document.getElementById('build-form').innerHTML = '<option value="">(none)</option>'; }
 }
+async function loadLibraryTemplates(){
+  try {
+    const d = await api('/api/v1/templates');
+    const sel = document.getElementById('build-template');
+    const list = d.templates || [];
+    sel.innerHTML = '<option value="">— none —</option>' +
+      list.map(t=>`<option value="${esc(t.id)}">${esc(t.name || t.id)}</option>`).join('');
+  } catch(e){
+    document.getElementById('build-template').innerHTML = '<option value="">(none)</option>';
+  }
+}
 
 // ---- list saved maps ----
 async function loadList(){
@@ -855,11 +868,16 @@ async function buildDraft(){
   const btn = document.getElementById('build-btn');
   const file = document.getElementById('build-file').files[0];
   const formId = document.getElementById('build-form').value;
-  if(!file && !formId){ showErr('Choose a PDF file or pick a shipped form.'); return; }
+  const templateId = document.getElementById('build-template').value;
+  if(!file && !formId && !templateId){
+    showErr('Choose a PDF file, a library template, or a shipped form.');
+    return;
+  }
   btn.disabled = true; btn.textContent = 'Building…';
   try {
     const fd = new FormData();
     if(file) fd.append('file', file);
+    if(templateId) fd.append('template_id', templateId);
     if(formId) fd.append('form_id', formId);
     const d = await api('/api/v1/mappings/build', { method:'POST', body: fd });
     await loadList();
@@ -869,6 +887,40 @@ async function buildDraft(){
     renderDetail(d, file || null);
   } catch(e){ showErr(e.message); }
   finally { btn.disabled=false; btn.textContent='Build draft'; }
+}
+
+async function openOrBuildTemplate(tid){
+  const existing = (allMaps || []).find(m => (m.template_id || '') === tid);
+  if(existing && existing.fingerprint){
+    await openMap(existing.fingerprint);
+    return;
+  }
+  showInfo('Building a draft map from the library template…');
+  const btn = document.getElementById('build-btn');
+  const tplSel = document.getElementById('build-template');
+  if(tplSel && tid) tplSel.value = tid;
+  if(btn){ btn.disabled = true; btn.textContent = 'Building…'; }
+  try {
+    const fd = new FormData();
+    fd.append('template_id', tid);
+    const d = await api('/api/v1/mappings/build', { method:'POST', body: fd });
+    await loadList();
+    toggleBuildPanel(false);
+    setRailCollapsed(true);
+    applySplitPct(50);
+    renderDetail(d);
+    try {
+      const u = new URL(location.href);
+      if(d.fingerprint){
+        u.searchParams.delete('template_id');
+        u.searchParams.set('fp', d.fingerprint);
+        history.replaceState(null, '', u.toString());
+      }
+    } catch {}
+  } catch(e){ showErr(e.message); }
+  finally {
+    if(btn){ btn.disabled=false; btn.textContent='Build draft'; }
+  }
 }
 
 // ---- open + render one map ----
@@ -1492,9 +1544,13 @@ async function toggleLock(){
   setFilter('all');
   loadCatalog();
   loadForms();
-  loadList().then(()=>{
-    const fp = new URLSearchParams(location.search).get('fp');
-    if(fp) openMap(fp);
+  loadLibraryTemplates();
+  loadList().then(async ()=>{
+    const params = new URLSearchParams(location.search);
+    const fp = params.get('fp');
+    const tid = params.get('template_id');
+    if(fp){ openMap(fp); return; }
+    if(tid){ await openOrBuildTemplate(tid); }
   });
 })();
 </script>

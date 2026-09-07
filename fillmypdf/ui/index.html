@@ -693,8 +693,10 @@
       const state = ready ? 'ready' : (fp ? 'needs_map' : 'draft');
       if (ready && templates.length > 12) return;
       const payer = t.payer && t.payer.name ? t.payer.name + ' · ' : '';
-      const mapHref = (fp && isAdmin)
-        ? '/ui/mapping_review.html?fp=' + encodeURIComponent(fp)
+      const mapHref = isAdmin
+        ? (fp
+            ? '/ui/mapping_review.html?fp=' + encodeURIComponent(fp)
+            : '/ui/mapping_review.html?template_id=' + encodeURIComponent(t.id))
         : '/ui/templates.html';
       items.push({
         id: 'tmpl-' + t.id,
@@ -835,7 +837,11 @@
         meta: (used ? ('Used ' + used + ' times') : 'No fills yet') + ' · ' + (ready ? 'locked mapping' : 'mapping incomplete'),
         fillHref: ready
           ? '/ui/form_fill.html?template_id=' + encodeURIComponent(t.id)
-          : ((fp && isAdmin) ? '/ui/mapping_review.html?fp=' + encodeURIComponent(fp) : '/ui/templates.html'),
+          : (isAdmin
+              ? (fp
+                  ? '/ui/mapping_review.html?fp=' + encodeURIComponent(fp)
+                  : '/ui/mapping_review.html?template_id=' + encodeURIComponent(t.id))
+              : '/ui/templates.html'),
         batchHref: ready ? '/ui/guided_batch.html?template_id=' + encodeURIComponent(t.id) : '',
       };
     });

@@ -19,7 +19,7 @@ Endpoints (all admin-only, mounted at /api/v1/mappings):
   POST   /mappings/{fp}/ai-suggest AI-map only this form's unmapped tail
   POST   /mappings/ai-suggest      AI-map the unmapped tail across all drafts
   POST   /mappings/lock-batch      lock many maps at once
-  POST   /mappings/build           build a draft from a blank PDF or a shipped form
+  POST   /mappings/build           build a draft from a blank PDF, library template, or shipped form
 """
 
 from __future__ import annotations
@@ -892,17 +892,22 @@ async def lock_batch(body: LockBatch, request: Request):
 # Build a draft from a blank form (before any patient data)
 # ---------------------------------------------------------------------------
 
-@router.post("/build", summary="Build a canonical mapping draft from a blank PDF or shipped form")
+@router.post("/build", summary="Build a canonical mapping draft from a blank PDF, library template, or shipped form")
 async def build_mapping(
     request: Request,
     file: Optional[UploadFile] = File(default=None, description="Blank fillable PDF"),
     form_id: Optional[str] = Form(default=None, description="Shipped pa_forms id (filename stem)"),
+    template_id: Optional[str] = Form(
+        default=None,
+        description="Template Library id (clinic upload or catalog entry)",
+    ),
 ):
     # Resolve the source PDF.
     tmp_path: Optional[Path] = None
     source_form_id: Optional[str] = None
-    if file is not None:
-        if not file.filename or not file.filename.lower().endswith(".pdf"):
+    source_template_id: Optional[str] = (template_id or "").strip() or None
+    if file is not None and file.filename:
+        if not file.filename.lower().endswith(".pdf"):
             raise HTTPException(400, "File must be a PDF")
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         tmp_path = settings.UPLOAD_DIR / f"{ts}_{uuid.uuid4().hex[:8]}_mapbuild.pdf"
@@ -912,6 +917,19 @@ async def build_mapping(
         if acroform_has_filled_values(pdf_path):
             tmp_path.unlink(missing_ok=True)
             raise HTTPException(400, FILLED_PDF_MSG)
+    elif source_template_id:
+        from ...repositories.template_repository import TemplateRepository
+
+        repo = TemplateRepository()
+        if not repo.exists(source_template_id):
+            raise HTTPException(404, f"Template '{source_template_id}' not found")
+        pdf_path = _template_pdf_path(source_template_id)
+        if pdf_path is None:
+            raise HTTPException(404, f"Template '{source_template_id}' has no PDF on disk")
+        if acroform_has_filled_values(pdf_path):
+            raise HTTPException(400, FILLED_PDF_MSG)
+        manifest = repo.get(source_template_id)
+        form_label = (getattr(manifest, "name", None) or source_template_id)
     elif form_id:
         pdf_path = _FORMS_DIR / f"{form_id}.pdf"
         if not pdf_path.exists():
@@ -920,7 +938,10 @@ async def build_mapping(
         form_label = pdf_path.name
         source_form_id = form_id
     else:
-        raise HTTPException(400, "Provide either a PDF 'file' or a 'form_id'")
+        raise HTTPException(
+            400,
+            "Provide a PDF 'file', a library 'template_id', or a shipped 'form_id'",
+        )
 
     try:
         from ...services.vision_service import VisionService
@@ -929,6 +950,16 @@ async def build_mapping(
         vs = VisionService(resolved_key, settings.DEFAULT_AI_BASE_URL, settings.DEFAULT_AI_MODEL)
 
         fields_info = vs._get_fields_with_coords(str(pdf_path))
+        if not fields_info and source_template_id:
+            try:
+                from ...services.template_service import TemplateService
+
+                converted = TemplateService()._ensure_fillable(source_template_id)
+                if converted is not None and converted.is_file():
+                    pdf_path = converted
+                    fields_info = vs._get_fields_with_coords(str(pdf_path))
+            except Exception as exc:
+                print(f"  ⚠️  fillable convert before map-build skipped: {exc}")
         if not fields_info:
             raise HTTPException(400, "No fillable AcroForm fields found in this PDF")
 
@@ -956,6 +987,8 @@ async def build_mapping(
         data["form_label"] = form_label
         if source_form_id:
             data["source_form_id"] = source_form_id
+        if source_template_id:
+            data["template_id"] = source_template_id
         data.setdefault("signature", sig)
         cache.save_full(fp, data)
 
@@ -991,6 +1024,8 @@ async def build_mapping(
         data["form_label"] = form_label
         if source_form_id:
             data["source_form_id"] = source_form_id
+        if source_template_id:
+            data["template_id"] = source_template_id
         data.setdefault("signature", sig)
         data = sync_field_kinds(data, fields_info)
         # Keep a blank copy for side-by-side review (before tmp upload is deleted).

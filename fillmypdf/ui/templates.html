@@ -504,7 +504,9 @@
       return `<span class="text-[11px] font-semibold text-emerald-700 mr-2">Admin locked</span><a href="/ui/form_fill.html?template_id=${encodeURIComponent(t.id)}" onclick="event.stopPropagation()" class="btn-fill-ghost">Guided Fill</a>`;
     }
     if (window.fmpIsAdmin && fmpIsAdmin()) {
-      const href = fp ? '/ui/mapping_review.html?fp=' + encodeURIComponent(fp) : '/ui/mapping_review.html';
+      const href = fp
+        ? '/ui/mapping_review.html?fp=' + encodeURIComponent(fp)
+        : '/ui/mapping_review.html?template_id=' + encodeURIComponent(t.id);
       return `<a href="${href}" onclick="event.stopPropagation()" class="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 hover:bg-amber-100">Review map →</a>`;
     }
     return `<span class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">Waiting for admin lock</span>`;

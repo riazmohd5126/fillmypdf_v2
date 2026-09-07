@@ -373,6 +373,7 @@ class CanonicalMapCache:
                     "fingerprint": data.get("fingerprint", p.stem),
                     "signature": data.get("signature"),
                     "form_label": data.get("form_label"),
+                    "template_id": data.get("template_id"),
                     "reviewed": bool(data.get("reviewed", False)),
                     "has_mappings": isinstance(mappings, dict),
                     "field_count": max(n_labels, n_maps),

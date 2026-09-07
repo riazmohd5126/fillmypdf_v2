@@ -278,6 +278,7 @@ async def templates_readiness(request: Request):
 
     by_sig: dict = {}
     by_label: dict = {}
+    by_tid: dict = {}
     for e in entries:
         sig = (e.get("signature") or "").strip()
         fp = e.get("fingerprint")
@@ -299,6 +300,11 @@ async def templates_readiness(request: Request):
             prev = by_label.get(nk)
             if prev is None or (ready and not prev.get("ready")):
                 by_label[nk] = row
+        etid = (e.get("template_id") or "").strip()
+        if etid:
+            prev = by_tid.get(etid)
+            if prev is None or (ready and not prev.get("ready")):
+                by_tid[etid] = row
 
     # Signatures come from the persisted cache, so a warm library needs no PDF
     # opens at all. A form with no fillable version yet simply has no signature
@@ -309,7 +315,11 @@ async def templates_readiness(request: Request):
 
     out: list[TemplateReadinessItem] = []
     for t in items:
-        hit = by_label.get(_norm_map_key(t.id)) or by_label.get(_norm_map_key(t.name))
+        hit = (
+            by_tid.get(t.id)
+            or by_label.get(_norm_map_key(t.id))
+            or by_label.get(_norm_map_key(t.name))
+        )
         if hit is None:
             sig = signatures.get(t.id)
             if sig:
