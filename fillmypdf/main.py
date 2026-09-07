@@ -123,6 +123,7 @@ profiles.increment_profiles_created = increment_profiles_created
 # ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from .services.profile_seed import install_demo_profiles
     from .services.trial_seed import install_trial_seed
 
     try:
@@ -130,6 +131,11 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         print(f"⚠️  Trial seed skipped: {exc}")
         seed_stats = {}
+    try:
+        profile_seed = install_demo_profiles()
+    except Exception as exc:
+        print(f"⚠️  Demo profile seed skipped: {exc}")
+        profile_seed = {}
     admin_login = AccountService().ensure_admin_user()
     # Fallback only when no operator email is configured and the key store is empty.
     bootstrap_key = None
@@ -150,6 +156,8 @@ async def lifespan(app: FastAPI):
             f"{seed_stats.get('templates', 0)} PDFs, "
             f"{seed_stats.get('maps', 0)} locked maps"
         )
+    if profile_seed.get("created"):
+        print(f"👤 Demo profiles:  {profile_seed['created']} shared trial packs")
     print(f"🔐 Encryption:     {'Enabled' if settings.PROFILES_ENCRYPTION_ENABLED else 'Disabled'}")
     print(f"📊 Profile limits: {settings.PROFILE_LIMITS}")
     print(f"📦 Batch:          {'Enabled' if HAS_BATCH else 'Disabled'}")

@@ -835,8 +835,6 @@ class VisionService:
             row+column structure) — e.g. a plain label floated above a
             blank line, or a shaded/bordered block that isn't a real table.
         """
-        import pdfplumber
-
         # Patterns that identify section headers.
         # Anchored at the start so body text like "… (if different from Section I) …"
         # is NOT treated as a section header. Accepts digit/roman-numeral AND
@@ -887,6 +885,8 @@ class VisionService:
         result: dict[str, dict] = {}
 
         try:
+            import pdfplumber
+
             with pdfplumber.open(pdf_path) as pdf:
                 page_words: dict[int, list[dict]] = {}
                 page_rects: dict[int, list[dict]] = {}

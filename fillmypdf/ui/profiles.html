@@ -51,6 +51,7 @@
       </select>
     </div>
     <div id="profile-list" class="space-y-3"></div>
+    <p class="text-xs text-gray-500 mb-4">Demo packs named <span class="font-semibold">Demo —</span> are shared trial data any clinic can apply. They are not real patients.</p>
     <div id="empty-state" class="hidden text-center py-16 text-gray-400">
       <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
       <p class="font-medium">No profiles yet</p>
@@ -722,6 +723,7 @@
           <div class="flex items-center gap-2">
             <span class="font-medium text-gray-900 truncate">${esc(p.name)}</span>
             <span class="text-xs px-2 py-0.5 rounded-full font-medium ${BADGE[p.profile_type]||BADGE.custom}">${esc(p.profile_type)}</span>
+            ${p.owner_id === 'seed_demo' ? '<span class="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-800 border border-amber-200">Demo</span>' : ''}
           </div>
           <p class="text-xs text-gray-400 mt-0.5">
             ${Object.keys(p.data_preview||{}).length} fields stored &nbsp;·&nbsp;
