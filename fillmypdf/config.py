@@ -150,16 +150,19 @@ class Settings(BaseSettings):
     # Where flat -> fillable conversion runs:
     #   "local" — run commonforms/torch in-process (needs RAM; heavy on 8GB).
     #   "cloud" — offload to a remote converter service (thin clients, no torch).
-    # Thin clients (laptop, Chrome extension, other apps) should use "cloud".
-    COMMONFORMS_MODE: str = "local"
-    # Remote converter endpoint, e.g. "https://convert.example.com/convert".
-    CONVERT_SERVICE_URL: str = ""
+    # Default is the same workshop the Chrome extension already uses.
+    COMMONFORMS_MODE: str = "cloud"
+    CONVERT_SERVICE_URL: str = "https://fillmypdf-backend.onrender.com/convert"
     # Sent as the X-Convert-Key header to authenticate to the converter.
     CONVERT_SERVICE_KEY: str = ""
     # Seconds to wait for the remote converter before failing over.
-    CONVERT_SERVICE_TIMEOUT: float = 120.0
+    # A successful convert takes ~30s; a waking instance takes ~34s.
+    CONVERT_SERVICE_TIMEOUT: float = 45.0
     # Attempts per conversion; a scale-to-zero converter 5xx's while waking.
-    CONVERT_SERVICE_RETRIES: int = 3
+    CONVERT_SERVICE_RETRIES: int = 2
+    # Never load torch in this process unless an operator opts in.
+    # The starter plan (512 MB) OOMs if local commonforms runs as a fallback.
+    COMMONFORMS_LOCAL_FALLBACK: bool = False
     # Converter upload limits — checked locally so we fail with a real reason.
     CONVERT_SERVICE_MAX_MB: float = 10.0
     CONVERT_SERVICE_MAX_PAGES: int = 20

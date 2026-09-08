@@ -30,6 +30,8 @@ services:
         value: cloud
       - key: CONVERT_SERVICE_URL
         value: https://fillmypdf-backend.onrender.com/convert
+      - key: COMMONFORMS_LOCAL_FALLBACK
+        value: "false"
     disk:
       name: fillmypdf-data
       mountPath: /app/fillmypdf/storage

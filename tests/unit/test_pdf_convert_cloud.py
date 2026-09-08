@@ -70,6 +70,7 @@ def cloud_mode(monkeypatch):
     )
     monkeypatch.setattr(settings, "CONVERT_SERVICE_KEY", "", raising=False)
     monkeypatch.setattr(settings, "CONVERT_SERVICE_RETRIES", 3, raising=False)
+    monkeypatch.setattr(settings, "COMMONFORMS_LOCAL_FALLBACK", False, raising=False)
     monkeypatch.setattr("time.sleep", lambda *_: None)
 
 
@@ -88,6 +89,14 @@ def _stub_httpx(monkeypatch, responses):
 
     monkeypatch.setattr(httpx, "post", fake_post)
     return calls
+
+
+def test_defaults_call_the_extension_converter():
+    """The website uses the same workshop as the Chrome extension."""
+    assert settings.COMMONFORMS_MODE == "cloud"
+    assert settings.CONVERT_SERVICE_URL.endswith("/convert")
+    assert "fillmypdf-backend.onrender.com" in settings.CONVERT_SERVICE_URL
+    assert settings.COMMONFORMS_LOCAL_FALLBACK is False
 
 
 def test_retries_past_cold_start_502(tmp_path, monkeypatch, cloud_mode):
@@ -144,7 +153,26 @@ def test_4xx_is_not_retried(tmp_path, monkeypatch, cloud_mode):
     assert len(calls) == 1, "a rejected upload will be rejected again"
 
 
+def test_local_commonforms_stays_off_when_cloud_fails(tmp_path, monkeypatch, cloud_mode):
+    src = tmp_path / "flat.pdf"
+    src.write_bytes(_flat_pdf())
+    out = tmp_path / "out.pdf"
+
+    _stub_httpx(monkeypatch, [_Resp(503, b"down", "text/plain")])
+    monkeypatch.setattr(
+        PDFService,
+        "_convert_via_commonforms",
+        lambda self, i, o: pytest.fail("local torch must not run on the starter plan"),
+    )
+
+    report = PDFService().convert_to_fillable_detailed(src, out)
+
+    assert report["status"] == "copied_as_is"
+    assert report["engine"] == "cloud"
+
+
 def test_local_commonforms_runs_when_cloud_fails(tmp_path, monkeypatch, cloud_mode):
+    monkeypatch.setattr(settings, "COMMONFORMS_LOCAL_FALLBACK", True, raising=False)
     src = tmp_path / "flat.pdf"
     src.write_bytes(_flat_pdf())
     out = tmp_path / "out.pdf"
@@ -222,6 +250,7 @@ def test_boolean_wrapper_is_false_when_copied_as_is(tmp_path, monkeypatch, cloud
 
 def test_missing_url_in_cloud_mode_falls_back(tmp_path, monkeypatch, cloud_mode):
     monkeypatch.setattr(settings, "CONVERT_SERVICE_URL", "", raising=False)
+    monkeypatch.setattr(settings, "COMMONFORMS_LOCAL_FALLBACK", True, raising=False)
     src = tmp_path / "flat.pdf"
     src.write_bytes(_flat_pdf())
     out = tmp_path / "out.pdf"

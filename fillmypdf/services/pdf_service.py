@@ -63,16 +63,17 @@ class PDFService:
                 }
 
             from ..config import settings
-            mode = (getattr(settings, "COMMONFORMS_MODE", "local") or "local").lower()
+            mode = (getattr(settings, "COMMONFORMS_MODE", "cloud") or "cloud").lower()
+            allow_local = bool(getattr(settings, "COMMONFORMS_LOCAL_FALLBACK", False))
             engine_tried = "cloud" if mode == "cloud" else "commonforms"
             tried = [engine_tried]
             converted = False
 
             if mode == "cloud":
                 converted = self._convert_via_cloud(input_path, output_path)
-                # The converter may be asleep or over its size limits. Try the
-                # in-process engine before giving up on field detection.
-                if not converted:
+                # Opt-in only. Local commonforms loads torch and will OOM a
+                # 512 MB Render starter instance.
+                if not converted and allow_local:
                     print("  ⚠️  cloud converter unavailable, trying local commonforms")
                     converted = self._convert_via_commonforms(input_path, output_path)
                     tried.append("commonforms")
