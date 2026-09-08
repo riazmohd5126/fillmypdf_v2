@@ -9,7 +9,11 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/ui/auth.js"></script>
   <script src="/ui/nav.js"></script>
-  <style>body{font-family:system-ui,-apple-system,sans-serif;}</style>
+  <style>
+    body{font-family:system-ui,-apple-system,sans-serif;}
+    @keyframes fmp-progress { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+    .fmp-progress-bar { animation: fmp-progress 1.4s ease-in-out infinite; }
+  </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 
@@ -45,7 +49,8 @@
 
     <div>
       <label class="text-xs font-medium text-gray-600 mb-1 block">Output filename (optional)</label>
-      <input id="out-name" type="text" placeholder="my_form_fillable"
+      <input id="out-name" type="text" name="output-filename" placeholder="my_form_fillable"
+        autocomplete="off"
         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
     </div>
 
@@ -81,6 +86,19 @@
       class="w-full bg-indigo-600 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-indigo-700 disabled:opacity-50">
       Convert to fillable
     </button>
+
+    <div id="convert-progress" class="hidden rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-3 space-y-2">
+      <div class="flex items-center justify-between gap-3">
+        <p id="convert-phase" class="text-sm text-indigo-900">Uploading the PDF…</p>
+        <p id="convert-elapsed" class="text-[11px] text-indigo-700 tabular-nums shrink-0">0s</p>
+      </div>
+      <div class="h-1.5 rounded-full bg-indigo-100 overflow-hidden">
+        <div class="fmp-progress-bar h-full w-2/5 rounded-full bg-indigo-500"></div>
+      </div>
+      <p class="text-[11px] text-indigo-700/80">
+        The converter may sleep after idle time. First convert can take about 30 seconds.
+      </p>
+    </div>
 
     <p class="text-[11px] text-gray-400 leading-relaxed">
       Field detection is best-effort on dense or scanned forms — always review the
@@ -127,6 +145,36 @@ function clearErr(){ document.getElementById('error-box').classList.add('hidden'
 
 let selectedFile = null;
 let lastConvert = null;
+let convertTimer = null;
+
+function convertPhaseFor(seconds){
+  if (seconds < 2) return 'Uploading the PDF…';
+  if (seconds < 12) return 'Waking the converter (first run after idle can take ~30s)…';
+  if (seconds < 45) return 'Detecting form fields…';
+  return 'Still working — a cold start or large form can take a minute…';
+}
+
+function startConvertProgress(){
+  const panel = document.getElementById('convert-progress');
+  const phase = document.getElementById('convert-phase');
+  const clock = document.getElementById('convert-elapsed');
+  panel.classList.remove('hidden');
+  const started = Date.now();
+  const tick = () => {
+    const s = Math.floor((Date.now() - started) / 1000);
+    clock.textContent = s + 's';
+    phase.textContent = convertPhaseFor(s);
+  };
+  tick();
+  clearInterval(convertTimer);
+  convertTimer = setInterval(tick, 400);
+}
+
+function stopConvertProgress(){
+  clearInterval(convertTimer);
+  convertTimer = null;
+  document.getElementById('convert-progress').classList.add('hidden');
+}
 
 const drop = document.getElementById('drop');
 const fileInput = document.getElementById('file-input');
@@ -178,7 +226,8 @@ async function doConvert(){
 
   const btn = document.getElementById('convert-btn');
   btn.disabled = true;
-  btn.textContent = 'Converting… (this can take a minute)';
+  btn.textContent = 'Converting…';
+  startConvertProgress();
 
   try {
     const fd = new FormData();
@@ -261,6 +310,7 @@ async function doConvert(){
   } catch(e){
     showErr(e.message || String(e));
   } finally {
+    stopConvertProgress();
     btn.disabled = false;
     btn.textContent = 'Convert to fillable';
   }
