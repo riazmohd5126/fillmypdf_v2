@@ -227,6 +227,39 @@ def notify_approval_decided(
     return _send(to=to_email, subject=subject, html=html, plain=plain)
 
 
+def notify_demo_request(
+    *,
+    to_email: str,
+    lead_email: str,
+    note: str = "",
+    source: str = "landing_page",
+) -> bool:
+    """Email sent to the admin when someone submits the landing page's
+    "Book a demo" / lead-capture form. `to_email` is settings.ADMIN_EMAIL —
+    a no-op (like every other function here) if SMTP isn't configured."""
+    subject = f"New demo request — {lead_email}"
+    plain = (
+        f"New 'Book a demo' request from the landing page.\n\n"
+        f"Email: {lead_email}\n"
+        f"Note: {note or '(none)'}\n"
+        f"Source: {source}\n"
+    )
+    html = f"""
+<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;color:#111827;max-width:560px;margin:auto;padding:24px">
+  <div style="background:#4f46e5;border-radius:12px;padding:24px;color:white;margin-bottom:24px">
+    <h1 style="margin:0;font-size:20px">📅 New demo request</h1>
+    <p style="margin:8px 0 0;opacity:.85;font-size:14px">FillMyPDF landing page</p>
+  </div>
+  <div style="background:#f3f4f6;border-radius:8px;padding:16px;margin:16px 0">
+    <p style="margin:0 0 8px"><strong>Email:</strong> {lead_email}</p>
+    <p style="margin:0 0 8px"><strong>Note:</strong> {note or '(none)'}</p>
+    <p style="margin:0"><strong>Source:</strong> {source}</p>
+  </div>
+  <p style="color:#9ca3af;font-size:12px;margin-top:32px">FillMyPDF &mdash; automated notification.</p>
+</body></html>"""
+    return _send(to=to_email, subject=subject, html=html, plain=plain)
+
+
 def notify_signer_complete_step(
     *,
     to_email: str,

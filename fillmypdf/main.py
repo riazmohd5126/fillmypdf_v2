@@ -476,6 +476,11 @@ except ImportError:
 from .api.routes import billing_routes
 app.include_router(billing_routes.router, prefix="/api/v1")
 
+# Leads — public "Book a demo" capture from the landing page; email notify
+# gracefully degrades to log-only if SMTP/ADMIN_EMAIL aren't configured.
+from .api.routes import leads_routes
+app.include_router(leads_routes.router, prefix="/api/v1")
+
 # Approval workflow routes
 try:
     from .api.routes import approval_routes
