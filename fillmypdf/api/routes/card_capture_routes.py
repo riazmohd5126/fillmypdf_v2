@@ -12,13 +12,14 @@ from __future__ import annotations
 
 import os
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 
 from ...config import settings
 from ...models.card_capture import CardCaptureResponse
 from ...services.ai_provider import assert_egress_allowed, resolve_ai_config
 from ...services.card_capture_service import CardCaptureError, CardCaptureService
 from ..dependencies.auth import require_api_key
+from ..dependencies.rate_limit import ai_tier_rate_limit
 
 router = APIRouter(
     prefix="/card-capture",
@@ -44,7 +45,9 @@ def _guess_mime(upload: UploadFile) -> str:
     response_model=CardCaptureResponse,
     summary="Extract the 7 insurance fields from front/back card photos",
 )
+@ai_tier_rate_limit()
 async def extract_card(
+    request: Request,
     front: UploadFile = File(..., description="Card front photo"),
     back: UploadFile = File(..., description="Card back photo"),
     ai_provider: str = Form(default=""),

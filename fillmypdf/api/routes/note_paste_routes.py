@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import os
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ...config import settings
 from ...models.note_paste import NotePasteExtractRequest, NotePasteExtractResponse
 from ...services.ai_provider import assert_egress_allowed, resolve_ai_config
 from ...services.note_paste_service import NotePasteError, NotePasteService
 from ..dependencies.auth import require_api_key
+from ..dependencies.rate_limit import ai_tier_rate_limit
 
 router = APIRouter(
     prefix="/note-paste",
@@ -43,7 +44,9 @@ async def list_indications():
     response_model=NotePasteExtractResponse,
     summary="Extract a clinical-justification answer from pasted visit notes",
 )
+@ai_tier_rate_limit()
 async def extract_from_notes(
+    request: Request,
     body: NotePasteExtractRequest,
     api_key: dict = Depends(require_api_key),
 ):
