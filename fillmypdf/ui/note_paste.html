@@ -144,6 +144,7 @@
         body: JSON.stringify({ notes_text: sentText, question, indication: 'rheumatoid_arthritis' })
       });
       const data = await r.json().catch(() => ({}));
+      if (r.status === 429) { showErr(`You've reached today's Note Paste limit for your plan (${data.detail || 'try again tomorrow'}). Upgrade your plan for more.`); return; }
       if (!r.ok) { showErr(data.detail || `HTTP ${r.status}`); return; }
       renderResult(data);
     } catch (err) {

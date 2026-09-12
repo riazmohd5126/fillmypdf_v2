@@ -244,6 +244,16 @@ class Settings(BaseSettings):
         "business": "6000/minute;1000000/day",
         "admin":    "100000/minute",
     }
+
+    # Separate, tighter limits for routes that make a real Gemini/cloud LLM
+    # call per request (Note Paste, Card Capture — see api/routes/) so a
+    # free-tier key can't run up cost on the server's own GEMINI_API_KEY.
+    AI_RATE_LIMITS: Dict[str, str] = {
+        "free":     "10/day",
+        "pro":      "200/day",
+        "business": "2000/day",
+        "admin":    "100000/day",
+    }
     # Clinic login (email/password) — UI sessions. API keys still work for Zapier.
     SESSION_COOKIE_NAME: str = "fmp_session"
     SESSION_TTL_DAYS: int = 14
