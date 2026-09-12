@@ -64,6 +64,28 @@
           placeholder="Has the patient tried and failed a conventional DMARD for 3+ months at an optimized dose?">
       </div>
 
+      <div class="border border-gray-200 rounded-xl p-3.5 bg-gray-50">
+        <label class="block text-xs font-medium text-gray-600 mb-1.5">Model provider</label>
+        <select id="provider" class="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white">
+          <option value="gemini">Gemini (default — this clinic's shared key)</option>
+          <option value="local">Self-hosted / Local — configured by your admin (Ollama, vLLM)</option>
+          <option value="groq">Groq — bring your own key</option>
+        </select>
+        <p id="provider-note" class="text-[11px] text-gray-500 mt-1.5 leading-relaxed"></p>
+
+        <div id="groq-fields" class="hidden mt-2.5 space-y-2">
+          <div>
+            <label class="block text-[11px] font-medium text-gray-600 mb-1">Groq API key</label>
+            <input id="groq-key" type="password" class="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5" placeholder="gsk_...">
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-gray-600 mb-1">Groq model</label>
+            <input id="groq-model" type="text" class="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5" placeholder="llama-3.3-70b-versatile" value="llama-3.3-70b-versatile">
+          </div>
+          <p class="text-[11px] text-gray-400">Stored only in this browser (localStorage), never on our server.</p>
+        </div>
+      </div>
+
       <details class="text-xs text-gray-500">
         <summary class="cursor-pointer select-none font-medium text-gray-600">Preview the de-identified text that will be sent</summary>
         <pre id="preview" class="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3 whitespace-pre-wrap max-h-48 overflow-y-auto"></pre>
@@ -121,6 +143,38 @@
     document.getElementById(id).addEventListener('input', updatePreview);
   });
 
+  // ---- Model provider selection ----
+  const PROVIDER_NOTES = {
+    gemini: 'Cloud (Google). Verify your organization’s BAA/compliance status with Google before sending real patient notes — the standard API-key path is not automatically HIPAA-covered.',
+    local: 'Runs on infrastructure your admin configured (not this browser) — the only option here that keeps notes off third-party servers, given a BAA-covered or self-hosted host.',
+    groq: 'Cloud (Groq), serving open-weight models. Still a third party receiving your notes over the network — confirm Groq’s BAA/compliance status directly before using this for real patient data. "Open source model" describes the weights, not the hosting.',
+  };
+
+  function updateProviderUI() {
+    const p = document.getElementById('provider').value;
+    document.getElementById('provider-note').textContent = PROVIDER_NOTES[p] || '';
+    document.getElementById('groq-fields').classList.toggle('hidden', p !== 'groq');
+    localStorage.setItem('fmp_note_paste_provider', p);
+  }
+  document.getElementById('provider').addEventListener('change', updateProviderUI);
+
+  document.getElementById('groq-key').addEventListener('input', e => {
+    localStorage.setItem('fmp_groq_key', e.target.value);
+  });
+  document.getElementById('groq-model').addEventListener('input', e => {
+    localStorage.setItem('fmp_groq_model', e.target.value);
+  });
+
+  (function restoreProviderPrefs() {
+    const savedProvider = localStorage.getItem('fmp_note_paste_provider');
+    if (savedProvider) document.getElementById('provider').value = savedProvider;
+    const savedKey = localStorage.getItem('fmp_groq_key');
+    if (savedKey) document.getElementById('groq-key').value = savedKey;
+    const savedModel = localStorage.getItem('fmp_groq_model');
+    if (savedModel) document.getElementById('groq-model').value = savedModel;
+    updateProviderUI();
+  })();
+
   async function runExtract(e) {
     e.preventDefault();
     if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
@@ -130,6 +184,21 @@
     if (!notesRaw.trim()) { showErr('Paste some visit notes first.'); return; }
     const sentText = deidentify(notesRaw);
     const question = document.getElementById('question').value.trim() || null;
+
+    const provider = document.getElementById('provider').value;
+    const body = { notes_text: sentText, question, indication: 'rheumatoid_arthritis' };
+    if (provider === 'local') {
+      body.ai_provider = 'local';
+    } else if (provider === 'groq') {
+      const groqKey = document.getElementById('groq-key').value.trim();
+      const groqModel = document.getElementById('groq-model').value.trim() || 'llama-3.3-70b-versatile';
+      if (!groqKey) { showErr('Enter a Groq API key first, or switch provider.'); return; }
+      // ai_provider left unset — the server's generic cloud path uses these
+      // explicit base_url/model/key instead of falling back to Gemini's.
+      body.ai_base_url = 'https://api.groq.com/openai/v1';
+      body.ai_model = groqModel;
+      body.ai_api_key = groqKey;
+    }
 
     const btn = document.getElementById('submit-btn');
     btn.disabled = true;
@@ -141,7 +210,7 @@
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/json' }, fmpAuthHeaders()),
         credentials: 'same-origin',
-        body: JSON.stringify({ notes_text: sentText, question, indication: 'rheumatoid_arthritis' })
+        body: JSON.stringify(body)
       });
       const data = await r.json().catch(() => ({}));
       if (r.status === 429) { showErr(`You've reached today's Note Paste limit for your plan (${data.detail || 'try again tomorrow'}). Upgrade your plan for more.`); return; }

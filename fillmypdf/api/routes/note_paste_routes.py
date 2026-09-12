@@ -53,11 +53,13 @@ async def extract_from_notes(
     if not body.notes_text.strip():
         raise HTTPException(400, "notes_text is empty")
 
-    resolved_key = (
-        (body.ai_api_key or "").strip()
-        or (settings.GEMINI_API_KEY or "").strip()
-        or os.getenv("GEMINI_API_KEY", "")
-    )
+    custom_endpoint = bool((body.ai_base_url or "").strip())
+    resolved_key = (body.ai_api_key or "").strip()
+    if not resolved_key and not custom_endpoint:
+        # Only fall back to the server's own Gemini key when no custom
+        # endpoint (e.g. Groq) was requested — never send that key to a
+        # third-party base_url the caller supplied.
+        resolved_key = (settings.GEMINI_API_KEY or "").strip() or os.getenv("GEMINI_API_KEY", "")
     ai_key, ai_base_url, ai_model = resolve_ai_config(
         request_api_key=resolved_key,
         request_base_url=body.ai_base_url,
@@ -66,6 +68,8 @@ async def extract_from_notes(
     )
 
     if body.ai_provider != "local" and settings.AI_PROVIDER != "local" and not ai_key:
+        if custom_endpoint:
+            raise HTTPException(400, "An API key is required for the selected provider (ai_api_key=).")
         raise HTTPException(
             400,
             "A Gemini API key is required (pass ai_api_key=, set GEMINI_API_KEY, "
