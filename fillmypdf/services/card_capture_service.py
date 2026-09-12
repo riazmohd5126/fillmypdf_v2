@@ -80,7 +80,8 @@ class CardCaptureService:
         resp = self._client.chat.completions.create(
             model=self.model,
             temperature=0.0,
-            max_tokens=800,
+            max_tokens=1200,
+            response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": "Return strict JSON only. No markdown."},
                 {

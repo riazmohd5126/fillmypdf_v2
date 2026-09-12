@@ -110,21 +110,36 @@ class NotePasteService:
 
     @staticmethod
     def _parse_json(raw: str) -> dict:
-        raw = (raw or "").strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.lstrip().lower().startswith("json"):
-                raw = raw.lstrip()[4:]
-        raw = raw.strip()
+        cleaned = (raw or "").strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("```")[1]
+            if cleaned.lstrip().lower().startswith("json"):
+                cleaned = cleaned.lstrip()[4:]
+        cleaned = cleaned.strip()
         try:
-            return json.loads(raw)
+            return json.loads(cleaned)
         except Exception:
             pass
-        # Fall back to the outermost {...} span.
-        start, end = raw.find("{"), raw.rfind("}")
+        # Fall back to the outermost {...} span (handles a stray preamble
+        # like "Here is the JSON:" that response_format=json_object should
+        # already prevent, but a model can still slip one in).
+        start, end = cleaned.find("{"), cleaned.rfind("}")
         if start != -1 and end != -1 and end > start:
-            return json.loads(raw[start : end + 1])
-        raise NotePasteError("Model did not return parseable JSON")
+            try:
+                return json.loads(cleaned[start : end + 1])
+            except Exception:
+                pass
+        # Nothing parsed — surface what the model actually sent (truncated)
+        # so this is diagnosable from the error response instead of the
+        # opaque message this used to raise unconditionally.
+        snippet = (raw or "").strip().replace("\n", " ")[:300]
+        raise NotePasteError(
+            "Model did not return parseable JSON. "
+            f"Raw response started with: {snippet!r}"
+            if snippet
+            else "Model returned an empty response (likely hit the token limit "
+            "or was blocked by a safety filter)."
+        )
 
     # ------------------------------------------------------------------
     # Deterministic verification (no model involved)
@@ -223,9 +238,17 @@ class NotePasteService:
         resp = client.chat.completions.create(
             model=self.model,
             temperature=0.0,
-            max_tokens=1200,
+            max_tokens=3000,
+            response_format={"type": "json_object"},
             messages=self._prompt(notes_text, effective_question, knowledge),
         )
-        raw = resp.choices[0].message.content or ""
+        choice = resp.choices[0]
+        raw = choice.message.content or ""
+        if not raw.strip() and getattr(choice, "finish_reason", None) == "length":
+            raise NotePasteError(
+                "Model response was cut off by the token limit before any "
+                "content was produced — try shorter notes, or report this "
+                "so the token budget can be raised."
+            )
         parsed = self._parse_json(raw)
         return self._verify(parsed, notes_text)
