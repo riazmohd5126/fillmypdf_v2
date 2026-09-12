@@ -329,8 +329,19 @@ def _redoc_html(spec: str) -> str:
 # ---------------------------------------------------------------------------
 # System routes (no auth required)
 # ---------------------------------------------------------------------------
+_LANDING_PAGE = Path(__file__).parent / "ui" / "landing.html"
+
+
 @app.get("/", include_in_schema=False)
 async def root():
+    """Public marketing landing page. Programmatic service info lives at /status."""
+    if _LANDING_PAGE.is_file():
+        return FileResponse(_LANDING_PAGE, media_type="text/html")
+    return await status()
+
+
+@app.get("/status", tags=["system"])
+async def status():
     return {
         "service": settings.APP_NAME,
         "version": settings.APP_VERSION,
