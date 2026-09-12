@@ -4,7 +4,7 @@ API auth tests
 Verify the X-API-Key header gate on protected endpoints.
 
 Public endpoints (no auth):
-  /, /health, /usage
+  /, /status, /health, /usage
 
 Protected endpoints (require any valid key):
   /api/v1/profiles/*, /api/v1/batch/*
@@ -19,6 +19,11 @@ import pytest
 class TestPublicEndpoints:
     def test_root_no_auth(self, client):
         r = client.get("/")
+        assert r.status_code == 200
+        assert "text/html" in r.headers["content-type"]
+
+    def test_status_no_auth(self, client):
+        r = client.get("/status")
         assert r.status_code == 200
         body = r.json()
         assert body["features"]["authentication"] is True
