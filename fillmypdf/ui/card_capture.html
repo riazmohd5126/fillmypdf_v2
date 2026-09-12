@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/ui/favicon.svg" type="image/svg+xml"/>
+  <link rel="icon" href="/ui/favicon.ico" sizes="32x32"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Card Capture — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
+  <style>
+    body { font-family: system-ui,-apple-system,sans-serif; }
+    .shot-box { aspect-ratio: 1.586/1; }
+    .crop-canvas { image-rendering: pixelated; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
+    <span class="font-semibold text-gray-800">Card Capture</span>
+    <span class="text-xs text-gray-400">Photograph an insurance card, get the 7 fields back</span>
+  </nav>
+
+  <main class="max-w-3xl mx-auto px-4 py-10">
+    <p class="text-sm text-gray-500 mb-6">
+      Two photos, front and back — RxBIN/PCN/Group live on the back. Photos are resized and
+      stripped of location metadata in your browser before upload, and are discarded on our
+      server right after extraction; only the 7 field values are kept.
+    </p>
+
+    <div class="grid sm:grid-cols-2 gap-5 mb-6">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Card front <span class="text-red-500">*</span></label>
+        <div id="drop-front" class="shot-box border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center cursor-pointer hover:border-indigo-400 transition overflow-hidden bg-white"
+             onclick="document.getElementById('input-front').click()">
+          <span id="label-front" class="text-xs text-gray-400 px-4 text-center">Tap to take/choose a photo of the front</span>
+          <canvas id="canvas-front" class="hidden w-full h-full object-contain"></canvas>
+        </div>
+        <input id="input-front" type="file" accept="image/*" capture="environment" class="hidden" onchange="onShot('front', this)">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Card back <span class="text-red-500">*</span></label>
+        <div id="drop-back" class="shot-box border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center cursor-pointer hover:border-indigo-400 transition overflow-hidden bg-white"
+             onclick="document.getElementById('input-back').click()">
+          <span id="label-back" class="text-xs text-gray-400 px-4 text-center">Tap to take/choose a photo of the back</span>
+          <canvas id="canvas-back" class="hidden w-full h-full object-contain"></canvas>
+        </div>
+        <input id="input-back" type="file" accept="image/*" capture="environment" class="hidden" onchange="onShot('back', this)">
+      </div>
+    </div>
+
+    <button id="submit-btn" onclick="runExtract()" disabled
+      class="w-full bg-indigo-600 text-white rounded-xl py-3 font-semibold text-sm hover:bg-indigo-700 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3.5" stroke-width="2"/></svg>
+      Extract Card Fields
+    </button>
+
+    <div id="result" class="mt-8 hidden"></div>
+  </main>
+
+<script>
+  function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
+
+  const shots = { front: null, back: null }; // { canvas, blob }
+  const MAX_EDGE = 1500;
+
+  function onShot(side, input) {
+    const file = input.files[0];
+    if (!file) return;
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      // Resize to ~1500px long edge and re-encode as JPEG — re-encoding via
+      // canvas drops EXIF (GPS included) as a side effect; the original file
+      // object is never sent anywhere.
+      let w = img.width, h = img.height;
+      const longEdge = Math.max(w, h);
+      if (longEdge > MAX_EDGE) {
+        const scale = MAX_EDGE / longEdge;
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      const canvas = document.getElementById('canvas-' + side);
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      canvas.classList.remove('hidden');
+      document.getElementById('label-' + side).classList.add('hidden');
+
+      canvas.toBlob(blob => {
+        shots[side] = { canvas, blob };
+        updateSubmitEnabled();
+      }, 'image/jpeg', 0.88);
+    };
+    img.src = url;
+  }
+
+  function updateSubmitEnabled() {
+    document.getElementById('submit-btn').disabled = !(shots.front && shots.back);
+  }
+
+  async function runExtract() {
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+      showErr('Sign in first. <a href="/ui/login.html?next=/ui/card_capture.html" class="underline">Clinic login</a>'); return;
+    }
+    if (!shots.front || !shots.back) { showErr('Capture both sides first.'); return; }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Reading card…';
+
+    try {
+      const fd = new FormData();
+      fd.append('front', shots.front.blob, 'front.jpg');
+      fd.append('back', shots.back.blob, 'back.jpg');
+      const r = await fetch('/api/v1/card-capture/extract', {
+        method: 'POST', headers: fmpAuthHeaders(), body: fd, credentials: 'same-origin'
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { showErr(data.detail || `HTTP ${r.status}`); return; }
+      renderResult(data);
+    } catch (err) {
+      showErr(err.message);
+    } finally {
+      btn.disabled = !(shots.front && shots.back);
+      btn.innerHTML = original;
+    }
+  }
+
+  const FIELD_LABELS = {
+    payer_name: 'Payer name', member_name: 'Member name', member_id: 'Member ID',
+    group_number: 'Group number', rx_bin: 'RxBIN', rx_pcn: 'RxPCN', rx_group: 'RxGroup',
+  };
+
+  function cropDataUrl(field) {
+    if (!field.bbox || !field.side) return null;
+    const src = shots[field.side].canvas;
+    const w = src.width, h = src.height;
+    const x0 = Math.max(0, field.bbox.x0 * w), y0 = Math.max(0, field.bbox.y0 * h);
+    const x1 = Math.min(w, field.bbox.x1 * w), y1 = Math.min(h, field.bbox.y1 * h);
+    const cw = Math.max(1, x1 - x0), ch = Math.max(1, y1 - y0);
+    // Pad the crop a bit so the text isn't flush against the edge.
+    const pad = Math.min(cw, ch) * 0.15;
+    const px0 = Math.max(0, x0 - pad), py0 = Math.max(0, y0 - pad);
+    const pw = Math.min(w - px0, cw + pad * 2), ph = Math.min(h - py0, ch + pad * 2);
+
+    const out = document.createElement('canvas');
+    const scale = Math.min(4, 260 / Math.max(pw, 1));
+    out.width = Math.round(pw * scale); out.height = Math.round(ph * scale);
+    const ctx = out.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(src, px0, py0, pw, ph, 0, 0, out.width, out.height);
+    return out.toDataURL('image/png');
+  }
+
+  function renderResult(data) {
+    const result = document.getElementById('result');
+    result.classList.remove('hidden');
+
+    const fieldsHtml = (data.fields || []).map(f => {
+      const crop = cropDataUrl(f);
+      const confPct = Math.round((f.confidence || 0) * 100);
+      const confColor = confPct >= 80 ? 'text-green-600' : confPct >= 50 ? 'text-amber-600' : 'text-red-600';
+      const invalid = f.value && f.valid === false;
+      return `
+        <div class="flex items-center gap-3 border border-gray-200 rounded-lg p-3 ${invalid ? 'bg-red-50 border-red-200' : 'bg-white'}">
+          ${crop ? `<img src="${crop}" class="crop-canvas w-28 h-16 object-contain border border-gray-200 rounded bg-gray-50 flex-shrink-0" alt="crop">`
+                 : `<div class="w-28 h-16 flex-shrink-0 border border-dashed border-gray-200 rounded bg-gray-50"></div>`}
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-gray-400">${FIELD_LABELS[f.field] || f.field}</p>
+            <input value="${esc(f.value || '')}" data-field="${f.field}" class="field-value w-full text-sm font-medium border-0 border-b border-transparent focus:border-indigo-400 focus:outline-none bg-transparent ${f.value ? 'text-gray-900' : 'text-gray-300 italic'}" placeholder="not found">
+            ${invalid ? `<p class="text-[11px] text-red-600 mt-0.5">${esc(f.validation_reason || 'Invalid')}</p>` : ''}
+            ${f.known_bin_match ? `<p class="text-[11px] text-green-600 mt-0.5">Matches known BIN: ${esc(f.known_bin_match)}</p>` : ''}
+          </div>
+          ${f.value ? `<span class="text-xs font-semibold ${confColor} flex-shrink-0">${confPct}%</span>` : ''}
+        </div>`;
+    }).join('');
+
+    const templatesHtml = (data.matched_templates || []).length ? `
+      <div class="mt-4">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Matching PA forms</p>
+        <div class="space-y-1.5">
+          ${data.matched_templates.map(t => `
+            <a href="/ui/templates.html?template_id=${encodeURIComponent(t.template_id)}"
+               class="flex items-center justify-between text-sm bg-indigo-50 hover:bg-indigo-100 rounded-lg px-3 py-2 transition">
+              <span class="text-indigo-700 font-medium">${esc(t.name)}</span>
+              <span class="text-xs text-indigo-400">${Math.round(t.score*100)}% match →</span>
+            </a>`).join('')}
+        </div>
+      </div>` : '';
+
+    const warningsHtml = (data.warnings || []).length ? `
+      <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 mt-4">
+        <ul class="list-disc list-inside space-y-0.5">${data.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>
+      </div>` : '';
+
+    result.innerHTML = `
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Extracted fields — verify against the crop, then edit if needed</p>
+        <div class="space-y-2">${fieldsHtml}</div>
+        ${warningsHtml}
+        ${templatesHtml}
+        <button onclick="copyFields()" class="mt-4 text-xs text-indigo-600 border border-indigo-200 rounded-lg px-3 py-1 hover:bg-indigo-50">Copy as JSON</button>
+      </div>`;
+  }
+
+  function copyFields() {
+    const out = {};
+    document.querySelectorAll('.field-value').forEach(inp => { out[inp.dataset.field] = inp.value; });
+    navigator.clipboard.writeText(JSON.stringify(out, null, 2)).then(() => alert('Copied to clipboard!'));
+  }
+
+  function showErr(msg) {
+    const result = document.getElementById('result');
+    result.classList.remove('hidden');
+    result.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">${msg}</div>`;
+  }
+
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  (async function () {
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+      showErr('Sign in first. <a href="/ui/login.html?next=/ui/card_capture.html" class="underline font-medium">Clinic login</a>');
+    }
+  })();
+</script>
+</body>
+</html>

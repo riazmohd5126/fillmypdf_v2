@@ -58,6 +58,22 @@ except ImportError as e:
     HAS_EXTRACT = False
     print(f"⚠️  Extract routes not available: {e}")
 
+# Note Paste — pasted visit notes → verified clinical-justification draft
+try:
+    from .api.routes import note_paste_routes
+    HAS_NOTE_PASTE = True
+except ImportError as e:
+    HAS_NOTE_PASTE = False
+    print(f"⚠️  Note paste routes not available: {e}")
+
+# Card Capture — insurance-card photos → the 7 insurance fields
+try:
+    from .api.routes import card_capture_routes
+    HAS_CARD_CAPTURE = True
+except ImportError as e:
+    HAS_CARD_CAPTURE = False
+    print(f"⚠️  Card capture routes not available: {e}")
+
 # Visual e-sign — resolved at startup inside lifespan
 HAS_SIGNING = False
 
@@ -359,6 +375,8 @@ async def status():
             "async_extract_jobs": HAS_JOBS,
             "jobs_list_filters": HAS_JOBS,
             "smart_extraction": HAS_EXTRACT,
+            "note_paste": HAS_NOTE_PASTE,
+            "card_capture": HAS_CARD_CAPTURE,
             "esign_visual": HAS_SIGNING,
             "dashboard_ui": True,
             "authentication": True,
@@ -440,6 +458,12 @@ if HAS_JOBS:
 
 if HAS_EXTRACT:
     app.include_router(extract_routes.router, prefix="/api/v1")
+
+if HAS_NOTE_PASTE:
+    app.include_router(note_paste_routes.router, prefix="/api/v1")
+
+if HAS_CARD_CAPTURE:
+    app.include_router(card_capture_routes.router, prefix="/api/v1")
 
 # PDF utilities (merge / split) — always available if pypdf is installed
 try:

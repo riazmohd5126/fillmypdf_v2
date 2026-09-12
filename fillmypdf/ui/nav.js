@@ -51,6 +51,8 @@
     sign: "M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z",
     jobs: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
     extract: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4",
+    notePaste: "M9 12h6m-6 4h4m1-13H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-6-6z M13 2v6h6",
+    cardCapture: "M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M12 13m-3.5 0a3.5 3.5 0 107 0 3.5 3.5 0 10-7 0",
     mapping:
       "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
     lightning: "M13 10V3L4 14h7v7l9-11h-7z",
@@ -76,6 +78,13 @@
         { href: "/ui/guided_batch.html", label: "Guided Batch", icon: I.batch },
         { href: "/ui/templates.html", label: "Templates", icon: I.templates, badgeId: "fmp-nav-tpl-badge" },
         { href: "/ui/profiles.html", label: "Profiles", icon: I.profiles },
+      ],
+    },
+    {
+      label: "Chart Ingestion",
+      items: [
+        { href: "/ui/note_paste.html", label: "Note Paste", icon: I.notePaste },
+        { href: "/ui/card_capture.html", label: "Card Capture", icon: I.cardCapture },
       ],
     },
     {
