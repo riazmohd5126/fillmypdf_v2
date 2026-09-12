@@ -576,3 +576,70 @@
   window.fmpReadinessBust = function () { readinessCache = null; };
   window.fmpRenderHowNewPdf = renderHowNewPdf;
 })();
+
+/** Chrome ignores autocomplete=off and fills the login email into the first
+ * search box after paint, often without an input event. Harden those fields
+ * and strip email-shaped values on a delay so the library is not filtered out.
+ */
+(function fmpGuardSearchAutofill() {
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const SELECTOR = [
+    'input[type="search"]',
+    '#search-input',
+    '#tpl-search',
+    '#q-search',
+    '#launch-search',
+    '#out-name',
+  ].join(',');
+
+  function harden(el) {
+    if (!el || el.type === 'email' || el.type === 'password') return;
+    const name = el.getAttribute('name') || '';
+    if (!name || /^(email|username|user|login)$/i.test(name)) {
+      el.setAttribute('name', el.id ? 'fmp-' + el.id : 'fmp-q');
+    }
+    el.setAttribute('autocomplete', 'new-password');
+    el.setAttribute('autocorrect', 'off');
+    el.setAttribute('spellcheck', 'false');
+    el.setAttribute('autocapitalize', 'off');
+    el.setAttribute('data-lpignore', 'true');
+    el.setAttribute('data-1p-ignore', 'true');
+    if (!el.dataset.fmpAutofillUnlock) {
+      el.dataset.fmpAutofillUnlock = '1';
+      el.setAttribute('readonly', 'readonly');
+      const unlock = function () { el.removeAttribute('readonly'); };
+      el.addEventListener('focus', unlock);
+      el.addEventListener('pointerdown', unlock);
+    }
+  }
+
+  function strip(el) {
+    if (!el || el.type === 'email' || el.type === 'password') return;
+    if (!EMAIL_RE.test((el.value || '').trim())) return;
+    el.value = '';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function sweep() {
+    document.querySelectorAll(SELECTOR).forEach(function (el) {
+      harden(el);
+      strip(el);
+    });
+  }
+
+  function start() {
+    sweep();
+    [50, 150, 400, 800, 1600, 3000].forEach(function (ms) {
+      setTimeout(sweep, ms);
+    });
+    document.addEventListener('animationstart', function (e) {
+      if (e.target && e.target.matches && e.target.matches(SELECTOR)) strip(e.target);
+    }, true);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
+})();

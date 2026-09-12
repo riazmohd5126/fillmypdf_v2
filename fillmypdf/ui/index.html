@@ -231,16 +231,6 @@
             <button type="button" data-fast="last-batch" class="is-off">Download last batch</button>
           </nav>
         </div>
-        <div class="ln-shorts">
-          <h3>Tools</h3>
-          <nav class="fmp-fast">
-            <a href="/ui/approvals.html">Approvals</a>
-            <a href="/ui/make_fillable.html">Make Fillable</a>
-            <a href="/ui/sign.html">E-Signature</a>
-            <a href="/ui/jobs.html">Fill History</a>
-            <a href="/ui/pdftools.html">PDF Tools</a>
-          </nav>
-        </div>
         <div class="ln-shorts operator-only admin-only hidden">
           <h3>Operator prep</h3>
           <nav class="fmp-fast">
@@ -268,7 +258,9 @@
           </div>
         </div>
         <div class="q-search">
-          <input id="q-search" type="search" placeholder="Filter forms, jobs, patients…" autocomplete="off" />
+          <input id="q-search" type="search" name="fmp-queue-q" placeholder="Filter forms, jobs, patients…"
+            autocomplete="new-password" autocorrect="off" spellcheck="false"
+            readonly onfocus="this.removeAttribute('readonly')" />
         </div>
         <div class="q-body">
           <div class="q-table-wrap">
@@ -321,7 +313,9 @@
           <h2 class="ln-h">Pick a template, then how you want to fill it</h2>
           <div class="ln-search">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z"/></svg>
-            <input id="launch-search" type="search" placeholder="Search templates — payer, form number, or nickname." autocomplete="off" />
+            <input id="launch-search" type="search" name="fmp-launch-q" placeholder="Search templates — payer, form number, or nickname."
+              autocomplete="new-password" autocorrect="off" spellcheck="false"
+              readonly onfocus="this.removeAttribute('readonly')" />
           </div>
           <div class="ln-list" id="launch-list">
             <p class="ln-empty">Loading templates…</p>

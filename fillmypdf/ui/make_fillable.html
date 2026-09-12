@@ -49,8 +49,9 @@
 
     <div>
       <label class="text-xs font-medium text-gray-600 mb-1 block">Output filename (optional)</label>
-      <input id="out-name" type="text" name="output-filename" placeholder="my_form_fillable"
-        autocomplete="off"
+      <input id="out-name" type="text" name="fmp-out-name" placeholder="my_form_fillable"
+        autocomplete="new-password" autocorrect="off" spellcheck="false"
+        readonly onfocus="this.removeAttribute('readonly')"
         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"/>
     </div>
 

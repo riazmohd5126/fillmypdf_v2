@@ -47,10 +47,11 @@
         class="text-xs text-gray-500 hover:text-indigo-600 px-1.5 py-0.5 rounded hover:bg-indigo-50">«</button>
     </div>
     <div class="p-3 border-b border-gray-100 space-y-2 shrink-0">
-      <input id="tpl-search" type="search" name="guided-template-search" placeholder="Search name, drug, payer…"
+      <input id="tpl-search" type="search" name="fmp-guided-q" placeholder="Search name, drug, payer…"
         oninput="renderTemplateList()"
         class="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
-        autocomplete="off" autocorrect="off" spellcheck="false"/>
+        autocomplete="new-password" autocorrect="off" spellcheck="false" autocapitalize="off"
+        readonly onfocus="this.removeAttribute('readonly')"/>
       <div class="flex gap-1 text-[11px] flex-wrap">
         <button id="flt-ready" onclick="setListFilter('ready')" class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium">Ready</button>
         <button id="flt-mine" onclick="setListFilter('mine')" class="px-2 py-1 rounded-full bg-gray-100 text-gray-600">Mine</button>
@@ -1189,7 +1190,9 @@ function templateMetaLine(t){
 
 function renderTemplateList(){
   const el = document.getElementById('tpl-list');
-  const q = (document.getElementById('tpl-search')?.value || '').trim().toLowerCase();
+  const box = document.getElementById('tpl-search');
+  if (box && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((box.value || '').trim())) box.value = '';
+  const q = (box?.value || '').trim().toLowerCase();
   let list = allTemplates.slice();
   if(listFilter === 'ready') list = list.filter(t => readinessById[t.id]?.ready);
   else if(listFilter === 'needs') list = list.filter(t => !readinessById[t.id]?.ready);
