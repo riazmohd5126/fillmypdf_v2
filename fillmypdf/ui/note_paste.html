@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/ui/favicon.svg" type="image/svg+xml"/>
+  <link rel="icon" href="/ui/favicon.ico" sizes="32x32"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Note Paste — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
+  <style>
+    body { font-family: system-ui,-apple-system,sans-serif; }
+    mark.ev-hit { background:#fef08a; border-radius:2px; padding:0 1px; }
+    mark.ev-active { background:#facc15; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
+    <span class="font-semibold text-gray-800">Note Paste</span>
+    <span class="text-xs text-gray-400">Draft the clinical justification from pasted visit notes</span>
+  </nav>
+
+  <main class="max-w-3xl mx-auto px-4 py-10">
+    <p class="text-sm text-gray-500 mb-6">
+      Paste the visit notes below. Names/DOB/MRN/phone are stripped from the copy sent to the
+      model — fill them in first so they can be redacted precisely; the model never sees them.
+      Every quoted sentence in the result is checked to appear <strong>verbatim</strong> in the
+      text that was actually sent — unverified quotes are shown in red and should not be trusted.
+    </p>
+
+    <form onsubmit="runExtract(event)" class="space-y-5">
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Patient name (redacted, not sent)</label>
+          <input id="f-name" type="text" class="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5" placeholder="Jordan Demo">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">DOB (redacted, not sent)</label>
+          <input id="f-dob" type="text" class="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5" placeholder="MM/DD/YYYY">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">MRN (redacted, not sent)</label>
+          <input id="f-mrn" type="text" class="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5" placeholder="123456">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Phone (redacted, not sent)</label>
+          <input id="f-phone" type="text" class="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5" placeholder="(555) 010-1001">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Visit notes <span class="text-red-500">*</span></label>
+        <textarea id="notes" rows="10" required
+          class="w-full text-sm border border-gray-300 rounded-xl px-3 py-2.5 font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          placeholder="Paste the visit notes here..."></textarea>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Question (optional — defaults to the RA conventional-DMARD step-therapy question)</label>
+        <input id="question" type="text" class="w-full text-sm border border-gray-300 rounded-lg px-2.5 py-1.5"
+          placeholder="Has the patient tried and failed a conventional DMARD for 3+ months at an optimized dose?">
+      </div>
+
+      <details class="text-xs text-gray-500">
+        <summary class="cursor-pointer select-none font-medium text-gray-600">Preview the de-identified text that will be sent</summary>
+        <pre id="preview" class="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3 whitespace-pre-wrap max-h-48 overflow-y-auto"></pre>
+      </details>
+
+      <button type="submit" id="submit-btn"
+        class="w-full bg-indigo-600 text-white rounded-xl py-3 font-semibold text-sm hover:bg-indigo-700 active:scale-95 transition flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        Draft Clinical Justification
+      </button>
+    </form>
+
+    <div id="result" class="mt-8 hidden"></div>
+  </main>
+
+<script>
+  function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
+
+  // ---- Client-side de-identification (second layer, not a substitute for a BAA) ----
+  function deidentify(text) {
+    let out = text;
+    const name = document.getElementById('f-name').value.trim();
+    const dob = document.getElementById('f-dob').value.trim();
+    const mrn = document.getElementById('f-mrn').value.trim();
+    const phone = document.getElementById('f-phone').value.trim();
+
+    function replaceAll(str, needle, token) {
+      if (!needle) return str;
+      const esc = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return str.replace(new RegExp(esc, 'gi'), token);
+    }
+    out = replaceAll(out, name, '[PATIENT]');
+    // Also strip a bare first/last name split, common in notes ("Jordan D." / "D., Jordan")
+    if (name.indexOf(' ') > -1) {
+      name.split(/\s+/).filter(p => p.length > 2).forEach(part => {
+        out = replaceAll(out, part, '[PATIENT]');
+      });
+    }
+    out = replaceAll(out, dob, '[DOB]');
+    out = replaceAll(out, mrn, '[MRN]');
+    out = replaceAll(out, phone, '[PHONE]');
+
+    // Generic heuristics — dates, phone-shaped numbers, SSN, email.
+    out = out.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[SSN]');
+    out = out.replace(/\b\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g, '[PHONE]');
+    out = out.replace(/\b[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}\b/g, '[EMAIL]');
+    return out;
+  }
+
+  function updatePreview() {
+    document.getElementById('preview').textContent =
+      deidentify(document.getElementById('notes').value || '');
+  }
+  ['f-name','f-dob','f-mrn','f-phone','notes'].forEach(id => {
+    document.getElementById(id).addEventListener('input', updatePreview);
+  });
+
+  async function runExtract(e) {
+    e.preventDefault();
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+      showErr('Sign in first. <a href="/ui/login.html?next=/ui/note_paste.html" class="underline">Clinic login</a>'); return;
+    }
+    const notesRaw = document.getElementById('notes').value;
+    if (!notesRaw.trim()) { showErr('Paste some visit notes first.'); return; }
+    const sentText = deidentify(notesRaw);
+    const question = document.getElementById('question').value.trim() || null;
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Drafting…';
+
+    try {
+      const r = await fetch('/api/v1/note-paste/extract', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, fmpAuthHeaders()),
+        credentials: 'same-origin',
+        body: JSON.stringify({ notes_text: sentText, question, indication: 'rheumatoid_arthritis' })
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { showErr(data.detail || `HTTP ${r.status}`); return; }
+      renderResult(data);
+    } catch (err) {
+      showErr(err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = original;
+    }
+  }
+
+  function highlightQuotes(text, evidence) {
+    // Wrap each verified/unverified quote occurrence in <mark>. Longest quotes
+    // first so a short quote nested in a long one doesn't double-wrap.
+    let html = esc(text);
+    const sorted = [...evidence].sort((a,b) => b.quote.length - a.quote.length);
+    sorted.forEach((ev, i) => {
+      if (!ev.quote) return;
+      const escaped = esc(ev.quote);
+      const cls = ev.verified ? 'ev-hit' : 'ev-hit bg-red-200';
+      // Only replace inside plain text (already escaped), first occurrence.
+      html = html.replace(escaped, `<mark class="${cls}" data-ev="${i}">${escaped}</mark>`);
+    });
+    return html;
+  }
+
+  function renderResult(data) {
+    const result = document.getElementById('result');
+    result.classList.remove('hidden');
+
+    const answerColor = { yes: 'bg-green-100 text-green-700', no: 'bg-gray-200 text-gray-700', not_in_notes: 'bg-amber-100 text-amber-700' }[data.answer] || 'bg-gray-100 text-gray-700';
+    const confColor = { high: 'bg-green-100 text-green-700', medium: 'bg-amber-100 text-amber-700', review_required: 'bg-red-100 text-red-700' }[data.confidence] || 'bg-gray-100 text-gray-700';
+
+    const evidenceHtml = (data.evidence || []).map((ev, i) => `
+      <li class="flex items-start gap-2 text-xs mb-1.5">
+        <span class="mt-0.5 flex-shrink-0 ${ev.verified ? 'text-green-600' : 'text-red-600'}">
+          ${ev.verified
+            ? '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>'
+            : '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>'}
+        </span>
+        <span class="${ev.verified ? 'text-gray-700' : 'text-red-700 font-medium'}">"${esc(ev.quote)}"${ev.date ? ` <span class="text-gray-400">(${esc(ev.date)})</span>` : ''}${!ev.verified ? ' — could not verify verbatim in the notes' : ''}</span>
+      </li>`).join('');
+
+    const flagsHtml = (data.review_flags || []).length ? `
+      <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 mb-4">
+        <p class="font-semibold mb-1">Review before submitting</p>
+        <ul class="list-disc list-inside space-y-0.5">${data.review_flags.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
+      </div>` : '';
+
+    const durations = (data.total_months != null || data.optimized_months != null) ? `
+      <div class="flex gap-4 text-xs text-gray-500 mb-3">
+        ${data.total_months != null ? `<span>Total on therapy: <strong class="text-gray-800">${data.total_months} mo</strong></span>` : ''}
+        ${data.optimized_months != null ? `<span>At optimized dose: <strong class="text-gray-800">${data.optimized_months} mo</strong></span>` : ''}
+      </div>` : '';
+
+    result.innerHTML = `
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div class="flex flex-wrap items-center gap-2 mb-4">
+          <span class="text-xs font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${answerColor}">${esc(data.answer)}</span>
+          <span class="text-xs font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${confColor}">${esc(data.confidence.replace('_',' '))}</span>
+          ${data.drug ? `<span class="text-xs text-gray-500">Drug: <strong class="text-gray-800">${esc(data.drug)}</strong></span>` : ''}
+          ${!data.all_quotes_verified ? '<span class="text-xs font-bold text-red-600">⚠ unverified quote present — do not submit as-is</span>' : ''}
+        </div>
+
+        ${flagsHtml}
+        ${durations}
+
+        <label class="block text-xs font-medium text-gray-600 mb-1">Clinical justification (editable — copy into your PA form)</label>
+        <textarea id="summary-box" rows="4" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 mb-4">${esc(data.summary)}</textarea>
+        <button onclick="copySummary()" class="text-xs text-indigo-600 border border-indigo-200 rounded-lg px-3 py-1 hover:bg-indigo-50 mb-4">Copy justification</button>
+
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Evidence</p>
+        <ul class="mb-4">${evidenceHtml || '<li class="text-xs text-gray-400">No evidence quotes returned.</li>'}</ul>
+
+        <details>
+          <summary class="text-xs font-semibold text-gray-400 uppercase tracking-wide cursor-pointer select-none">Notes sent to the model (quotes highlighted)</summary>
+          <div class="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs whitespace-pre-wrap max-h-64 overflow-y-auto">${highlightQuotes(data.sent_text, data.evidence || [])}</div>
+        </details>
+      </div>`;
+
+    window._notePasteResult = data;
+  }
+
+  function copySummary() {
+    const box = document.getElementById('summary-box');
+    navigator.clipboard.writeText(box.value).then(() => alert('Copied to clipboard!'));
+  }
+
+  function showErr(msg) {
+    const result = document.getElementById('result');
+    result.classList.remove('hidden');
+    result.innerHTML = `<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">${msg}</div>`;
+  }
+
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  (async function () {
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+      showErr('Sign in first. <a href="/ui/login.html?next=/ui/note_paste.html" class="underline font-medium">Clinic login</a>');
+    }
+  })();
+</script>
+</body>
+</html>
