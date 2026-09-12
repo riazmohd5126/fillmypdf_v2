@@ -203,6 +203,20 @@ class NotePasteService:
         if confidence not in ("high", "medium", "review_required"):
             confidence = "review_required"
 
+        # A "yes"/"no" asserted with zero verified evidence is exactly the
+        # kind of unsupported claim the quote-verification exists to catch
+        # — but the verbatim check above only fires when a *bad* quote is
+        # present, so an answer backed by NO quotes at all slipped through
+        # clean. Never let a definitive answer stand on nothing.
+        verified_count = sum(1 for ev in evidence if ev.verified)
+        if answer in ("yes", "no") and verified_count == 0:
+            review_flags.append(
+                f"Answer is '{answer}' but no verified evidence quote backs "
+                f"it up — nothing in the notes was confirmed to support "
+                f"this conclusion."
+            )
+            confidence = "review_required"
+
         return NotePasteExtractResponse(
             answer=answer,
             confidence=confidence,
