@@ -6,6 +6,13 @@ with quoted evidence. See ``services/note_paste_service.py`` for the
 deterministic verification layer (every quote must appear verbatim in the
 text that was actually sent to the model, and durations are computed in
 Python, never trusted from the model).
+
+The response is a list of drug **trials**, not a single drug/dates/evidence
+set — a patient may have tried and failed more than one conventional DMARD,
+and the knowledge file explicitly asks the model to report every one it
+finds. Each trial carries its own evidence, independently verified, so a
+summary that mentions two drugs but only backs one of them with a real
+quote gets caught per-drug, not just "was there any evidence at all."
 """
 
 from __future__ import annotations
@@ -19,6 +26,24 @@ class EvidenceQuote(BaseModel):
     quote: str
     date: Optional[str] = None
     verified: bool = False
+
+
+class DrugTrial(BaseModel):
+    drug: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    optimized_dose_start: Optional[str] = None
+    evidence: List[EvidenceQuote] = Field(default_factory=list)
+
+    # Computed server-side for this trial — never trust model arithmetic.
+    total_months: Optional[float] = None
+    optimized_months: Optional[float] = None
+
+    # True only if every evidence quote for THIS trial verified verbatim.
+    # A trial with zero evidence entries is also unverified — a drug named
+    # in the summary with nothing backing it is exactly the gap this exists
+    # to catch.
+    all_quotes_verified: bool = False
 
 
 class NotePasteExtractRequest(BaseModel):
@@ -44,18 +69,12 @@ class NotePasteExtractRequest(BaseModel):
 class NotePasteExtractResponse(BaseModel):
     answer: Literal["yes", "no", "not_in_notes"]
     confidence: Literal["high", "medium", "review_required"]
-    drug: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
-    optimized_dose_start: Optional[str] = None
     summary: str = ""
-    evidence: List[EvidenceQuote] = Field(default_factory=list)
+    trials: List[DrugTrial] = Field(default_factory=list)
 
-    # Computed server-side — never trust model arithmetic.
-    total_months: Optional[float] = None
-    optimized_months: Optional[float] = None
-
-    # Deterministic verification outcome.
+    # True only if every trial's every quote verified. False the moment any
+    # single trial (any one of possibly several drugs) has an unverified or
+    # missing quote — not just "was at least one thing verified somewhere."
     all_quotes_verified: bool = True
     review_flags: List[str] = Field(default_factory=list)
 

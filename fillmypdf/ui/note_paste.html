@@ -239,14 +239,8 @@
     return html;
   }
 
-  function renderResult(data) {
-    const result = document.getElementById('result');
-    result.classList.remove('hidden');
-
-    const answerColor = { yes: 'bg-green-100 text-green-700', no: 'bg-gray-200 text-gray-700', not_in_notes: 'bg-amber-100 text-amber-700' }[data.answer] || 'bg-gray-100 text-gray-700';
-    const confColor = { high: 'bg-green-100 text-green-700', medium: 'bg-amber-100 text-amber-700', review_required: 'bg-red-100 text-red-700' }[data.confidence] || 'bg-gray-100 text-gray-700';
-
-    const evidenceHtml = (data.evidence || []).map((ev, i) => `
+  function evidenceListHtml(evidence) {
+    return (evidence || []).map((ev) => `
       <li class="flex items-start gap-2 text-xs mb-1.5">
         <span class="mt-0.5 flex-shrink-0 ${ev.verified ? 'text-green-600' : 'text-red-600'}">
           ${ev.verified
@@ -255,6 +249,37 @@
         </span>
         <span class="${ev.verified ? 'text-gray-700' : 'text-red-700 font-medium'}">"${esc(ev.quote)}"${ev.date ? ` <span class="text-gray-400">(${esc(ev.date)})</span>` : ''}${!ev.verified ? ' — could not verify verbatim in the notes' : ''}</span>
       </li>`).join('');
+  }
+
+  function trialCardHtml(trial) {
+    const durations = (trial.total_months != null || trial.optimized_months != null) ? `
+      <div class="flex gap-4 text-xs text-gray-500 mb-2">
+        ${trial.total_months != null ? `<span>Total on therapy: <strong class="text-gray-800">${trial.total_months} mo</strong></span>` : ''}
+        ${trial.optimized_months != null ? `<span>At optimized dose: <strong class="text-gray-800">${trial.optimized_months} mo</strong></span>` : ''}
+      </div>` : '';
+
+    return `
+      <div class="border border-gray-200 rounded-lg p-3 mb-3">
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="text-sm font-semibold text-gray-800">${esc(trial.drug)}</span>
+          ${!trial.all_quotes_verified ? '<span class="text-xs font-bold text-red-600">⚠ unverified — do not submit as-is</span>' : ''}
+        </div>
+        ${durations}
+        <ul>${evidenceListHtml(trial.evidence) || '<li class="text-xs text-gray-400">No evidence quotes returned for this drug.</li>'}</ul>
+      </div>`;
+  }
+
+  function renderResult(data) {
+    const result = document.getElementById('result');
+    result.classList.remove('hidden');
+
+    const answerColor = { yes: 'bg-green-100 text-green-700', no: 'bg-gray-200 text-gray-700', not_in_notes: 'bg-amber-100 text-amber-700' }[data.answer] || 'bg-gray-100 text-gray-700';
+    const confColor = { high: 'bg-green-100 text-green-700', medium: 'bg-amber-100 text-amber-700', review_required: 'bg-red-100 text-red-700' }[data.confidence] || 'bg-gray-100 text-gray-700';
+
+    const trials = data.trials || [];
+    const trialsHtml = trials.map(trialCardHtml).join('');
+    // Flattened across all trials, for highlighting the sent-text panel below.
+    const allEvidence = trials.flatMap(t => t.evidence || []);
 
     const flagsHtml = (data.review_flags || []).length ? `
       <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 mb-4">
@@ -262,34 +287,27 @@
         <ul class="list-disc list-inside space-y-0.5">${data.review_flags.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
       </div>` : '';
 
-    const durations = (data.total_months != null || data.optimized_months != null) ? `
-      <div class="flex gap-4 text-xs text-gray-500 mb-3">
-        ${data.total_months != null ? `<span>Total on therapy: <strong class="text-gray-800">${data.total_months} mo</strong></span>` : ''}
-        ${data.optimized_months != null ? `<span>At optimized dose: <strong class="text-gray-800">${data.optimized_months} mo</strong></span>` : ''}
-      </div>` : '';
-
     result.innerHTML = `
       <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <div class="flex flex-wrap items-center gap-2 mb-4">
           <span class="text-xs font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${answerColor}">${esc(data.answer)}</span>
           <span class="text-xs font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${confColor}">${esc(data.confidence.replace('_',' '))}</span>
-          ${data.drug ? `<span class="text-xs text-gray-500">Drug: <strong class="text-gray-800">${esc(data.drug)}</strong></span>` : ''}
+          ${trials.length ? `<span class="text-xs text-gray-500">Drugs: <strong class="text-gray-800">${trials.map(t => esc(t.drug)).join(', ')}</strong></span>` : ''}
           ${!data.all_quotes_verified ? '<span class="text-xs font-bold text-red-600">⚠ unverified quote present — do not submit as-is</span>' : ''}
         </div>
 
         ${flagsHtml}
-        ${durations}
 
         <label class="block text-xs font-medium text-gray-600 mb-1">Clinical justification (editable — copy into your PA form)</label>
         <textarea id="summary-box" rows="4" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 mb-4">${esc(data.summary)}</textarea>
         <button onclick="copySummary()" class="text-xs text-indigo-600 border border-indigo-200 rounded-lg px-3 py-1 hover:bg-indigo-50 mb-4">Copy justification</button>
 
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Evidence</p>
-        <ul class="mb-4">${evidenceHtml || '<li class="text-xs text-gray-400">No evidence quotes returned.</li>'}</ul>
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Evidence by drug</p>
+        ${trialsHtml || '<p class="text-xs text-gray-400 mb-4">No drug trials returned.</p>'}
 
         <details>
           <summary class="text-xs font-semibold text-gray-400 uppercase tracking-wide cursor-pointer select-none">Notes sent to the model (quotes highlighted)</summary>
-          <div class="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs whitespace-pre-wrap max-h-64 overflow-y-auto">${highlightQuotes(data.sent_text, data.evidence || [])}</div>
+          <div class="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs whitespace-pre-wrap max-h-64 overflow-y-auto">${highlightQuotes(data.sent_text, allEvidence)}</div>
         </details>
       </div>`;
 
