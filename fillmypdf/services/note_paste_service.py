@@ -131,7 +131,13 @@ class NotePasteService:
             "month (e.g. \"3/1\", \"around April\") with no year written "
             "anywhere in the notes, the year is NOT known — return null for "
             "that date rather than assuming the current year or any other "
-            "year."
+            "year.\n"
+            "Populate start_date/end_date/optimized_dose_start for EVERY "
+            "trial whenever the notes state them — including when a date "
+            "appears only inside an evidence quote rather than written "
+            "separately elsewhere. Do not leave a trial's dates null just "
+            "because you already reported that date inside its evidence; "
+            "extract it into the date fields too."
         )
         return [
             {"role": "system", "content": system},
@@ -288,6 +294,29 @@ class NotePasteService:
             sent_text=sent_text,
         )
 
+    @staticmethod
+    def _check_truncation(raw: str, finish_reason: Optional[str]) -> None:
+        """Raise a clear, actionable error the moment truncation is known
+        (finish_reason == "length"), rather than letting a partial JSON
+        blob fall through to _parse_json() and surface as an opaque
+        "did not return parseable JSON" — this happens most often once a
+        note names several drugs, since each trial adds to the output."""
+        if finish_reason != "length":
+            return
+        if not raw.strip():
+            raise NotePasteError(
+                "Model response was cut off by the token limit before any "
+                "content was produced — try shorter notes, or report this "
+                "so the token budget can be raised."
+            )
+        raise NotePasteError(
+            "Model response was cut off by the token limit partway through "
+            "generating the answer — this happens most often with notes "
+            "covering several drugs. Try again, or split the notes into "
+            "separate requests per drug; report this if it keeps happening "
+            "so the token budget can be raised further."
+        )
+
     # ------------------------------------------------------------------
     # Public entry point
     # ------------------------------------------------------------------
@@ -307,17 +336,12 @@ class NotePasteService:
         resp = client.chat.completions.create(
             model=self.model,
             temperature=0.0,
-            max_tokens=3000,
+            max_tokens=6000,
             response_format={"type": "json_object"},
             messages=self._prompt(notes_text, effective_question, knowledge),
         )
         choice = resp.choices[0]
         raw = choice.message.content or ""
-        if not raw.strip() and getattr(choice, "finish_reason", None) == "length":
-            raise NotePasteError(
-                "Model response was cut off by the token limit before any "
-                "content was produced — try shorter notes, or report this "
-                "so the token budget can be raised."
-            )
+        self._check_truncation(raw, getattr(choice, "finish_reason", None))
         parsed = self._parse_json(raw)
         return self._verify(parsed, notes_text)
