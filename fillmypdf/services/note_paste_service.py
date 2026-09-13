@@ -41,6 +41,18 @@ _DEFAULT_QUESTIONS = {
 }
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def _normalize_whitespace(text: str) -> str:
+    """Collapse any run of whitespace (including a line-wrap newline in the
+    middle of a sentence — common in pasted chart notes) to a single space.
+
+    The verbatim check below still requires an exact substring match on the
+    words themselves — this only makes it whitespace-insensitive, so a model
+    that reproduces a quote with normal spacing instead of the source's
+    mid-sentence line break isn't wrongly flagged as having fabricated it."""
+    return _WHITESPACE_RE.sub(" ", text).strip()
 
 
 class NotePasteError(Exception):
@@ -101,7 +113,11 @@ class NotePasteService:
             '"date": "YYYY-MM-DD or null"}]\n'
             "}\n"
             "Dates you are not confident about: use null rather than "
-            "guessing a year."
+            "guessing a year. In particular, if a note gives only a day and "
+            "month (e.g. \"3/1\", \"around April\") with no year written "
+            "anywhere in the notes, the year is NOT known — return null for "
+            "that date rather than assuming the current year or any other "
+            "year."
         )
         return [
             {"role": "system", "content": system},
@@ -156,9 +172,10 @@ class NotePasteService:
     def _verify(self, parsed: dict, sent_text: str) -> NotePasteExtractResponse:
         evidence = []
         all_verified = True
+        normalized_source = _normalize_whitespace(sent_text)
         for ev in parsed.get("evidence") or []:
             quote = str((ev or {}).get("quote") or "").strip()
-            verified = bool(quote) and quote in sent_text
+            verified = bool(quote) and _normalize_whitespace(quote) in normalized_source
             all_verified = all_verified and verified
             evidence.append(
                 EvidenceQuote(quote=quote, date=(ev or {}).get("date"), verified=verified)
