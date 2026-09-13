@@ -135,6 +135,27 @@ class TestVerifyZeroEvidenceGuard:
         assert result.review_flags == []
 
 
+class TestCheckTruncation:
+    """Multi-drug notes push the model closer to the token ceiling — a
+    partial JSON blob used to fall through to _parse_json() and surface as
+    an opaque "did not return parseable JSON". finish_reason == "length"
+    is caught first with a message that actually explains what happened."""
+
+    def test_empty_content_at_length_limit_raises_before_any_content(self):
+        with pytest.raises(NotePasteError, match="before any content was produced"):
+            _svc()._check_truncation("", "length")
+
+    def test_partial_content_at_length_limit_raises_partway_through(self):
+        with pytest.raises(NotePasteError, match="partway through"):
+            _svc()._check_truncation('{"answer": "yes", "trials": [', "length")
+
+    def test_normal_finish_reason_does_not_raise(self):
+        _svc()._check_truncation('{"answer": "yes", "trials": []}', "stop")
+
+    def test_none_finish_reason_does_not_raise(self):
+        _svc()._check_truncation('{"answer": "yes", "trials": []}', None)
+
+
 class TestVerifyMultipleTrials:
     """Regression coverage for the live Test H gap: a summary naming two
     drugs where only one trial actually carried real evidence — the
