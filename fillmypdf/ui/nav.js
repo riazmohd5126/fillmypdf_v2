@@ -52,6 +52,7 @@
     jobs: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
     extract: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4",
     notePaste: "M9 12h6m-6 4h4m1-13H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-6-6z M13 2v6h6",
+    renewal: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
     cardCapture: "M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M12 13m-3.5 0a3.5 3.5 0 107 0 3.5 3.5 0 10-7 0",
     mapping:
       "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
@@ -78,6 +79,7 @@
         { href: "/ui/guided_batch.html", label: "Guided Batch", icon: I.batch },
         { href: "/ui/templates.html", label: "Templates", icon: I.templates, badgeId: "fmp-nav-tpl-badge" },
         { href: "/ui/profiles.html", label: "Profiles", icon: I.profiles },
+        { href: "/ui/renewals.html", label: "PA Renewals", icon: I.renewal, badgeId: "fmp-nav-renewal-badge" },
       ],
     },
     {
@@ -516,6 +518,21 @@
     } catch (e) {}
   }
 
+  async function loadRenewalBadge() {
+    const badge = document.getElementById("fmp-nav-renewal-badge");
+    if (!badge) return;
+    try {
+      const headers = window.fmpAuthHeaders ? fmpAuthHeaders() : {};
+      const r = await fetch("/api/v1/renewals/due-count", { headers: headers, credentials: "same-origin" });
+      if (!r.ok) return;
+      const d = await r.json();
+      const count = d.total_alerting || 0;
+      badge.textContent = String(count);
+      badge.classList.toggle("is-off", count < 1);
+    } catch (e) {}
+  }
+  window.fmpRefreshRenewalBadge = loadRenewalBadge;
+
   function renderHowNewPdf(host) {
     if (!host || host.dataset.ready) return;
     host.dataset.ready = "1";
@@ -547,12 +564,14 @@
         paintFooter();
         loadProviderBadge();
         loadNavBadges();
+        loadRenewalBadge();
       });
     }
     document.addEventListener("fmp-auth-ready", function () {
       paintFooter();
       loadProviderBadge();
       loadNavBadges();
+      loadRenewalBadge();
     });
   }
 

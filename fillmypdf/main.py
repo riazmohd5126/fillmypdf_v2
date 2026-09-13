@@ -481,6 +481,10 @@ app.include_router(billing_routes.router, prefix="/api/v1")
 from .api.routes import leads_routes
 app.include_router(leads_routes.router, prefix="/api/v1")
 
+# PA renewal tracking — drug/payer/member history + renewal-due alerts
+from .api.routes import renewal_routes
+app.include_router(renewal_routes.router, prefix="/api/v1")
+
 # Approval workflow routes
 try:
     from .api.routes import approval_routes

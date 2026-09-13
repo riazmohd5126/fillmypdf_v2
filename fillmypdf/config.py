@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     BASE_DIR: Path = Path(__file__).parent
     STORAGE_DIR: Path = BASE_DIR / "storage"
     PROFILES_DIR: Path = STORAGE_DIR / "profiles"
+    RENEWALS_DIR: Path = STORAGE_DIR / "renewals"
     UPLOAD_DIR: Path = STORAGE_DIR / "temp" / "uploads"
     OUTPUT_DIR: Path = STORAGE_DIR / "temp" / "outputs"
     
@@ -279,6 +280,7 @@ class Settings(BaseSettings):
         # Create directories on init
         self.STORAGE_DIR.mkdir(exist_ok=True, parents=True)
         self.PROFILES_DIR.mkdir(exist_ok=True, parents=True)
+        self.RENEWALS_DIR.mkdir(exist_ok=True, parents=True)
         self.UPLOAD_DIR.mkdir(exist_ok=True, parents=True)
         self.OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
         # Warn if running with the default insecure encryption key
