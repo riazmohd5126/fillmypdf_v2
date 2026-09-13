@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/ui/favicon.svg" type="image/svg+xml"/>
+  <link rel="icon" href="/ui/favicon.ico" sizes="32x32"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PA Renewals — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
+  <style>body { font-family: system-ui,-apple-system,sans-serif; }</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
+    <span class="font-semibold text-gray-800">PA Renewals</span>
+    <span class="text-xs text-gray-400">Track when a prior auth needs to be renewed</span>
+    <button onclick="openCreateModal()" class="ml-auto bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700">+ Track a PA</button>
+  </nav>
+
+  <main class="max-w-4xl mx-auto px-4 py-8">
+    <p class="text-sm text-gray-500 mb-6">
+      Log a submitted PA's drug, payer, member, and its renewal-due date (from the payer's
+      determination letter) — this page alerts when one is coming due or overdue. Renewal dates
+      are entered manually; nothing here auto-detects them yet.
+    </p>
+
+    <div class="flex gap-2 mb-5 text-sm">
+      <button data-filter="alerting" onclick="setFilter('alerting')" class="filter-btn border rounded-lg px-3 py-1.5">Needs attention</button>
+      <button data-filter="active" onclick="setFilter('active')" class="filter-btn border rounded-lg px-3 py-1.5">All active</button>
+      <button data-filter="all" onclick="setFilter('all')" class="filter-btn border rounded-lg px-3 py-1.5">All</button>
+    </div>
+
+    <div id="list" class="space-y-2"></div>
+
+    <div id="empty-state" class="hidden text-center py-16 text-gray-400">
+      <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <p class="font-medium" id="empty-title">Nothing tracked yet</p>
+      <p class="text-sm mt-1">Log a submitted PA to start tracking its renewal date.</p>
+    </div>
+  </main>
+
+  <!-- Create / Edit modal -->
+  <div id="modal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 hidden overflow-y-auto py-6">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4">
+      <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+        <h2 id="modal-title" class="text-lg font-bold text-gray-900">Track a PA</h2>
+        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="p-5 space-y-3">
+        <input id="f-id" type="hidden" />
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-medium text-gray-600 mb-1 block">Patient name *</label>
+            <input id="f-patient" type="text" placeholder="Jordan Demo" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-600 mb-1 block">Member ID</label>
+            <input id="f-member" type="text" placeholder="CT8840321" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-600 mb-1 block">Drug *</label>
+            <input id="f-drug" type="text" placeholder="Xolair (omalizumab)" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-600 mb-1 block">Payer *</label>
+            <input id="f-payer" type="text" placeholder="CT Medicaid" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-600 mb-1 block">Submitted on</label>
+            <input id="f-submitted" type="date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-600 mb-1 block">Renewal due</label>
+            <input id="f-due" type="date" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+          </div>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-gray-600 mb-1 block">Notes</label>
+          <textarea id="f-notes" rows="2" placeholder="Approved for 6 months per determination letter…" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"></textarea>
+        </div>
+      </div>
+      <div class="p-5 border-t border-gray-100 flex justify-end gap-2">
+        <button onclick="closeModal()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg">Cancel</button>
+        <button onclick="saveRenewal()" id="save-btn" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg">Save</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
+  let items = [];
+  let filter = 'alerting';
+
+  const URGENCY = {
+    overdue:  { label: 'Overdue',     dot: 'bg-red-500',    text: 'text-red-700',    bg: 'bg-red-50 border-red-200' },
+    due_soon: { label: 'Due soon',    dot: 'bg-amber-500',  text: 'text-amber-700',  bg: 'bg-amber-50 border-amber-200' },
+    upcoming: { label: 'Upcoming',    dot: 'bg-blue-400',   text: 'text-blue-700',   bg: 'bg-white border-gray-200' },
+    later:    { label: 'On track',    dot: 'bg-gray-300',   text: 'text-gray-500',   bg: 'bg-white border-gray-200' },
+    no_date:  { label: 'No date set', dot: 'bg-gray-300',   text: 'text-gray-400',   bg: 'bg-white border-gray-200' },
+  };
+  const STATUS_LABEL = { active: '', renewed: 'Renewed', cancelled: 'Cancelled' };
+
+  function setFilter(f) {
+    filter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => {
+      const on = b.dataset.filter === f;
+      b.classList.toggle('bg-indigo-600', on);
+      b.classList.toggle('text-white', on);
+      b.classList.toggle('border-indigo-600', on);
+      b.classList.toggle('text-gray-600', !on);
+    });
+    render();
+  }
+
+  async function loadRenewals() {
+    const r = await fetch('/api/v1/renewals/', { headers: fmpAuthHeaders(), credentials: 'same-origin' });
+    if (!r.ok) { items = []; render(); return; }
+    items = await r.json();
+    render();
+  }
+
+  function render() {
+    const list = document.getElementById('list');
+    let rows = items;
+    if (filter === 'alerting') rows = items.filter(i => i.urgency === 'overdue' || i.urgency === 'due_soon');
+    else if (filter === 'active') rows = items.filter(i => i.status === 'active');
+
+    document.getElementById('empty-state').classList.toggle('hidden', rows.length > 0);
+    if (!rows.length) { list.innerHTML = ''; return; }
+
+    list.innerHTML = rows.map(i => {
+      const u = URGENCY[i.urgency] || URGENCY.no_date;
+      const statusTag = STATUS_LABEL[i.status]
+        ? `<span class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 border border-gray-200 rounded-full px-2 py-0.5">${STATUS_LABEL[i.status]}</span>` : '';
+      return `
+        <div class="border rounded-xl p-4 flex items-start gap-3 ${u.bg}">
+          <div class="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${u.dot}"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-2 mb-0.5">
+              <span class="font-semibold text-gray-900">${esc(i.patient_name)}</span>
+              ${i.member_id ? `<span class="text-xs text-gray-400">${esc(i.member_id)}</span>` : ''}
+              <span class="text-xs font-bold uppercase tracking-wide ${u.text}">${u.label}</span>
+              ${statusTag}
+            </div>
+            <p class="text-sm text-gray-700">${esc(i.drug_name)} — <span class="text-gray-500">${esc(i.payer_name)}</span></p>
+            <p class="text-xs text-gray-400 mt-0.5">
+              ${i.submitted_at ? `Submitted ${esc(i.submitted_at)}` : ''}${i.submitted_at && i.renewal_due ? ' · ' : ''}${i.renewal_due ? `Renewal due ${esc(i.renewal_due)}` : 'No renewal date set'}
+            </p>
+            ${i.notes ? `<p class="text-xs text-gray-500 mt-1.5">${esc(i.notes)}</p>` : ''}
+          </div>
+          <div class="flex flex-col gap-1 flex-shrink-0">
+            <button onclick="openEditModal('${i.id}')" class="text-xs text-indigo-600 hover:underline">Edit</button>
+            ${i.status === 'active' ? `<button onclick="markStatus('${i.id}','renewed')" class="text-xs text-green-600 hover:underline">Mark renewed</button>` : ''}
+            ${i.status === 'active' ? `<button onclick="markStatus('${i.id}','cancelled')" class="text-xs text-gray-400 hover:underline">Cancel</button>` : ''}
+            <button onclick="deleteRenewal('${i.id}')" class="text-xs text-red-500 hover:underline">Delete</button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function openCreateModal() {
+    document.getElementById('modal-title').textContent = 'Track a PA';
+    ['f-id','f-patient','f-member','f-drug','f-payer','f-submitted','f-due','f-notes'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('modal').classList.remove('hidden');
+  }
+
+  function openEditModal(id) {
+    const i = items.find(x => x.id === id);
+    if (!i) return;
+    document.getElementById('modal-title').textContent = 'Edit tracked PA';
+    document.getElementById('f-id').value = i.id;
+    document.getElementById('f-patient').value = i.patient_name || '';
+    document.getElementById('f-member').value = i.member_id || '';
+    document.getElementById('f-drug').value = i.drug_name || '';
+    document.getElementById('f-payer').value = i.payer_name || '';
+    document.getElementById('f-submitted').value = i.submitted_at || '';
+    document.getElementById('f-due').value = i.renewal_due || '';
+    document.getElementById('f-notes').value = i.notes || '';
+    document.getElementById('modal').classList.remove('hidden');
+  }
+
+  function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+  async function saveRenewal() {
+    const id = document.getElementById('f-id').value;
+    const body = {
+      patient_name: document.getElementById('f-patient').value.trim(),
+      member_id: document.getElementById('f-member').value.trim() || null,
+      drug_name: document.getElementById('f-drug').value.trim(),
+      payer_name: document.getElementById('f-payer').value.trim(),
+      submitted_at: document.getElementById('f-submitted').value || null,
+      renewal_due: document.getElementById('f-due').value || null,
+      notes: document.getElementById('f-notes').value.trim(),
+    };
+    if (!body.patient_name || !body.drug_name || !body.payer_name) {
+      alert('Patient name, drug, and payer are required.'); return;
+    }
+    const btn = document.getElementById('save-btn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const url = id ? `/api/v1/renewals/${id}` : '/api/v1/renewals/';
+      const r = await fetch(url, {
+        method: id ? 'PATCH' : 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, fmpAuthHeaders()),
+        credentials: 'same-origin',
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.detail || `HTTP ${r.status}`); return; }
+      closeModal();
+      await loadRenewals();
+      refreshBadge();
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+  }
+
+  async function markStatus(id, status) {
+    const r = await fetch(`/api/v1/renewals/${id}`, {
+      method: 'PATCH',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, fmpAuthHeaders()),
+      credentials: 'same-origin',
+      body: JSON.stringify({ status }),
+    });
+    if (r.ok) { await loadRenewals(); refreshBadge(); }
+  }
+
+  async function deleteRenewal(id) {
+    if (!confirm('Delete this tracked PA? This cannot be undone.')) return;
+    const r = await fetch(`/api/v1/renewals/${id}`, { method: 'DELETE', headers: fmpAuthHeaders(), credentials: 'same-origin' });
+    if (r.ok || r.status === 204) { await loadRenewals(); refreshBadge(); }
+  }
+
+  function refreshBadge() {
+    if (window.fmpRefreshRenewalBadge) fmpRefreshRenewalBadge();
+  }
+
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  (async function () {
+    setFilter('alerting');
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+      document.getElementById('list').innerHTML =
+        '<div class="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">Sign in first. <a href="/ui/login.html?next=/ui/renewals.html" class="underline">Clinic login</a></div>';
+      return;
+    }
+    await loadRenewals();
+  })();
+</script>
+</body>
+</html>
