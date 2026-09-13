@@ -27,7 +27,7 @@ from typing import Optional
 
 from openai import OpenAI
 
-from ..models.note_paste import EvidenceQuote, NotePasteExtractResponse
+from ..models.note_paste import DrugTrial, EvidenceQuote, NotePasteExtractResponse
 
 _KNOWLEDGE_DIR = Path(__file__).resolve().parent.parent / "knowledge"
 
@@ -86,13 +86,19 @@ class NotePasteService:
         system = (
             "You are drafting the clinical-justification section of a prior "
             "authorization request from a nurse's pasted visit notes. Follow "
-            "the domain knowledge below exactly. Two rules matter more than "
-            "anything else:\n"
-            "1. Every quote you return in `evidence` must appear "
-            "VERBATIM (exact substring, same punctuation and spacing) in the "
-            "notes text you were given. Never paraphrase inside a quote.\n"
+            "the domain knowledge below exactly. Three rules matter more "
+            "than anything else:\n"
+            "1. Every quote you return in a trial's `evidence` must appear "
+            "VERBATIM (exact substring, same punctuation) in the notes text "
+            "you were given. Never paraphrase inside a quote.\n"
             "2. If the answer is not supported by the text, return "
-            '`"answer": "not_in_notes"` — never infer or guess.\n\n'
+            '`"answer": "not_in_notes"` — never infer or guess.\n'
+            "3. Report EVERY conventional DMARD trial you find documented, "
+            "not just the first one (see the knowledge file's search rule) "
+            "— each as its own entry in `trials`. If `summary` mentions a "
+            "drug's outcome, that drug MUST have its own `trials` entry "
+            "with a real quote backing it — never describe a drug in the "
+            "summary without a matching trial citing evidence for it.\n\n"
             f"--- DOMAIN KNOWLEDGE ---\n{knowledge}\n--- END DOMAIN KNOWLEDGE ---"
         )
         user = (
@@ -104,14 +110,22 @@ class NotePasteService:
             "{\n"
             '  "answer": "yes | no | not_in_notes",\n'
             '  "confidence": "high | medium | review_required",\n'
-            '  "drug": "string or null",\n'
-            '  "start_date": "YYYY-MM-DD or null",\n'
-            '  "end_date": "YYYY-MM-DD or null",\n'
-            '  "optimized_dose_start": "YYYY-MM-DD or null",\n'
-            '  "summary": "1-3 sentence clinical justification draft",\n'
-            '  "evidence": [{"quote": "verbatim substring from the notes", '
-            '"date": "YYYY-MM-DD or null"}]\n'
+            '  "summary": "1-3 sentence clinical justification draft covering '
+            'every trial below",\n'
+            '  "trials": [\n'
+            "    {\n"
+            '      "drug": "string",\n'
+            '      "start_date": "YYYY-MM-DD or null",\n'
+            '      "end_date": "YYYY-MM-DD or null",\n'
+            '      "optimized_dose_start": "YYYY-MM-DD or null",\n'
+            '      "evidence": [{"quote": "verbatim substring from the '
+            'notes", "date": "YYYY-MM-DD or null"}]\n'
+            "    }\n"
+            "  ]\n"
             "}\n"
+            "One entry in `trials` per distinct DMARD actually tried — "
+            "empty list if none is documented (e.g. answer is not_in_notes "
+            "because nothing was ever started).\n"
             "Dates you are not confident about: use null rather than "
             "guessing a year. In particular, if a note gives only a day and "
             "month (e.g. \"3/1\", \"around April\") with no year written "
@@ -169,49 +183,81 @@ class NotePasteService:
         except ValueError:
             return None
 
-    def _verify(self, parsed: dict, sent_text: str) -> NotePasteExtractResponse:
+    def _verify_trial(self, trial: dict, normalized_source: str) -> DrugTrial:
+        """Verify one drug trial's evidence and compute its durations —
+        independently of every other trial, so a summary naming several
+        drugs can't hide one that has no real backing behind another that
+        does."""
         evidence = []
-        all_verified = True
-        normalized_source = _normalize_whitespace(sent_text)
-        for ev in parsed.get("evidence") or []:
+        for ev in trial.get("evidence") or []:
             quote = str((ev or {}).get("quote") or "").strip()
             verified = bool(quote) and _normalize_whitespace(quote) in normalized_source
-            all_verified = all_verified and verified
             evidence.append(
                 EvidenceQuote(quote=quote, date=(ev or {}).get("date"), verified=verified)
             )
+        # A trial with NO evidence at all is exactly the unbacked-claim case
+        # this exists to catch — it's "verified" only if there's at least
+        # one quote and every quote given actually checks out.
+        all_verified = bool(evidence) and all(ev.verified for ev in evidence)
 
-        confidence = parsed.get("confidence") or "review_required"
+        start = self._parse_date(trial.get("start_date"))
+        end = self._parse_date(trial.get("end_date"))
+        opt_start = self._parse_date(trial.get("optimized_dose_start"))
+        total_months = round((end - start).days / 30.44, 1) if start and end and end >= start else None
+        optimized_months = (
+            round((end - opt_start).days / 30.44, 1) if opt_start and end and end >= opt_start else None
+        )
+
+        return DrugTrial(
+            drug=str(trial.get("drug") or "").strip() or "Unnamed drug",
+            start_date=trial.get("start_date"),
+            end_date=trial.get("end_date"),
+            optimized_dose_start=trial.get("optimized_dose_start"),
+            evidence=evidence,
+            total_months=total_months,
+            optimized_months=optimized_months,
+            all_quotes_verified=all_verified,
+        )
+
+    def _verify(self, parsed: dict, sent_text: str) -> NotePasteExtractResponse:
+        normalized_source = _normalize_whitespace(sent_text)
+        raw_trials = parsed.get("trials")
+        if not isinstance(raw_trials, list):
+            raw_trials = []
+        trials = [self._verify_trial(t, normalized_source) for t in raw_trials if isinstance(t, dict)]
+
         review_flags: list[str] = []
-        if not all_verified:
-            review_flags.append(
-                "One or more evidence quotes could not be verified verbatim "
-                "against the pasted notes."
-            )
-            confidence = "review_required"
+        confidence = parsed.get("confidence") or "review_required"
+        any_verified_evidence = False
 
-        start = self._parse_date(parsed.get("start_date"))
-        end = self._parse_date(parsed.get("end_date"))
-        opt_start = self._parse_date(parsed.get("optimized_dose_start"))
-
-        total_months = None
-        optimized_months = None
-        if start and end and end >= start:
-            total_months = round((end - start).days / 30.44, 1)
-        if opt_start and end and end >= opt_start:
-            optimized_months = round((end - opt_start).days / 30.44, 1)
-
-        # "Meets total duration but not duration-at-optimized-dose" — never
-        # let the model resolve this silently.
-        if total_months is not None and optimized_months is not None:
-            if total_months >= 3.0 and optimized_months < 3.0:
-                review_flags.append(
-                    f"Total time on therapy ({total_months} mo) meets the "
-                    f"3-month criterion, but time at the optimized dose "
-                    f"({optimized_months} mo) does not — verify before "
-                    f"submitting."
-                )
+        for trial in trials:
+            verified_count = sum(1 for ev in trial.evidence if ev.verified)
+            if verified_count > 0:
+                any_verified_evidence = True
+            if not trial.all_quotes_verified:
+                if verified_count == 0:
+                    review_flags.append(
+                        f"No verified evidence supports the {trial.drug} trial "
+                        f"— nothing in the notes was confirmed to back it up."
+                    )
+                else:
+                    review_flags.append(
+                        f"One or more evidence quotes for {trial.drug} could "
+                        f"not be verified verbatim against the pasted notes."
+                    )
                 confidence = "review_required"
+
+            # "Meets total duration but not duration-at-optimized-dose" for
+            # THIS drug — never let the model resolve it silently.
+            if trial.total_months is not None and trial.optimized_months is not None:
+                if trial.total_months >= 3.0 and trial.optimized_months < 3.0:
+                    review_flags.append(
+                        f"{trial.drug}: total time on therapy ({trial.total_months} mo) "
+                        f"meets the 3-month criterion, but time at the optimized "
+                        f"dose ({trial.optimized_months} mo) does not — verify "
+                        f"before submitting."
+                    )
+                    confidence = "review_required"
 
         answer = parsed.get("answer")
         if answer not in ("yes", "no", "not_in_notes"):
@@ -220,32 +266,24 @@ class NotePasteService:
         if confidence not in ("high", "medium", "review_required"):
             confidence = "review_required"
 
-        # A "yes"/"no" asserted with zero verified evidence is exactly the
-        # kind of unsupported claim the quote-verification exists to catch
-        # — but the verbatim check above only fires when a *bad* quote is
-        # present, so an answer backed by NO quotes at all slipped through
-        # clean. Never let a definitive answer stand on nothing.
-        verified_count = sum(1 for ev in evidence if ev.verified)
-        if answer in ("yes", "no") and verified_count == 0:
+        # A "yes"/"no" asserted with zero verified evidence ANYWHERE (no
+        # trials at all, or every trial unbacked) is exactly the kind of
+        # unsupported claim the quote-verification exists to catch. Never
+        # let a definitive answer stand on nothing.
+        if answer in ("yes", "no") and not any_verified_evidence:
             review_flags.append(
                 f"Answer is '{answer}' but no verified evidence quote backs "
-                f"it up — nothing in the notes was confirmed to support "
-                f"this conclusion."
+                f"it up anywhere — nothing in the notes was confirmed to "
+                f"support this conclusion."
             )
             confidence = "review_required"
 
         return NotePasteExtractResponse(
             answer=answer,
             confidence=confidence,
-            drug=parsed.get("drug"),
-            start_date=parsed.get("start_date"),
-            end_date=parsed.get("end_date"),
-            optimized_dose_start=parsed.get("optimized_dose_start"),
             summary=str(parsed.get("summary") or ""),
-            evidence=evidence,
-            total_months=total_months,
-            optimized_months=optimized_months,
-            all_quotes_verified=all_verified,
+            trials=trials,
+            all_quotes_verified=all(t.all_quotes_verified for t in trials),
             review_flags=review_flags,
             sent_text=sent_text,
         )
