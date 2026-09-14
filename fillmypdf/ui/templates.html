@@ -649,7 +649,7 @@
   async function loadProfileOptions(category) {
     if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) return;
     try {
-      const r = await fetch('/api/v1/profiles', { headers: fmpAuthHeaders(), credentials: 'same-origin' });
+      const r = await fetch('/api/v1/profiles/', { headers: fmpAuthHeaders(), credentials: 'same-origin' });
       if (!r.ok) return;
       allProfilesCache = await r.json();
     } catch { allProfilesCache = []; }
