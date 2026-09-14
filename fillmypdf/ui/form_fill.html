@@ -134,6 +134,13 @@
           </div>
         </div>
 
+        <details id="checklist-section" class="hidden border-b border-gray-50 shrink-0 px-3 py-1.5">
+          <summary class="text-[11px] font-medium text-gray-500 cursor-pointer select-none hover:text-gray-700">
+            Submission checklist <span id="checklist-count" class="text-gray-400"></span>
+          </summary>
+          <div id="checklist-fill-list" class="pt-2 pb-1 space-y-1 text-xs text-gray-600"></div>
+        </details>
+
         <div id="profile-bar" class="border-b border-gray-50 shrink-0">
           <div class="px-3 py-2 flex items-center gap-2">
             <button type="button" id="profile-toggle" onclick="toggleProfileBar()"
@@ -1973,6 +1980,7 @@ async function openTemplate(id, name){
     };
     blankPdfCache = { templateId: null, buffer: null, doc: null };
     renderForm(d, name);
+    loadFillChecklist(id);
     wireLivePdfPreview();
     bindSignaturePads();
     syncEsignChrome();
@@ -1981,6 +1989,25 @@ async function openTemplate(id, name){
       .then(() => { bindSignaturePads(); syncEsignChrome(); scheduleLiveOverlay(); })
       .catch(()=>{});
   } catch(e){ showErr(e.message); }
+}
+
+// Deliberately not part of the fill flow — collapsed, view-only, opt-in.
+// admin sets this in Mapping Review; see fillmypdf/models/template.py.
+async function loadFillChecklist(id){
+  const section = document.getElementById('checklist-section');
+  section.open = false;
+  section.classList.add('hidden');
+  try {
+    const manifest = await api('/api/v1/templates/'+encodeURIComponent(id));
+    const items = manifest.checklist || [];
+    if(!items.length) return;
+    document.getElementById('checklist-count').textContent = `(${items.length})`;
+    document.getElementById('checklist-fill-list').innerHTML = items.map(item => `
+      <div class="flex items-start gap-1.5">
+        <span class="text-gray-300 mt-0.5">☐</span><span>${esc(item)}</span>
+      </div>`).join('');
+    section.classList.remove('hidden');
+  } catch { /* best-effort — never blocks the fill flow */ }
 }
 
 function renderForm(d, name){

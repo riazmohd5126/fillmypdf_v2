@@ -173,6 +173,18 @@ class FormSpecCache:
             return None
         return spec
 
+    def set_checklist(self, signature: str, items: List[str]) -> bool:
+        """Replace the whole submission checklist (admin edit or AI-suggest write-back).
+
+        Whole-list replace, same as every other reviewer edit here — there is
+        no per-item id to patch since items are plain text."""
+        spec = self.get(signature)
+        if spec is None:
+            return False
+        cleaned = [str(item).strip() for item in (items or []) if str(item or "").strip()]
+        spec.checklist = cleaned
+        return self._force_save(spec)
+
     def set_signature_role(self, signature: str, field: str, role: str) -> bool:
         spec = self.get(signature)
         if spec is None:
