@@ -20,6 +20,13 @@ Endpoints (all admin-only, mounted at /api/v1/mappings):
   POST   /mappings/ai-suggest      AI-map the unmapped tail across all drafts
   POST   /mappings/lock-batch      lock many maps at once
   POST   /mappings/build           build a draft from a blank PDF, library template, or shipped form
+  POST   /mappings/{fp}/checklist/ai-suggest   draft a submission checklist from this form's own fields
+  PUT    /mappings/{fp}/checklist              replace the checklist (admin edit)
+
+A locked map's checklist (whatever the admin left it as) is synced onto the
+linked Template Library manifest at lock time, where it becomes visible to
+all users via GET /templates/{id} — but deliberately not surfaced inside the
+Guided Fill field-filling flow itself.
 """
 
 from __future__ import annotations
@@ -756,6 +763,57 @@ async def lock_form_spec(fp: str, reviewed: bool = True):
 
 
 # ---------------------------------------------------------------------------
+# Submission checklist — drafted from this form's own checkbox/question
+# fields, admin-edited, synced onto the Template Library manifest at lock.
+# ---------------------------------------------------------------------------
+
+class ChecklistUpdate(BaseModel):
+    checklist: list[str]
+
+
+def _checklist_service() -> "ChecklistService":
+    from ...services.checklist_service import ChecklistService
+
+    if not settings.CANONICAL_AI_FALLBACK:
+        raise HTTPException(412, "AI fallback is disabled (CANONICAL_AI_FALLBACK=false).")
+    resolved_key = (settings.GEMINI_API_KEY or "").strip() or os.getenv("GEMINI_API_KEY", "")
+    if not resolved_key:
+        raise HTTPException(409, "No AI key configured. Set GEMINI_API_KEY to use AI suggest.")
+    return ChecklistService(
+        api_key=resolved_key, base_url=settings.DEFAULT_AI_BASE_URL, model=settings.DEFAULT_AI_MODEL
+    )
+
+
+@router.post(
+    "/{fp}/checklist/ai-suggest",
+    summary="Draft a submission checklist from this form's own checkbox/question fields",
+)
+async def ai_suggest_checklist(fp: str):
+    from ...services.checklist_service import ChecklistError
+
+    sig = _signature_for(fp)
+    spec = FormSpecCache().get(sig)
+    if spec is None:
+        raise HTTPException(404, "No form spec built for this form yet — rebuild it")
+    svc = _checklist_service()
+    try:
+        items = svc.draft(spec)
+    except ChecklistError as exc:
+        raise HTTPException(502, str(exc))
+    if not FormSpecCache().set_checklist(sig, items):
+        raise HTTPException(404, "No form spec built for this form yet")
+    return FormSpecCache().get(sig).model_dump(mode="json")
+
+
+@router.put("/{fp}/checklist", summary="Replace the submission checklist (admin edit)")
+async def update_checklist(fp: str, body: ChecklistUpdate):
+    sig = _signature_for(fp)
+    if not FormSpecCache().set_checklist(sig, body.checklist):
+        raise HTTPException(404, "No form spec built for this form yet")
+    return FormSpecCache().get(sig).model_dump(mode="json")
+
+
+# ---------------------------------------------------------------------------
 # Update
 # ---------------------------------------------------------------------------
 
@@ -799,6 +857,32 @@ def _sync_form_spec_reviewed(fp: str, reviewed: bool) -> None:
         pass  # no structure signature / no spec yet — canonical lock still wins
 
 
+def _sync_checklist_to_manifest(fp: str, data: dict) -> None:
+    """Publish the admin's finalized checklist onto the linked Template
+    Library manifest so it becomes visible to all users (GET /templates/{id})
+    the moment the map is locked. Best-effort: a template that was never
+    imported into the library (no template_id resolvable) simply has no
+    manifest to sync onto, and that's fine — nothing to fix there."""
+    try:
+        sig = _signature_for(fp)
+    except HTTPException:
+        return
+    spec = FormSpecCache().get(sig)
+    if spec is None:
+        return
+    tid = find_template_id(data)
+    if not tid:
+        return
+    from ...repositories.template_repository import TemplateRepository
+
+    repo = TemplateRepository()
+    manifest = repo.get(tid)
+    if manifest is None:
+        return
+    manifest.checklist = list(spec.checklist)
+    repo.save_manifest_only(manifest)
+
+
 @router.post("/{fp}/lock", summary="Mark a mapping reviewed (locked/authoritative)")
 async def lock_mapping(fp: str, request: Request):
     cache = CanonicalMapCache()
@@ -812,6 +896,7 @@ async def lock_mapping(fp: str, request: Request):
     except Exception as exc:
         print(f"  ⚠️  signature placement lock enrich skipped: {exc}")
     _sync_form_spec_reviewed(fp, True)
+    _sync_checklist_to_manifest(fp, cache.get_full(fp) or {})
     detail = _detail(cache, fp)
     if missing:
         detail["signature_placement_warnings"] = missing
@@ -884,6 +969,7 @@ async def lock_batch(body: LockBatch, request: Request):
             except Exception:
                 pass
             _sync_form_spec_reviewed(fp, True)
+            _sync_checklist_to_manifest(fp, cache.get_full(fp) or {})
         results.append({"fingerprint": fp, "ok": ok})
     return {"locked": sum(1 for r in results if r["ok"]), "results": results}
 

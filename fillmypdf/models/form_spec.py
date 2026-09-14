@@ -246,6 +246,12 @@ class FormSpec(BaseModel):
     long_text: List[LongTextField] = Field(default_factory=list)
     signatures: List[SignatureField] = Field(default_factory=list)
     extras: List[ExtraField] = Field(default_factory=list)
+    # Plain-text submission checklist ("what to send alongside this PA form") —
+    # AI-drafted from `questions`/`long_text` (grounded only in this form's own
+    # fields, never invented), then admin-edited here in Mapping Review. Synced
+    # onto the linked TemplateManifest.checklist when the map is locked, where
+    # it becomes visible to all users on the Templates page and in Guided Fill.
+    checklist: List[str] = Field(default_factory=list)
     # Bumped when Guided Fill leftover extras were introduced; schema refresh
     # rebuilds specs still at 0 so cached forms pick up Additional fields.
     extras_version: int = 0

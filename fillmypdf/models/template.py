@@ -128,6 +128,14 @@ class TemplateManifest(BaseModel):
     # Healthcare: {"npi": "1234567890", "specialty": "GI"}
     # Tax:        {"form_number": "1040", "tax_year": "2024"}
     custom: Dict[str, Any] = Field(default_factory=dict)
+    # Plain-text submission checklist ("what to send alongside this PA form"),
+    # e.g. "Chart notes documenting a 3-month trial of a conventional DMARD."
+    # Finalized by an admin in Mapping Review (drafted from the form's own
+    # checkbox/question fields) and synced here when the map is locked. Any
+    # signed-in user can read it via GET /templates/{id}; it is deliberately
+    # kept out of the Guided Fill field-filling flow itself — shown only if
+    # the user opts to view it.
+    checklist: List[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

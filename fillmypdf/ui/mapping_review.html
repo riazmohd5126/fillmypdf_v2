@@ -175,6 +175,7 @@
           <button onclick="setTab('canonical')" id="tab-btn-canonical" class="tab-btn">Canonical fields</button>
           <button onclick="setTab('questions')" id="tab-btn-questions" class="tab-btn">Questions &amp; checkboxes</button>
           <button onclick="setTab('signatures')" id="tab-btn-signatures" class="tab-btn">Signatures</button>
+          <button onclick="setTab('checklist')" id="tab-btn-checklist" class="tab-btn">Checklist</button>
         </div>
 
         <div id="tab-canonical" class="flex-1 overflow-auto border-t border-gray-100 min-h-0">
@@ -219,6 +220,34 @@
 
         <div id="tab-signatures" class="hidden flex-1 overflow-y-auto border-t border-gray-100 p-3 min-h-0">
           <div id="ed-signatures" class="space-y-2"></div>
+        </div>
+
+        <div id="tab-checklist" class="hidden flex-1 overflow-y-auto border-t border-gray-100 p-3 space-y-3 min-h-0">
+          <p class="text-[11px] text-gray-400">
+            What a clinic should gather before submitting this form — drafted from this
+            form's own checkboxes and questions (never generic staples). Hidden during
+            Guided Fill; visible to all users on the Templates page once this map is locked.
+          </p>
+          <div class="flex flex-wrap gap-2 items-center">
+            <button onclick="aiSuggestChecklist()" id="checklist-ai-btn"
+              class="bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg px-3 py-1.5 font-semibold text-xs hover:bg-indigo-100 transition disabled:opacity-40">
+              AI Suggest
+            </button>
+            <button onclick="saveChecklist()" id="checklist-save-btn"
+              class="bg-indigo-600 text-white rounded-lg px-3 py-1.5 font-semibold text-xs hover:bg-indigo-700 transition disabled:opacity-40" disabled>
+              Save checklist
+            </button>
+            <span id="checklist-hint" class="text-[10px] text-gray-400"></span>
+          </div>
+          <div id="ed-checklist" class="space-y-1.5"></div>
+          <div class="flex gap-2">
+            <input id="checklist-new-item" type="text" placeholder="Add a checklist item…"
+              class="inp flex-1" onkeydown="if(event.key==='Enter'){event.preventDefault();addChecklistItem();}">
+            <button onclick="addChecklistItem()"
+              class="bg-gray-100 text-gray-700 rounded-lg px-3 py-1.5 font-semibold text-xs hover:bg-gray-200 transition">
+              Add
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -1077,6 +1106,7 @@ function renderDetail(d, localFile){
             ` · ${(spec.signatures||[]).length} signatures` : ' · no form spec built');
   renderQuestions(spec);
   renderSignatures(spec);
+  renderChecklist(spec);
   setTab('canonical');
   // Canonical tab: plain catalog paths only — no unlock / skip / linked badges.
   document.getElementById('ed-body').innerHTML = d.rows.map(r=>{
@@ -1102,7 +1132,7 @@ function renderDetail(d, localFile){
 }
 
 function setTab(name){
-  ['canonical','questions','signatures'].forEach(t=>{
+  ['canonical','questions','signatures','checklist'].forEach(t=>{
     document.getElementById('tab-'+t).classList.toggle('hidden', t!==name);
     document.getElementById('tab-btn-'+t).classList.toggle('active', t===name);
   });
@@ -1275,6 +1305,95 @@ function renderQuestions(spec){
       </div>`).join('') : '';
   renderFormTables(spec);
   renderGatedFields();
+}
+
+let checklistItems = [];     // working copy — dirty until Save
+let checklistDirty = false;
+
+function markChecklistDirty(dirty){
+  checklistDirty = dirty;
+  document.getElementById('checklist-save-btn').disabled = !dirty;
+}
+
+function renderChecklist(spec){
+  checklistItems = spec ? [...(spec.checklist || [])] : [];
+  markChecklistDirty(false);
+  document.getElementById('checklist-hint').textContent = '';
+  renderChecklistList();
+}
+
+function renderChecklistList(){
+  const box = document.getElementById('ed-checklist');
+  if(!checklistItems.length){
+    box.innerHTML = `<p class="text-xs text-gray-400">No checklist yet — try AI Suggest, or add an item below.</p>`;
+    return;
+  }
+  box.innerHTML = checklistItems.map((item, i) => `
+    <div class="flex items-start gap-2">
+      <textarea rows="1" class="inp flex-1 text-xs" data-idx="${i}"
+        oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';editChecklistItem(${i}, this.value)"
+        onchange="editChecklistItem(${i}, this.value)">${esc(item)}</textarea>
+      <button type="button" onclick="removeChecklistItem(${i})"
+        class="text-gray-400 hover:text-red-600 text-xs px-2 py-1.5" title="Remove">✕</button>
+    </div>`).join('');
+}
+
+function editChecklistItem(i, value){
+  checklistItems[i] = value;
+  markChecklistDirty(true);
+}
+
+function removeChecklistItem(i){
+  checklistItems.splice(i, 1);
+  markChecklistDirty(true);
+  renderChecklistList();
+}
+
+function addChecklistItem(){
+  const inp = document.getElementById('checklist-new-item');
+  const text = (inp.value || '').trim();
+  if(!text) return;
+  checklistItems.push(text);
+  inp.value = '';
+  markChecklistDirty(true);
+  renderChecklistList();
+}
+
+async function saveChecklist(){
+  if(!current) return;
+  const btn = document.getElementById('checklist-save-btn');
+  const cleaned = checklistItems.map(s => (s||'').trim()).filter(Boolean);
+  btn.disabled = true;
+  try{
+    const spec = await api(`/api/v1/mappings/${encodeURIComponent(current.fingerprint)}/checklist`,
+      { method:'PUT', json:true, body: JSON.stringify({ checklist: cleaned }) });
+    current.form_spec = spec;
+    renderChecklist(spec);
+    document.getElementById('checklist-hint').textContent = 'Saved.';
+  }catch(e){
+    showErr(e.message);
+    btn.disabled = false;
+  }
+}
+
+async function aiSuggestChecklist(){
+  if(!current) return;
+  const btn = document.getElementById('checklist-ai-btn');
+  btn.disabled = true;
+  document.getElementById('checklist-hint').textContent = 'Drafting…';
+  try{
+    const spec = await api(`/api/v1/mappings/${encodeURIComponent(current.fingerprint)}/checklist/ai-suggest`,
+      { method:'POST' });
+    current.form_spec = spec;
+    renderChecklist(spec);
+    document.getElementById('checklist-hint').textContent =
+      spec.checklist && spec.checklist.length ? 'Drafted — review before locking.' : 'No items implied by this form’s fields.';
+  }catch(e){
+    showErr(e.message);
+    document.getElementById('checklist-hint').textContent = '';
+  }finally{
+    btn.disabled = false;
+  }
 }
 
 function renderSignatures(spec){
