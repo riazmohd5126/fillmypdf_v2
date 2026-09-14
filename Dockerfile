@@ -26,4 +26,15 @@ RUN mkdir -p fillmypdf/storage/temp/uploads \
 EXPOSE 8000
 
 # Render sets PORT; default 8000 for local Docker.
-CMD ["sh", "-c", "uvicorn fillmypdf.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+#
+# --forwarded-allow-ips='*': Render's edge terminates TLS and forwards plain
+# HTTP to this container from its own internal proxy IP, not 127.0.0.1 (the
+# uvicorn default). Without this, uvicorn ignores the X-Forwarded-Proto:
+# https header Render sends, so request.url.scheme reads "http" — and any
+# redirect Starlette builds from it (e.g. its automatic add-a-trailing-slash
+# redirect) points at an insecure http:// URL. A browser on an https:// page
+# then silently blocks following that redirect as mixed content, surfacing
+# to client JS as an unexplained "Failed to fetch" with no HTTP status at
+# all. The container has no other ingress path than Render's own proxy, so
+# trusting every peer here is safe.
+CMD ["sh", "-c", "uvicorn fillmypdf.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
