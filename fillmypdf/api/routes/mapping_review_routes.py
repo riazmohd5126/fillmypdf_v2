@@ -790,26 +790,33 @@ def _checklist_service() -> "ChecklistService":
 )
 async def ai_suggest_checklist(fp: str):
     from ...services.checklist_service import ChecklistError
+    from ...models.form_spec import FormSpec
 
     sig = _signature_for(fp)
+    data = CanonicalMapCache().get_full(fp) or {}
     spec = FormSpecCache().get(sig)
     if spec is None:
-        raise HTTPException(404, "No form spec built for this form yet — rebuild it")
+        # No question/checkbox extraction ever ran for this form — the AI has
+        # nothing to draw from and will legitimately draft an empty list
+        # (never invent items), but the admin can still hand-type checklist
+        # items afterward via PUT /checklist.
+        spec = FormSpec(signature=sig, form_label=data.get("form_label"))
     svc = _checklist_service()
     try:
         items = svc.draft(spec)
     except ChecklistError as exc:
         raise HTTPException(502, str(exc))
-    if not FormSpecCache().set_checklist(sig, items):
-        raise HTTPException(404, "No form spec built for this form yet")
+    if not FormSpecCache().set_checklist(sig, items, form_label=data.get("form_label")):
+        raise HTTPException(500, "Could not save the drafted checklist — try again")
     return FormSpecCache().get(sig).model_dump(mode="json")
 
 
 @router.put("/{fp}/checklist", summary="Replace the submission checklist (admin edit)")
 async def update_checklist(fp: str, body: ChecklistUpdate):
     sig = _signature_for(fp)
-    if not FormSpecCache().set_checklist(sig, body.checklist):
-        raise HTTPException(404, "No form spec built for this form yet")
+    data = CanonicalMapCache().get_full(fp) or {}
+    if not FormSpecCache().set_checklist(sig, body.checklist, form_label=data.get("form_label")):
+        raise HTTPException(500, "Could not save the checklist — try again")
     return FormSpecCache().get(sig).model_dump(mode="json")
 
 

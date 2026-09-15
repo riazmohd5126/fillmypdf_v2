@@ -14,7 +14,7 @@ from fillmypdf.services.form_spec_cache import FormSpecCache
 from fillmypdf.services.template_service import TemplateService
 
 
-def _seed_mapping(tid: str, fp: str, sig: str) -> None:
+def _seed_mapping(tid: str, fp: str, sig: str, *, with_form_spec: bool = True) -> None:
     TemplateService().add(TemplateManifest(id=tid, name="Clinic Aetna PA"), b"%PDF-1.4\n%%EOF\n")
     CanonicalMapCache().save_full(
         fp,
@@ -28,7 +28,8 @@ def _seed_mapping(tid: str, fp: str, sig: str) -> None:
             "field_labels": {"a": "Name"},
         },
     )
-    FormSpecCache().save(FormSpec(signature=sig, form_label="Clinic Aetna PA"))
+    if with_form_spec:
+        FormSpecCache().save(FormSpec(signature=sig, form_label="Clinic Aetna PA"))
 
 
 class TestChecklistEdit:
@@ -72,6 +73,61 @@ class TestChecklistEdit:
             headers={"X-API-Key": admin_api_key["plain"]},
         )
         assert r.status_code == 409
+
+
+class TestChecklistWithoutFormSpec:
+    """Regression: a canonical field map can be built and even locked with no
+    question/checkbox extraction (FormSpec) ever having run for it — reported
+    live on a real clinic's Highmark form (37/37 canonical fields mapped,
+    'no form spec built'). An admin must still be able to hand-type a
+    checklist for it rather than the save 404ing on an unrelated subsystem."""
+
+    def test_put_checklist_works_with_no_form_spec_built(self, client, admin_api_key, isolated_storage):
+        _seed_mapping("priv_chk_007", "fp_chk_007", "sig_chk_007", with_form_spec=False)
+        r = client.put(
+            "/api/v1/mappings/fp_chk_007/checklist",
+            headers={"X-API-Key": admin_api_key["plain"]},
+            json={"checklist": ["Charts", "PA"]},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["checklist"] == ["Charts", "PA"]
+
+    def test_ai_suggest_with_no_form_spec_built_drafts_empty_not_404(
+        self, client, admin_api_key, isolated_storage
+    ):
+        _seed_mapping("priv_chk_008", "fp_chk_008", "sig_chk_008", with_form_spec=False)
+        with patch(
+            "fillmypdf.api.routes.mapping_review_routes.settings.GEMINI_API_KEY", "fake-test-key"
+        ), patch(
+            "fillmypdf.services.checklist_service.ChecklistService.draft", return_value=[]
+        ):
+            r = client.post(
+                "/api/v1/mappings/fp_chk_008/checklist/ai-suggest",
+                headers={"X-API-Key": admin_api_key["plain"]},
+            )
+        assert r.status_code == 200, r.text
+        assert r.json()["checklist"] == []
+
+    def test_lock_with_no_form_spec_but_hand_typed_checklist_syncs_to_manifest(
+        self, client, admin_api_key, isolated_storage
+    ):
+        _seed_mapping("priv_chk_009", "fp_chk_009", "sig_chk_009", with_form_spec=False)
+        client.put(
+            "/api/v1/mappings/fp_chk_009/checklist",
+            headers={"X-API-Key": admin_api_key["plain"]},
+            json={"checklist": ["Hand-typed item"]},
+        )
+        lock = client.post(
+            "/api/v1/mappings/fp_chk_009/lock",
+            headers={"X-API-Key": admin_api_key["plain"]},
+        )
+        assert lock.status_code == 200, lock.text
+
+        after = client.get(
+            "/api/v1/templates/priv_chk_009",
+            headers={"X-API-Key": admin_api_key["plain"]},
+        )
+        assert after.json()["checklist"] == ["Hand-typed item"]
 
 
 class TestChecklistSyncOnLock:
