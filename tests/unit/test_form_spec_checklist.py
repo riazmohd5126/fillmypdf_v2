@@ -22,8 +22,22 @@ def spec() -> FormSpec:
 
 
 class TestSetChecklist:
-    def test_set_checklist_on_missing_spec_returns_false(self, cache):
-        assert cache.set_checklist("no-such-signature", ["item"]) is False
+    def test_set_checklist_on_missing_spec_auto_creates_bare_spec(self, cache):
+        # Regression: a form's canonical field map can be built and locked
+        # with no question/checkbox extraction ever having run for it. An
+        # admin must still be able to hand-type a checklist for it rather
+        # than being blocked on that unrelated subsystem.
+        ok = cache.set_checklist("brand-new-signature", ["Chart notes"], form_label="Some Form")
+        assert ok is True
+        created = cache.get("brand-new-signature")
+        assert created is not None
+        assert created.checklist == ["Chart notes"]
+        assert created.form_label == "Some Form"
+        assert created.questions == []
+        assert created.reviewed is False
+
+    def test_set_checklist_with_empty_signature_returns_false(self, cache):
+        assert cache.set_checklist("", ["item"]) is False
 
     def test_set_checklist_saves_and_round_trips(self, cache, spec):
         cache.save(spec)

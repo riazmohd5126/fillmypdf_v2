@@ -173,14 +173,27 @@ class FormSpecCache:
             return None
         return spec
 
-    def set_checklist(self, signature: str, items: List[str]) -> bool:
+    def set_checklist(
+        self, signature: str, items: List[str], *, form_label: Optional[str] = None
+    ) -> bool:
         """Replace the whole submission checklist (admin edit or AI-suggest write-back).
 
         Whole-list replace, same as every other reviewer edit here — there is
-        no per-item id to patch since items are plain text."""
+        no per-item id to patch since items are plain text.
+
+        Unlike every other setter here, this one creates a bare FormSpec when
+        none exists yet: a form's canonical field map can be locked with no
+        question/checkbox extraction ever having run for it (an older upload,
+        a form the vision pass found nothing structured on), and an admin
+        should still be able to hand-type a checklist for it rather than
+        being blocked on an unrelated subsystem."""
+        if not signature:
+            return False
         spec = self.get(signature)
         if spec is None:
-            return False
+            from ..models.form_spec import FormSpec
+
+            spec = FormSpec(signature=signature, form_label=form_label)
         cleaned = [str(item).strip() for item in (items or []) if str(item or "").strip()]
         spec.checklist = cleaned
         return self._force_save(spec)
