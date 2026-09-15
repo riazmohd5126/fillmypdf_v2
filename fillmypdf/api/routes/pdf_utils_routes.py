@@ -1,8 +1,9 @@
 """
-PDF Utility Routes — Merge, Split & Static→Fillable
-=====================================================
+PDF Utility Routes — Merge, Split, Convert & Static→Fillable
+===============================================================
   POST /api/v1/pdf/merge            — Merge 2-20 PDFs into one (multipart upload)
   POST /api/v1/pdf/split            — Split a PDF into individual pages or page ranges
+  POST /api/v1/pdf/convert-to-pdf   — Images (JPG/PNG) and Word letters (DOCX) -> one PDF
   POST /api/v1/pdf/convert-fillable — Convert a static PDF to AcroForm (CommonForms)
   GET  /api/v1/pdf/download/{filename} — Download utility output
 """
@@ -22,6 +23,11 @@ from pypdf import PdfReader, PdfWriter
 
 from ...config import settings
 from ...models.template import TemplateManifest
+from ...services.office_convert_service import (
+    OfficeConvertError,
+    docx_to_pdf_bytes,
+    images_to_pdf_bytes,
+)
 from ...services.pdf_service import PDFService
 from ...services.template_service import TemplateService
 from ..dependencies.auth import require_api_key
@@ -102,6 +108,89 @@ async def merge_pdfs(
         "total_pages": total_pages,
         "files_merged": len(files),
         "message": f"Merged {len(files)} PDFs into {total_pages} pages.",
+    }
+
+
+# ── Convert to PDF (images + Word letters) ──────────────────────────────────
+
+_CONVERT_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp", ".tif", ".tiff", ".bmp", ".gif"}
+_CONVERT_DOCX_EXTS = {".docx"}
+MAX_CONVERT_FILES = 20
+
+
+@router.post(
+    "/convert-to-pdf",
+    summary="Images (JPG/PNG) and Word letters (DOCX) -> one PDF, in upload order",
+)
+async def convert_to_pdf(
+    files: List[UploadFile] = File(
+        ..., description="1-20 image or .docx files — phone photos, JPG scans, DOCX letters"
+    ),
+    output_name: Optional[str] = Form(None, description="Optional filename for the output PDF (without extension)"),
+):
+    """
+    Turns phone photos, JPG/PNG scans, and DOCX letters of medical necessity
+    into a single PDF (each file becomes one or more pages, in upload order)
+    — ready to combine with the rest of a submission packet via /pdf/merge.
+
+    Already-a-PDF uploads are rejected here on purpose: this tool exists for
+    the non-PDF sources that can't go straight into Merge.
+    """
+    if not files:
+        raise HTTPException(400, "At least 1 file is required.")
+    if len(files) > MAX_CONVERT_FILES:
+        raise HTTPException(400, f"Maximum {MAX_CONVERT_FILES} files per conversion.")
+
+    writer = PdfWriter()
+    for i, f in enumerate(files):
+        name = f.filename or f"file {i + 1}"
+        ext = Path(name).suffix.lower()
+        raw = await f.read()
+        if not raw:
+            raise HTTPException(400, f"'{name}' is empty.")
+        if len(raw) > MAX_PDF_BYTES:
+            raise HTTPException(400, f"'{name}' exceeds 50 MiB limit.")
+
+        if ext == ".pdf":
+            raise HTTPException(
+                400,
+                f"'{name}' is already a PDF — this tool converts images and Word "
+                "docs; use Merge to combine PDFs.",
+            )
+        try:
+            if ext in _CONVERT_IMAGE_EXTS:
+                page_pdf = images_to_pdf_bytes([raw])
+            elif ext in _CONVERT_DOCX_EXTS:
+                page_pdf = docx_to_pdf_bytes(raw, filename_hint=name)
+            else:
+                raise HTTPException(
+                    400,
+                    f"'{name}': unsupported file type '{ext or '(none)'}'. "
+                    "Accepts images (JPG, PNG, HEIC, TIFF, ...) and .docx.",
+                )
+        except OfficeConvertError as exc:
+            raise HTTPException(422, f"'{name}': {exc}")
+
+        try:
+            writer.append(PdfReader(io.BytesIO(page_pdf)))
+        except Exception as exc:
+            raise HTTPException(500, f"'{name}' converted but could not be appended: {exc}")
+
+    uid = uuid.uuid4().hex[:12]
+    safe_name = "".join(c for c in (output_name or "converted") if c.isalnum() or c in "-_")[:60] or "converted"
+    out_filename = f"{safe_name}_{uid}.pdf"
+    out_path = _out_dir() / out_filename
+    with open(out_path, "wb") as fh:
+        writer.write(fh)
+
+    total_pages = len(writer.pages)
+    return {
+        "success": True,
+        "filename": out_filename,
+        "download_url": f"/api/v1/pdf/download/{out_filename}",
+        "total_pages": total_pages,
+        "files_converted": len(files),
+        "message": f"Converted {len(files)} file(s) into a {total_pages}-page PDF.",
     }
 
 

@@ -16,9 +16,12 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      # pdf2image is imported by some pipelines; avoids optional runtime failures later
-      - name: Install poppler and tesseract
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils tesseract-ocr
+      # pdf2image is imported by some pipelines; avoids optional runtime failures later.
+      # tesseract-ocr matches the app Dockerfile (card OCR). libreoffice-writer
+      # also matches it — needed for a real (not mocked) docx-to-pdf conversion
+      # test of the Image & Word to PDF tool.
+      - name: Install poppler, tesseract and LibreOffice
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils tesseract-ocr libreoffice-writer
 
       - name: Install Python dependencies
         run: pip install -r requirements.txt

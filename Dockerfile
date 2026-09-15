@@ -1,4 +1,5 @@
 # FillMyPDF API — Debian slim + Poppler (PDF raster) + Tesseract (card OCR)
+# + LibreOffice Writer (DOCX -> PDF for the Image & Word to PDF tool)
 FROM python:3.12-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -7,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends poppler-utils tesseract-ocr \
+    && apt-get install -y --no-install-recommends poppler-utils tesseract-ocr libreoffice-writer \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
