@@ -2,8 +2,9 @@
 Card Capture Service
 =====================
 Two insurance-card photos (front + back) → the 7 canonical insurance fields.
-One vision call per side (each side carries different fields), then
-deterministic validation with no model involved:
+Default engine is auto: Tesseract + label heuristics first, then a vision
+call only if member name, member ID, or RxBIN is still missing/invalid.
+Deterministic validation stays the same either way:
 
   - RxBIN must be exactly 6 digits — anything else is rejected outright.
   - RxBIN checked against a small known-BIN list (grows over time).
@@ -28,6 +29,7 @@ from typing import Dict, List, Optional
 from openai import OpenAI
 
 from ..models.card_capture import BBox, CARD_FIELDS, CardCaptureResponse, CardField, MatchedTemplate
+from .card_ocr import TesseractUnavailable, ocr_card_side
 
 # Small seed list of publicly documented pharmacy RxBINs. Not exhaustive —
 # a non-match is not treated as invalid, only unconfirmed. Grow this over
@@ -150,6 +152,47 @@ class CardCaptureService:
         scored.sort(key=lambda m: m.score, reverse=True)
         return scored[:5]
 
+    @staticmethod
+    def _field_value(raw: dict, field: str) -> str:
+        info = (raw or {}).get(field)
+        if not isinstance(info, dict):
+            return ""
+        return str(info.get("value") or "").strip()
+
+    @classmethod
+    def _ocr_needs_fallback(cls, raw_front: dict, raw_back: dict) -> bool:
+        name = cls._field_value(raw_front, "member_name")
+        member_id = cls._field_value(raw_front, "member_id")
+        rx_bin = cls._field_value(raw_back, "rx_bin")
+        if not name or not member_id:
+            return True
+        if not rx_bin:
+            return True
+        valid, _, _ = cls._validate_rx_bin(rx_bin)
+        return not valid
+
+    @staticmethod
+    def _merge_fields(ocr: dict, vision: dict, allowed: tuple) -> dict:
+        """Keep OCR values; fill gaps (or replace an invalid RxBIN) from vision."""
+        merged = {k: v for k, v in (ocr or {}).items() if k in allowed}
+        for field, info in (vision or {}).items():
+            if field not in allowed or not isinstance(info, dict):
+                continue
+            vision_val = str(info.get("value") or "").strip()
+            if not vision_val:
+                continue
+            current = merged.get(field)
+            current_val = ""
+            if isinstance(current, dict):
+                current_val = str(current.get("value") or "").strip()
+            replace = not current_val
+            if field == "rx_bin" and current_val:
+                valid, _, _ = CardCaptureService._validate_rx_bin(current_val)
+                replace = not valid
+            if replace:
+                merged[field] = info
+        return merged
+
     # ------------------------------------------------------------------
     def extract(
         self,
@@ -158,10 +201,55 @@ class CardCaptureService:
         front_mime: str,
         back_bytes: bytes,
         back_mime: str,
+        engine: str = "auto",
     ) -> CardCaptureResponse:
         warnings: List[str] = []
-        raw_front = self._call_side(front_bytes, front_mime, "front", _FRONT_FIELDS)
-        raw_back = self._call_side(back_bytes, back_mime, "back", _BACK_FIELDS)
+        requested = (engine or "auto").strip().lower()
+        if requested not in ("auto", "tesseract", "vision"):
+            requested = "auto"
+
+        raw_front: Dict[str, dict] = {}
+        raw_back: Dict[str, dict] = {}
+        used = "vision"
+
+        if requested in ("auto", "tesseract"):
+            try:
+                raw_front = ocr_card_side(front_bytes, _FRONT_FIELDS)
+                raw_back = ocr_card_side(back_bytes, _BACK_FIELDS)
+                used = "tesseract"
+            except TesseractUnavailable as exc:
+                if requested == "tesseract":
+                    raise CardCaptureError(str(exc)) from exc
+                warnings.append(f"{exc} Falling back to vision.")
+                raw_front, raw_back = {}, {}
+                used = "vision"
+
+        need_vision = requested == "vision" or (
+            requested == "auto" and self._ocr_needs_fallback(raw_front, raw_back)
+        )
+        if need_vision:
+            if not (self.api_key or "").strip():
+                if used == "tesseract":
+                    warnings.append(
+                        "OCR left key fields empty and no Gemini key is set — "
+                        "vision fallback was skipped."
+                    )
+                else:
+                    raise CardCaptureError(
+                        "Vision engine requires a Gemini API key "
+                        "(or set engine=tesseract)."
+                    )
+            else:
+                v_front = self._call_side(front_bytes, front_mime, "front", _FRONT_FIELDS)
+                v_back = self._call_side(back_bytes, back_mime, "back", _BACK_FIELDS)
+                if used == "tesseract":
+                    raw_front = self._merge_fields(raw_front, v_front, _FRONT_FIELDS)
+                    raw_back = self._merge_fields(raw_back, v_back, _BACK_FIELDS)
+                    used = "hybrid"
+                    warnings.append("OCR was incomplete — vision filled missing fields.")
+                else:
+                    raw_front, raw_back = v_front, v_back
+                    used = "vision"
 
         merged: Dict[str, CardField] = {}
 
@@ -225,4 +313,6 @@ class CardCaptureService:
             fields=[merged[f] for f in CARD_FIELDS],
             matched_templates=matched,
             warnings=warnings,
+            engine=requested,
+            engine_used=used,
         )

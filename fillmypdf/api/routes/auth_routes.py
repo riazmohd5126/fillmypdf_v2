@@ -18,15 +18,40 @@ def _svc() -> AccountService:
     return AccountService()
 
 
+def _stamp_actor(request: Request, user) -> None:
+    """Let activity-audit middleware see who just authenticated."""
+    if user is None:
+        return
+    if hasattr(user, "id"):
+        request.state.user = {
+            "id": user.id,
+            "email": user.email,
+            "org_id": user.org_id,
+            "role": getattr(user, "role", None),
+        }
+        request.state.api_key = {
+            "id": getattr(user, "api_key_id", None),
+            "org_id": user.org_id,
+            "tier": getattr(user, "tier", None),
+        }
+        return
+    if isinstance(user, dict):
+        request.state.user = user
+
+
 @router.post("/register", response_model=RegisterResponse, status_code=201)
-async def register(payload: UserRegister, response: Response):
+async def register(payload: UserRegister, request: Request, response: Response):
     """Create a clinic account, start a session, and issue a linked API key (shown once)."""
-    return _svc().register(payload, response)
+    result = _svc().register(payload, response)
+    _stamp_actor(request, result.user)
+    return result
 
 
 @router.post("/login", response_model=UserPublic)
-async def login(payload: UserLogin, response: Response):
-    return _svc().login(payload, response)
+async def login(payload: UserLogin, request: Request, response: Response):
+    result = _svc().login(payload, response)
+    _stamp_actor(request, result)
+    return result
 
 
 @router.post("/logout", status_code=204)
@@ -36,6 +61,8 @@ async def logout(
     fmp_session: Optional[str] = Cookie(default=None),
 ):
     token = fmp_session or request.cookies.get(settings.SESSION_COOKIE_NAME)
+    user = _svc().user_from_session(token) if token else None
+    _stamp_actor(request, user)
     _svc().logout(token, response)
     return None
 

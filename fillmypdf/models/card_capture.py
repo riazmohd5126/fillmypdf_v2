@@ -72,6 +72,14 @@ class CardCaptureResponse(BaseModel):
     fields: List[CardField] = Field(default_factory=list)
     matched_templates: List[MatchedTemplate] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
+    engine: str = Field(
+        default="auto",
+        description="Requested engine: auto | tesseract | vision.",
+    )
+    engine_used: str = Field(
+        default="vision",
+        description="Engine that produced the fields: tesseract | vision | hybrid.",
+    )
 
     def as_canonical(self) -> Dict[str, str]:
         out: Dict[str, str] = {}

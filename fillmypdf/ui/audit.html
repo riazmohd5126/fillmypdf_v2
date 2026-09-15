@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="/ui/favicon.svg" type="image/svg+xml"/>
+  <link rel="icon" href="/ui/favicon.ico" sizes="32x32"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Activity log — FillMyPDF</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/ui/auth.js"></script>
+  <script src="/ui/nav.js"></script>
+  <style>body { font-family: system-ui,-apple-system,sans-serif; }</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4">
+    <span class="font-semibold text-gray-800">Activity log</span>
+    <span class="text-xs text-gray-400">Who did what — no notes, card photos, or field values</span>
+    <button onclick="loadEvents()" class="ml-auto text-sm text-gray-500 hover:text-indigo-600 flex items-center gap-1">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Refresh
+    </button>
+  </nav>
+
+  <main class="max-w-5xl mx-auto px-4 py-8">
+    <div class="flex gap-3 mb-6 flex-wrap">
+      <select id="f-event" onchange="loadEvents()"
+        class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+        <option value="">All actions</option>
+        <option value="auth.">Sign-in</option>
+        <option value="template.">Templates / fill</option>
+        <option value="profile.">Profiles</option>
+        <option value="note.paste">Note Paste</option>
+        <option value="card.capture">Card Capture</option>
+        <option value="job.">Jobs</option>
+        <option value="mapping.">Mapping Review</option>
+        <option value="signature.">Signatures</option>
+        <option value="renewal.">PA Renewals</option>
+        <option value="key.">API keys</option>
+      </select>
+      <span id="event-count" class="ml-auto self-center text-sm text-gray-400"></span>
+    </div>
+
+    <div id="event-list" class="space-y-2"></div>
+
+    <div id="empty-state" class="hidden text-center py-16 text-gray-400">
+      <p class="font-medium">No activity yet</p>
+      <p class="text-sm mt-1">Fills, uploads, and sign-ins will show up here.</p>
+    </div>
+  </main>
+
+<script>
+  function getKey() { return localStorage.getItem('fmp_api_key') || ''; }
+
+  const LABELS = {
+    'auth.register': 'Created account',
+    'auth.login': 'Signed in',
+    'auth.logout': 'Signed out',
+    'profile.create': 'Created profile',
+    'profile.update': 'Updated profile',
+    'profile.delete': 'Deleted profile',
+    'profile.import': 'Imported profiles',
+    'template.fill': 'Filled a form',
+    'template.batch': 'Batch fill',
+    'template.batch_csv': 'Guided batch fill',
+    'template.upload': 'Uploaded template',
+    'template.update': 'Updated template',
+    'template.delete': 'Deleted template',
+    'template.sign': 'Signed a form',
+    'note.paste': 'Note Paste',
+    'card.capture': 'Card Capture',
+    'extract.run': 'Extracted fields',
+    'job.batch_submit': 'Submitted batch job',
+    'job.template_batch_submit': 'Submitted template batch',
+    'mapping.lock': 'Locked mapping',
+    'mapping.unlock': 'Unlocked mapping',
+    'mapping.build': 'Built mapping draft',
+    'signature.apply': 'Applied signature',
+    'renewal.create': 'Added PA renewal',
+    'renewal.update': 'Updated PA renewal',
+    'renewal.delete': 'Deleted PA renewal',
+    'key.create': 'Created API key',
+    'key.revoke': 'Revoked API key',
+    'library.upload': 'Uploaded clinic form',
+    'pdf.convert_fillable': 'Made PDF fillable',
+    'pdf.merge': 'Merged PDFs',
+    'pdf.split': 'Split PDF',
+  };
+
+  function labelOf(ev) {
+    return LABELS[ev] || ev.replace(/[._]/g, ' ');
+  }
+
+  function statusTone(code) {
+    if (code >= 200 && code < 300) return 'text-green-700 bg-green-50';
+    if (code >= 400 && code < 500) return 'text-amber-700 bg-amber-50';
+    if (code >= 500) return 'text-red-700 bg-red-50';
+    return 'text-gray-600 bg-gray-50';
+  }
+
+  function fmtWhen(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString();
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  async function loadEvents() {
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey())))) {
+      document.getElementById('empty-state').classList.remove('hidden');
+      document.getElementById('empty-state').innerHTML = '<p class="font-medium">Sign in to view activity</p>';
+      return;
+    }
+    const event = document.getElementById('f-event').value;
+    const qs = new URLSearchParams({ limit: '200' });
+    if (event) qs.set('event', event);
+    const r = await fetch('/api/v1/audit?' + qs.toString(), {
+      headers: (window.fmpAuthHeaders ? fmpAuthHeaders() : {}),
+      credentials: 'same-origin',
+    });
+    const data = await r.json().catch(() => ({}));
+    const events = data.events || [];
+    const list = document.getElementById('event-list');
+    const empty = document.getElementById('empty-state');
+    document.getElementById('event-count').textContent = events.length ? events.length + ' events' : '';
+    if (!r.ok) {
+      empty.classList.remove('hidden');
+      empty.innerHTML = '<p class="font-medium text-red-600">' + esc(data.detail || ('HTTP ' + r.status)) + '</p>';
+      list.innerHTML = '';
+      return;
+    }
+    if (!events.length) {
+      empty.classList.remove('hidden');
+      empty.innerHTML = '<p class="font-medium">No activity yet</p><p class="text-sm mt-1">Fills, uploads, and sign-ins will show up here.</p>';
+      list.innerHTML = '';
+      return;
+    }
+    empty.classList.add('hidden');
+    list.innerHTML = events.map(e => {
+      const who = e.actor_email || e.actor_id || e.api_key_id || '—';
+      const res = e.resource_id ? (' · ' + e.resource_id) : '';
+      return '<div class="bg-white border border-gray-200 rounded-lg px-4 py-3 flex items-start gap-3">'
+        + '<span class="text-[11px] font-semibold px-2 py-0.5 rounded ' + statusTone(e.status) + '">' + esc(e.status) + '</span>'
+        + '<div class="min-w-0 flex-1">'
+        + '<p class="text-sm font-medium text-gray-900">' + esc(labelOf(e.event)) + '<span class="text-gray-400 font-normal">' + esc(res) + '</span></p>'
+        + '<p class="text-xs text-gray-500 mt-0.5">' + esc(who) + ' · ' + esc(e.method) + ' ' + esc(e.path) + '</p>'
+        + '</div>'
+        + '<span class="text-xs text-gray-400 whitespace-nowrap">' + esc(fmtWhen(e.at)) + '</span>'
+        + '</div>';
+    }).join('');
+  }
+
+  loadEvents();
+</script>
+</body>
+</html>

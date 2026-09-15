@@ -18,6 +18,7 @@ from slowapi.errors import RateLimitExceeded
 from .api.dependencies.auth import require_admin
 from .api.dependencies.rate_limit import limiter
 from .api.error_handlers import rate_limit_exceeded_handler, register_exception_handlers
+from .api.middleware.activity_audit import ActivityAuditMiddleware
 from .api.middleware.request_id import RequestIDMiddleware
 from .api.routes import keys, profiles
 from .config import settings
@@ -238,6 +239,7 @@ _OPENAPI_TAGS = [
         "description": "Administrative API-key lifecycle for ``X-API-Key`` auth.",
     },
     {"name": "system", "description": "Health and usage probes (typically unauthenticated where noted)."},
+    {"name": "audit", "description": "Clinic activity log (mutating API actions; no request bodies or PHI)."},
 ]
 
 app = FastAPI(
@@ -269,6 +271,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Activity audit: after the route so request.state has the actor.
+app.add_middleware(ActivityAuditMiddleware)
 
 # Outermost middleware: always populates request.state.request_id
 app.add_middleware(RequestIDMiddleware)
@@ -434,9 +439,10 @@ async def redoc_docs(_admin: dict = Depends(require_admin)):
 # ---------------------------------------------------------------------------
 app.include_router(keys.router, prefix="/api/v1")
 app.include_router(profiles.router, prefix="/api/v1")
-from .api.routes import auth_routes, account_routes
+from .api.routes import auth_routes, account_routes, audit_routes
 app.include_router(auth_routes.router, prefix="/api/v1")
 app.include_router(account_routes.router, prefix="/api/v1")
+app.include_router(audit_routes.router, prefix="/api/v1")
 
 if HAS_BATCH:
     app.include_router(batch_routes.router, prefix="/api/v1")

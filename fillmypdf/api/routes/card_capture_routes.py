@@ -50,6 +50,7 @@ async def extract_card(
     request: Request,
     front: UploadFile = File(..., description="Card front photo"),
     back: UploadFile = File(..., description="Card back photo"),
+    engine: str = Form(default="auto"),
     ai_provider: str = Form(default=""),
     ai_api_key: str = Form(default=""),
     ai_base_url: str = Form(default=""),
@@ -76,17 +77,29 @@ async def extract_card(
         provider_hint=provider_hint,
     )
 
-    if provider_hint != "local" and settings.AI_PROVIDER != "local" and not ai_key:
+    requested_engine = (engine or "auto").strip().lower()
+    if requested_engine not in ("auto", "tesseract", "vision"):
+        requested_engine = "auto"
+
+    # Tesseract-only never calls Gemini. Auto tries OCR first and only needs
+    # a key if it has to fall back — the service raises if that happens.
+    if (
+        requested_engine == "vision"
+        and provider_hint != "local"
+        and settings.AI_PROVIDER != "local"
+        and not ai_key
+    ):
         raise HTTPException(
             400,
             "A Gemini API key is required (pass ai_api_key=, set GEMINI_API_KEY, "
             "or switch ai_provider='local' for an on-prem model).",
         )
 
-    try:
-        assert_egress_allowed(ai_base_url_resolved)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc))
+    if requested_engine == "vision" or (requested_engine == "auto" and ai_key):
+        try:
+            assert_egress_allowed(ai_base_url_resolved)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
 
     service = CardCaptureService(
         api_key=ai_key, base_url=ai_base_url_resolved, model=ai_model_resolved
@@ -97,6 +110,7 @@ async def extract_card(
             front_mime=_guess_mime(front),
             back_bytes=back_bytes,
             back_mime=_guess_mime(back),
+            engine=requested_engine,
         )
     except CardCaptureError as exc:
         raise HTTPException(400, str(exc))

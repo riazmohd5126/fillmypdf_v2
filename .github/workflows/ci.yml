@@ -17,8 +17,8 @@ jobs:
           cache: pip
 
       # pdf2image is imported by some pipelines; avoids optional runtime failures later
-      - name: Install poppler
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+      - name: Install poppler and tesseract
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils tesseract-ocr
 
       - name: Install Python dependencies
         run: pip install -r requirements.txt

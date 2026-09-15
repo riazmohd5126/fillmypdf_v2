@@ -1,4 +1,4 @@
-# FillMyPDF API — Debian slim + Poppler for pdf2image / PDF pipelines
+# FillMyPDF API — Debian slim + Poppler (PDF raster) + Tesseract (card OCR)
 FROM python:3.12-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends poppler-utils \
+    && apt-get install -y --no-install-recommends poppler-utils tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -21,7 +21,8 @@ COPY fillmypdf/ ./fillmypdf/
 RUN mkdir -p fillmypdf/storage/temp/uploads \
              fillmypdf/storage/temp/outputs \
              fillmypdf/storage/profiles \
-             fillmypdf/storage/jobs
+             fillmypdf/storage/jobs \
+             fillmypdf/storage/audit
 
 EXPOSE 8000
 
