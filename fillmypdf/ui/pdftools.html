@@ -66,6 +66,40 @@
       </button>
     </div>
 
+    <!-- Convert to PDF -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+      <div class="flex items-center gap-3 mb-1">
+        <div class="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center text-xl">🖼️</div>
+        <div>
+          <h2 class="font-bold text-gray-900">Image &amp; Word to PDF</h2>
+          <p class="text-xs text-gray-400">Phone photos, JPG/HEIC scans, and DOCX letters of medical necessity → one PDF. Then use Merge to add it to the packet.</p>
+        </div>
+      </div>
+      <div id="convert-drop" class="mt-4 border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-cyan-400 hover:bg-cyan-50 transition">
+        <svg class="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M14 8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <p class="text-sm text-gray-500">Click or drag photos, scans, or a .docx letter here</p>
+        <input id="convert-input" type="file" accept=".jpg,.jpeg,.png,.heic,.heif,.webp,.tif,.tiff,.bmp,.gif,.docx" multiple class="hidden" onchange="onConvertFiles()"/>
+      </div>
+      <div id="convert-file-list" class="mt-3 space-y-1.5"></div>
+      <div class="mt-3">
+        <label class="text-xs text-gray-500 mb-1 block">Output filename (optional)</label>
+        <input id="convert-name" type="text" placeholder="letter_of_medical_necessity"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"/>
+      </div>
+      <div id="convert-error" class="hidden mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
+      <div id="convert-result" class="hidden mt-3 bg-cyan-50 border border-cyan-200 rounded-xl p-4">
+        <p class="text-sm font-semibold text-cyan-800 mb-2">✔ Converted</p>
+        <p id="convert-result-info" class="text-xs text-cyan-700 mb-3"></p>
+        <a id="convert-download" href="#" class="inline-flex items-center gap-1.5 bg-cyan-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-cyan-700">
+          Download PDF
+        </a>
+      </div>
+      <button onclick="doConvert()" id="convert-btn"
+        class="mt-4 w-full bg-cyan-600 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-cyan-700">
+        Convert to PDF
+      </button>
+    </div>
+
     <!-- Split -->
     <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
       <div class="flex items-center gap-3 mb-1">
@@ -174,6 +208,68 @@
       document.getElementById('merge-result').classList.remove('hidden');
     } catch(e) { showErr('merge', e.message); }
     finally { btn.disabled=false; btn.textContent='Merge PDFs'; }
+  }
+
+  // ── Convert to PDF (images + Word letters) ──────────────────────────────────
+  let convertFiles = [];
+  const CONVERT_ACCEPT_RE = /\.(jpg|jpeg|png|heic|heif|webp|tif|tiff|bmp|gif|docx)$/i;
+
+  document.getElementById('convert-drop').addEventListener('click', () => document.getElementById('convert-input').click());
+  document.getElementById('convert-drop').addEventListener('dragover', e => { e.preventDefault(); document.getElementById('convert-drop').classList.add('border-cyan-400','bg-cyan-50'); });
+  document.getElementById('convert-drop').addEventListener('dragleave', () => document.getElementById('convert-drop').classList.remove('border-cyan-400','bg-cyan-50'));
+  document.getElementById('convert-drop').addEventListener('drop', e => {
+    e.preventDefault();
+    document.getElementById('convert-drop').classList.remove('border-cyan-400','bg-cyan-50');
+    [...e.dataTransfer.files].filter(f => CONVERT_ACCEPT_RE.test(f.name)).forEach(f => convertFiles.push(f));
+    renderConvertList();
+  });
+
+  function onConvertFiles() {
+    const inp = document.getElementById('convert-input');
+    [...inp.files].forEach(f => convertFiles.push(f));
+    inp.value = '';
+    renderConvertList();
+  }
+
+  function renderConvertList() {
+    const el = document.getElementById('convert-file-list');
+    el.innerHTML = convertFiles.map((f, i) => `
+      <div class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-xs">
+        <span class="w-5 h-5 bg-cyan-100 rounded text-cyan-600 font-bold flex items-center justify-center shrink-0">${i+1}</span>
+        <span class="flex-1 truncate text-gray-700">${esc(f.name)}</span>
+        <span class="text-gray-400">${(f.size/1024).toFixed(0)} KB</span>
+        <button onclick="convertFiles.splice(${i},1);renderConvertList()" class="text-gray-300 hover:text-red-400 text-base leading-none ml-1">×</button>
+      </div>`).join('');
+  }
+
+  async function doConvert() {
+    await (window.fmpAuthReady || Promise.resolve());
+    const key = getKey();
+    if (!key && !window.fmpUser) { showErr('convert','Sign in first.'); return; }
+    if (convertFiles.length < 1) { showErr('convert','Upload at least 1 photo, scan, or .docx letter.'); return; }
+    const btn = document.getElementById('convert-btn');
+    btn.disabled = true; btn.textContent = 'Converting…';
+    document.getElementById('convert-error').classList.add('hidden');
+    document.getElementById('convert-result').classList.add('hidden');
+    const fd = new FormData();
+    convertFiles.forEach(f => fd.append('files', f));
+    const name = document.getElementById('convert-name').value.trim();
+    if (name) fd.append('output_name', name);
+    try {
+      const r = await fetch('/api/v1/pdf/convert-to-pdf', { method:'POST', headers: authH(), credentials: 'same-origin', body:fd });
+      if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.detail||`HTTP ${r.status}`); }
+      const data = await r.json();
+      document.getElementById('convert-result-info').textContent = `${data.files_converted} file(s) · ${data.total_pages} page${data.total_pages!==1?'s':''}`;
+      const dlLink = document.getElementById('convert-download');
+      dlLink.onclick = async(ev) => {
+        ev.preventDefault();
+        const dr = await fetch(data.download_url,{headers: authH(), credentials: 'same-origin'});
+        const blob=await dr.blob(); const url=URL.createObjectURL(blob);
+        const a=document.createElement('a'); a.href=url; a.download=data.filename; a.click(); URL.revokeObjectURL(url);
+      };
+      document.getElementById('convert-result').classList.remove('hidden');
+    } catch(e) { showErr('convert', e.message); }
+    finally { btn.disabled=false; btn.textContent='Convert to PDF'; }
   }
 
   // ── Split ─────────────────────────────────────────────────────────────────
