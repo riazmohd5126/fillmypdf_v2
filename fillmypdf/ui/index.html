@@ -36,7 +36,7 @@
     .q-search input { width:100%; background:#fff; border:1px solid #d1d5db; color:#111827; border-radius:8px; padding:8px 12px; font-size:13px; outline:none; }
     .q-search input::placeholder { color:#9ca3af; }
     .q-search input:focus { border-color:#818cf8; box-shadow:0 0 0 2px rgba(79,70,229,.15); }
-    .q-body { display:flex; min-height:0; flex:1; align-items:flex-start; }
+    .q-body { display:flex; min-height:0; flex:1; align-items:stretch; }
     .q-table-wrap { flex:1; min-width:0; overflow:auto; }
     .q-table { width:100%; border-collapse:collapse; table-layout:fixed; }
     .q-table th { text-align:left; font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#9ca3af; padding:10px 12px; border-bottom:1px solid #e5e7eb; white-space:nowrap; }
@@ -71,7 +71,7 @@
     .q-frac { font-size:11px; color:#6b7280; font-variant-numeric:tabular-nums; }
     .q-owner { font-size:11px; font-weight:600; color:#4b5563; letter-spacing:.04em; }
     .q-age { font-size:11px; color:#9ca3af; font-variant-numeric:tabular-nums; }
-    .q-detail { display:none; width:240px; flex:0 0 240px; align-self:flex-start; margin:12px 12px 12px 0; border:1px solid #e5e7eb; border-radius:10px; padding:14px 16px 16px; background:#fff; overflow:auto; max-height:min(70vh, 420px); box-sizing:border-box; }
+    .q-detail { display:none; width:240px; flex:0 0 240px; align-self:stretch; margin:12px 12px 12px 0; border:1px solid #e5e7eb; border-radius:10px; padding:14px 16px 16px; background:#fff; overflow:auto; box-sizing:border-box; }
     .q-console.q-has-sel .q-detail { display:block; }
     .q-detail h3 { overflow-wrap:normal; word-break:normal; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .q-detail-empty { color:#9ca3af; font-size:13px; padding:8px 2px; line-height:1.45; }
@@ -614,12 +614,12 @@
     renderQueue();
     const item = queueItems.find(x => x.id === id);
     paintDetailPlaceholder(item);
-    if (!item || !item.fingerprint || !(window.fmpIsAdmin && fmpIsAdmin())) return;
+    if (!item || !item.fingerprint) return;
     try {
-      const r = await apiGet('/api/v1/mappings/' + encodeURIComponent(item.fingerprint));
+      const r = await apiGet('/api/v1/templates/mapping-progress/' + encodeURIComponent(item.fingerprint));
       if (!r.ok) return;
       const d = await r.json();
-      const rows = (d.rows || []).filter(row => !row.canonical || row.canonical === 'other');
+      const rows = (d.unresolved || []).slice();
       rows.sort((a,b) => (b.confidence||0) - (a.confidence||0));
       const unresolved = rows.slice(0, 8).map(row => {
         const conf = row.confidence != null ? Math.round(Number(row.confidence) * (Number(row.confidence) <= 1 ? 100 : 1)) : null;
@@ -629,13 +629,12 @@
         return `<div class="q-unres"><span>${esc(row.field)}</span><span>${esc(row.field_type || '')} ${confHtml}</span></div>`;
       }).join('');
       const top = rows[0];
-      const topHtml = top && top.canonical
-        ? ''
-        : (top ? `<div style="margin-top:14px;border:1px solid #e5e7eb;border-radius:8px;padding:10px">
+      const topHtml = top
+        ? `<div style="margin-top:14px;border:1px solid #e5e7eb;border-radius:8px;padding:10px">
             <div class="q-kicker">Top unresolved</div>
             <div class="text-sm text-gray-900 mt-1 font-mono">${esc(top.field)}</div>
             <div class="text-xs text-slate-500 mt-0.5">${esc(top.label || '')}</div>
-          </div>` : '');
+          </div>` : '';
       const el = document.getElementById('q-detail');
       const mapped = d.mapped_count || item.fieldsDone;
       const total = d.field_count || item.fieldsTotal;

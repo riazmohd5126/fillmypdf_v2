@@ -364,6 +364,51 @@ async def templates_readiness(request: Request):
 
 
 # ---------------------------------------------------------------------------
+# Mapping progress (read-only) — any signed-in user, not just admin
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/mapping-progress/{fp}",
+    summary="Read-only mapping progress for a form's canonical map — mapped/total counts and unresolved fields",
+)
+async def mapping_progress(fp: str):
+    """
+    A deliberately small, read-only slice of the admin-only Mapping Review
+    detail (``GET /mappings/{fp}``): how many fields are mapped, and which
+    ones aren't yet. Blank-form field names/types only — never patient data,
+    never the editing/lock affordances that route stays admin-gated for.
+
+    Powers the Dashboard queue's mapping-progress panel for every signed-in
+    user, not just admins — a clinic user watching a form move through
+    review can see the same "N/M fields confirmed" progress an admin sees,
+    without being able to change anything.
+    """
+    from ...services.canonical_map_cache import CanonicalMapCache
+    from .mapping_review_routes import _detail
+
+    detail = _detail(CanonicalMapCache(), fp)
+    unresolved = [
+        {
+            "field": r.get("field"),
+            "label": r.get("label"),
+            "field_type": r.get("field_type"),
+            "confidence": r.get("confidence"),
+        }
+        for r in detail.get("rows", [])
+        if not r.get("canonical") or r.get("canonical") == "other"
+    ]
+    return {
+        "fingerprint": detail.get("fingerprint"),
+        "form_label": detail.get("form_label"),
+        "reviewed": bool(detail.get("reviewed")),
+        "mapped_count": detail.get("mapped_count", 0),
+        "field_count": detail.get("field_count", 0),
+        "unresolved": unresolved,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Get manifest
 # ---------------------------------------------------------------------------
 
