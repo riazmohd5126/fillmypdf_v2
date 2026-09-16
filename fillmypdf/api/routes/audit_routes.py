@@ -39,6 +39,8 @@ async def list_activity(
     api_key: dict = Depends(require_api_key),
     limit: int = Query(default=100, ge=1, le=500),
     event: Optional[str] = Query(default=None, description="Event name or prefix, e.g. template.fill or auth."),
+    resource_type: Optional[str] = Query(default=None, description="e.g. mapping, template, profile"),
+    resource_id: Optional[str] = Query(default=None, description="e.g. a mapping fingerprint or template id"),
 ):
     admin = _is_admin(request, api_key)
     user = getattr(request.state, "user", None) or {}
@@ -50,6 +52,8 @@ async def list_activity(
         org_id=org_id,
         api_key_id=key_id if not org_id else None,
         admin=admin,
+        resource_type=resource_type,
+        resource_id=resource_id,
     )
     events = [ActivityAuditEvent(**row) for row in raw]
     return ActivityAuditListResponse(events=events, count=len(events))

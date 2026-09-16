@@ -60,3 +60,35 @@ class TestActivityAuditApi:
 
     def test_requires_auth(self, audit_client):
         assert audit_client.get("/api/v1/audit").status_code in (401, 403)
+
+    def test_resource_filter_scopes_to_one_document(self, audit_client):
+        """Powers the Mapping Review 'History' panel: only that one
+        document's own events, not everything the clinic has ever done."""
+        from fillmypdf.services.activity_audit_service import ActivityAuditService
+
+        r = audit_client.post(
+            "/api/v1/auth/register",
+            json={"email": "history@example.com", "password": "password12"},
+        )
+        assert r.status_code == 201, r.text
+        org_id = next(
+            e for e in audit_client.get("/api/v1/audit").json()["events"]
+            if e["event"] == "auth.register"
+        )["org_id"]
+
+        svc = ActivityAuditService()
+        svc.record(
+            event="mapping.lock", method="POST", path="/api/v1/mappings/fp1/lock",
+            status=200, actor_email="history@example.com", org_id=org_id,
+            resource_type="mapping", resource_id="fp1",
+        )
+        svc.record(
+            event="mapping.lock", method="POST", path="/api/v1/mappings/fp2/lock",
+            status=200, actor_email="history@example.com", org_id=org_id,
+            resource_type="mapping", resource_id="fp2",
+        )
+        r = audit_client.get("/api/v1/audit", params={"resource_type": "mapping", "resource_id": "fp1"})
+        assert r.status_code == 200, r.text
+        events = r.json()["events"]
+        assert len(events) == 1
+        assert events[0]["resource_id"] == "fp1"

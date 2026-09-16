@@ -245,6 +245,7 @@ class TemplateRepository:
                 visibility=getattr(m, "visibility", None) or ("shared" if m.is_public else "private"),
                 owner_id=getattr(m, "owner_id", None),
                 org_id=getattr(m, "org_id", None),
+                created_at=m.created_at,
             ))
         return results
 

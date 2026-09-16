@@ -163,6 +163,7 @@ class TemplateListItem(BaseModel):
     owner_id: Optional[str] = None
     org_id: Optional[str] = None
     pinned: Optional[bool] = None
+    created_at: Optional[str] = None
     # Optional readiness (from GET /templates/readiness or enriched clients)
     map_ready: Optional[bool] = None
     map_fingerprint: Optional[str] = None
@@ -181,6 +182,16 @@ class TemplateReadinessItem(BaseModel):
     fingerprint: Optional[str] = None
     signature: Optional[str] = None
     form_label: Optional[str] = None
+    # Audit-log-derived — never the mapping cache's own actor/updated_at,
+    # which get overwritten by any edit and so can't answer "when was THIS
+    # actually locked" once someone touches the map again afterward.
+    locked_at: Optional[str] = None
+    locked_by: Optional[str] = None
+    # Count of mapping.* audit events for this fp — a rough "how many times
+    # has an admin touched this map" revision counter.
+    revision_count: int = 0
+    added_at: Optional[str] = None
+    added_by: Optional[str] = None
 
 
 class TemplateReadinessResponse(BaseModel):
