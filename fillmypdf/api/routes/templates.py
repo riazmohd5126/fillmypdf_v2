@@ -268,6 +268,7 @@ async def templates_readiness(request: Request):
     falls back to normalizing ``form_label`` ↔ template id/name. Used by the
     Template Library and Guided Fill pickers.
     """
+    from ...services.activity_audit_service import ActivityAuditService
     from ...services.canonical_map_cache import CanonicalMapCache
 
     svc = _get_service()
@@ -275,6 +276,8 @@ async def templates_readiness(request: Request):
     cache = CanonicalMapCache()
     # Identity + lock state only; the reviewer coverage stats are not used here.
     entries = cache.list_index()
+    # One pass over the whole audit log, not one scan per template below.
+    mapping_audit, template_audit = ActivityAuditService().lock_and_upload_index()
 
     by_sig: dict = {}
     by_label: dict = {}
@@ -336,6 +339,9 @@ async def templates_readiness(request: Request):
                 "signature": None,
                 "form_label": None,
             }
+        fp = (hit.get("fingerprint") or "").strip()
+        m = mapping_audit.get(fp, {}) if fp else {}
+        tpl_a = template_audit.get(t.id, {})
         out.append(
             TemplateReadinessItem(
                 template_id=t.id,
@@ -343,6 +349,13 @@ async def templates_readiness(request: Request):
                 fingerprint=hit.get("fingerprint"),
                 signature=hit.get("signature"),
                 form_label=hit.get("form_label"),
+                locked_at=m.get("locked_at"),
+                locked_by=m.get("locked_by"),
+                revision_count=int(m.get("revision_count") or 0),
+                # Fall back to the manifest's own created_at for templates that
+                # predate the audit log (no template.upload event on record).
+                added_at=tpl_a.get("added_at") or t.created_at,
+                added_by=tpl_a.get("added_by"),
             )
         )
 
@@ -1119,6 +1132,7 @@ async def download_filled(filename: str):
     dependencies=[Depends(require_admin)],
 )
 async def upload_template(
+    request: Request,
     file: UploadFile = File(..., description="Static or fillable PDF"),
     manifest_json: str = Form(
         ...,
@@ -1152,11 +1166,38 @@ async def upload_template(
 
     try:
         pdf_bytes = await file.read()
-        return _get_service().add(manifest, pdf_bytes)
+        saved = _get_service().add(manifest, pdf_bytes)
     except ValueError as exc:
         raise HTTPException(409, str(exc))
     except Exception as exc:
         raise HTTPException(500, f"Could not save template: {exc}")
+
+    # The generic ActivityAuditMiddleware classifies purely from method+path,
+    # so it can never learn this template's id — POST /templates has no id
+    # in the URL, only in the body, and the id doesn't exist until add()
+    # above returns. Record it here instead, with the real resource_id, so
+    # the Templates list's "added <date> · <who>" stamp actually has
+    # something to show.
+    try:
+        from ...services.activity_audit_service import ActivityAuditService
+
+        user = getattr(request.state, "user", None) or {}
+        api_key = getattr(request.state, "api_key", None) or {}
+        ActivityAuditService().record(
+            event="template.upload",
+            method="POST",
+            path="/api/v1/templates",
+            status=201,
+            actor_id=user.get("id") or api_key.get("user_id"),
+            actor_email=user.get("email") or api_key.get("owner") or api_key.get("name"),
+            org_id=user.get("org_id") or api_key.get("org_id"),
+            api_key_id=api_key.get("id"),
+            resource_type="template",
+            resource_id=saved.id,
+        )
+    except Exception:
+        pass
+    return saved
 
 
 # ---------------------------------------------------------------------------

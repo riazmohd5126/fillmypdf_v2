@@ -146,8 +146,11 @@
             <p class="font-semibold text-gray-800 truncate" id="ed-title">—</p>
             <p class="text-xs text-gray-400 font-mono truncate" id="ed-sub">—</p>
             <p class="text-[11px] text-gray-500 mt-0.5" id="ed-meta">—</p>
+            <button type="button" onclick="toggleHistory()" id="history-toggle"
+              class="text-[11px] text-indigo-600 hover:underline">History ▾</button>
             <a id="ed-tpl-link" href="#" target="_blank" rel="noopener"
               class="hidden text-[11px] text-indigo-600 hover:underline">Open template PDF</a>
+            <div id="history-panel" class="hidden mt-1.5 border border-gray-200 rounded-lg bg-gray-50 p-2 max-h-40 overflow-y-auto space-y-1 max-w-md"></div>
           </div>
           <span id="ed-lock-badge" class="text-xs px-2 py-0.5 rounded-full"></span>
           <div class="ml-auto flex gap-2 flex-wrap">
@@ -808,6 +811,61 @@ function trackLine(m){
   return '';
 }
 
+// ── History (per-document audit trail) ───────────────────────────
+// Unlike the single "Updated ..." line above (which any later edit
+// overwrites), this pulls the full event-by-event trail for this one
+// mapping — so "when was it locked, by whom" survives later edits.
+const EVENT_LABELS = {
+  'mapping.lock': 'Locked',
+  'mapping.unlock': 'Unlocked',
+  'mapping.update': 'Field mapping corrected',
+  'mapping.ai_suggest': 'AI suggest run',
+  'mapping.ai_suggest_all': 'AI suggest run (batch)',
+  'mapping.lock_batch': 'Locked (batch)',
+  'mapping.build': 'Draft built',
+  'mapping.form_spec_lock': "Form spec marked reviewed",
+  'mapping.checklist_suggest': 'Checklist AI-drafted',
+  'mapping.checklist_update': 'Checklist edited',
+};
+
+let historyOpen = false;
+
+async function toggleHistory(){
+  historyOpen = !historyOpen;
+  const panel = document.getElementById('history-panel');
+  const toggle = document.getElementById('history-toggle');
+  panel.classList.toggle('hidden', !historyOpen);
+  toggle.textContent = historyOpen ? 'History ▴' : 'History ▾';
+  if(!historyOpen || !current) return;
+  // Always refetch (not cached) — this is a small, infrequent call, and a
+  // lock/unlock/checklist edit on this same form must show up immediately
+  // next time the panel opens, not a stale snapshot from before that action.
+  panel.innerHTML = `<p class="text-[11px] text-gray-400">Loading…</p>`;
+  try{
+    const data = await api(`/api/v1/audit?resource_type=mapping&resource_id=${encodeURIComponent(current.fingerprint)}&limit=25`);
+    renderHistory(data.events || []);
+  }catch(e){
+    panel.innerHTML = `<p class="text-[11px] text-red-500">${esc(e.message)}</p>`;
+  }
+}
+
+function renderHistory(events){
+  const panel = document.getElementById('history-panel');
+  if(!events.length){
+    panel.innerHTML = `<p class="text-[11px] text-gray-400">No recorded activity yet for this form.</p>`;
+    return;
+  }
+  panel.innerHTML = events.map(e => {
+    const label = EVENT_LABELS[e.event] || e.event;
+    const when = fmtWhen(e.at);
+    const who = e.actor_email || '—';
+    return `<div class="text-[11px] text-gray-700 flex items-start gap-1.5">
+      <span class="text-gray-300 mt-0.5">•</span>
+      <span><span class="font-medium">${esc(label)}</span> — ${esc(when)} · ${esc(who)}</span>
+    </div>`;
+  }).join('');
+}
+
 function coverageLine(m){
   const total = (m.total_fields!=null?m.total_fields:m.field_count) || 0;
   const mapped = m.mapped_count || 0;
@@ -1084,6 +1142,11 @@ function renderDetail(d, localFile){
   document.getElementById('ed-sub').textContent = `fp ${d.fingerprint.slice(0,12)}… · sig ${d.signature||'?'}`;
   const meta = trackLine(d);
   document.getElementById('ed-meta').textContent = meta || 'No update history yet';
+  if(!sameFp){
+    historyOpen = false;
+    document.getElementById('history-panel').classList.add('hidden');
+    document.getElementById('history-toggle').textContent = 'History ▾';
+  }
   const tplLink = document.getElementById('ed-tpl-link');
   if(d.template_pdf_url){
     tplLink.href = d.template_pdf_url;

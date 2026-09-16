@@ -205,7 +205,11 @@ class ActivityAuditService:
                 path=path.split("?", 1)[0],
                 status=status,
                 actor_id=usr.get("id") or key.get("user_id"),
-                actor_email=usr.get("email"),
+                # Same fallback mapping_review_routes._request_actor() already
+                # uses: a bare API key (no logged-in session — the bootstrap
+                # admin key flow, automation, etc.) has no email, but its name
+                # is still a meaningful "who did this" for the audit trail.
+                actor_email=usr.get("email") or key.get("owner") or key.get("name"),
                 org_id=usr.get("org_id") or key.get("org_id"),
                 api_key_id=key.get("id"),
                 client_ip=_client_ip(headers or {}, client_host),
@@ -224,12 +228,16 @@ class ActivityAuditService:
         org_id: Optional[str] = None,
         api_key_id: Optional[str] = None,
         admin: bool = False,
+        resource_type: Optional[str] = None,
+        resource_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         if not self._log_path.exists():
             return []
         cap = max(1, min(int(limit or 100), 500))
         lines = self._log_path.read_text(encoding="utf-8").strip().splitlines()
         needle = (event or "").strip()
+        want_rtype = (resource_type or "").strip()
+        want_rid = (resource_id or "").strip()
         out: List[Dict[str, Any]] = []
         for line in reversed(lines):
             line = line.strip()
@@ -240,6 +248,10 @@ class ActivityAuditService:
             except json.JSONDecodeError:
                 continue
             if needle and not str(entry.get("event") or "").startswith(needle):
+                continue
+            if want_rtype and entry.get("resource_type") != want_rtype:
+                continue
+            if want_rid and entry.get("resource_id") != want_rid:
                 continue
             if not admin:
                 if org_id:
@@ -254,3 +266,50 @@ class ActivityAuditService:
             if len(out) >= cap:
                 break
         return out
+
+    def lock_and_upload_index(self) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+        """One pass over the whole log — used by the Templates list, which
+        needs this for every row and must not re-scan the log per row.
+
+        Returns ``(mapping_index, template_index)``:
+          mapping_index[fp]  -> {"locked_at", "locked_by", "revision_count"}
+              locked_at/by come only from ``mapping.lock`` events (never the
+              mapping cache's own actor/updated_at, which any later edit
+              overwrites) so "when was this locked" survives later edits.
+              revision_count counts every mapping.* event for that fp.
+          template_index[template_id] -> {"added_at", "added_by"}
+              from the ``template.upload`` event.
+        """
+        mapping_index: Dict[str, Dict[str, Any]] = {}
+        template_index: Dict[str, Dict[str, Any]] = {}
+        if not self._log_path.exists():
+            return mapping_index, template_index
+        # Oldest -> newest (file order, not reversed) so the last write for a
+        # given key naturally ends up being the most recent one.
+        for line in self._log_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            rtype = entry.get("resource_type")
+            rid = (entry.get("resource_id") or "").strip()
+            event = str(entry.get("event") or "")
+            if not rid:
+                continue
+            if rtype == "mapping":
+                m = mapping_index.setdefault(
+                    rid, {"locked_at": None, "locked_by": None, "revision_count": 0}
+                )
+                m["revision_count"] += 1
+                if event == "mapping.lock":
+                    m["locked_at"] = entry.get("at")
+                    m["locked_by"] = entry.get("actor_email")
+            elif rtype == "template" and event == "template.upload":
+                template_index[rid] = {
+                    "added_at": entry.get("at"),
+                    "added_by": entry.get("actor_email"),
+                }
+        return mapping_index, template_index

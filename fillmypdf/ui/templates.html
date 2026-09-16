@@ -41,7 +41,7 @@
       <div>
         <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Template Library</h1>
         <p id="template-count" class="text-sm text-gray-500 mt-1">Loading…</p>
-        <p class="text-xs text-gray-500 mt-2">Ready = <span class="font-semibold text-indigo-700">admin locked</span> the mapping. Upload a new blank PDF to request a lock.</p>
+        <p class="text-xs text-gray-500 mt-2">Locking is <span class="font-semibold text-indigo-700">admin-only</span> — clinics upload, admins lock.</p>
       </div>
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-2 text-sm text-gray-600 select-none">
@@ -75,6 +75,16 @@
         <option value="">All states</option>
       </select>
       <button onclick="clearFilters()" class="text-sm text-gray-400 hover:text-indigo-600 px-3 py-2">Clear</button>
+      <div class="flex items-center gap-1.5 ml-auto">
+        <button type="button" id="chip-locked" onclick="toggleLockFilter('locked')"
+          class="lock-chip text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 bg-white hover:border-emerald-300">
+          Locked <span id="chip-locked-n">0</span>
+        </button>
+        <button type="button" id="chip-awaiting" onclick="toggleLockFilter('awaiting')"
+          class="lock-chip text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-300 text-gray-600 bg-white hover:border-amber-300">
+          Awaiting lock <span id="chip-awaiting-n">0</span>
+        </button>
+      </div>
     </div>
 
     <div data-fmp-how-new-pdf class="mb-8"></div>
@@ -97,6 +107,7 @@
               <th>Category</th>
               <th>State</th>
               <th>Fields</th>
+              <th>Audit Stamp</th>
               <th></th>
             </tr>
           </thead>
@@ -425,7 +436,7 @@
     document.getElementById('pinned-section').classList.add('hidden');
     document.getElementById('empty-state').classList.add('hidden');
     document.getElementById('template-table').innerHTML =
-      `<tr><td colspan="6" class="text-center text-red-500 py-10">${html}</td></tr>`;
+      `<tr><td colspan="7" class="text-center text-red-500 py-10">${html}</td></tr>`;
   }
 
   // ── Load templates ────────────────────────────────────────────
@@ -453,8 +464,10 @@
       const needsN = allTemplates.filter(t => !isReady(t)).length;
       document.getElementById('template-count').innerHTML =
         `${allTemplates.length} template${allTemplates.length !== 1 ? 's' : ''}` +
-        ` · <span class="text-emerald-700 font-medium">${readyN} ready for Guided Fill</span>` +
-        ` · ${needsN} need${needsN === 1 ? 's' : ''} mapping`;
+        ` · <span class="text-emerald-700 font-medium">${readyN} admin-locked</span>` +
+        ` · ${needsN} awaiting lock`;
+      document.getElementById('chip-locked-n').textContent = readyN;
+      document.getElementById('chip-awaiting-n').textContent = needsN;
       buildFilterOptions();
       syncPinToggle();
       applyFilters();
@@ -479,6 +492,27 @@
     stateSel.value = states.includes(stateVal) ? stateVal : '';
   }
 
+  let lockFilter = null; // null | 'locked' | 'awaiting'
+
+  function toggleLockFilter(which) {
+    lockFilter = lockFilter === which ? null : which;
+    syncLockChips();
+    applyFilters();
+  }
+
+  function syncLockChips() {
+    const lockedBtn = document.getElementById('chip-locked');
+    const awaitingBtn = document.getElementById('chip-awaiting');
+    lockedBtn.className = 'lock-chip text-xs font-semibold px-3 py-1.5 rounded-full border ' +
+      (lockFilter === 'locked'
+        ? 'border-emerald-400 text-emerald-800 bg-emerald-50'
+        : 'border-gray-300 text-gray-600 bg-white hover:border-emerald-300');
+    awaitingBtn.className = 'lock-chip text-xs font-semibold px-3 py-1.5 rounded-full border ' +
+      (lockFilter === 'awaiting'
+        ? 'border-amber-400 text-amber-800 bg-amber-50'
+        : 'border-gray-300 text-gray-600 bg-white hover:border-amber-300');
+  }
+
   function applyFilters() {
     const box = document.getElementById('search-input');
     if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((box.value || '').trim())) box.value = '';
@@ -488,7 +522,8 @@
     const filtered = allTemplates.filter(t =>
       (!q || [t.name, tplDrug(t), tplPayer(t), t.description].join(' ').toLowerCase().includes(q)) &&
       (!cat || t.category === cat) &&
-      (!state || t.state === state)
+      (!state || t.state === state) &&
+      (!lockFilter || (lockFilter === 'locked' ? isReady(t) : !isReady(t)))
     );
     renderLibrary(filtered);
   }
@@ -497,6 +532,8 @@
     document.getElementById('search-input').value = '';
     document.getElementById('f-category').value = '';
     document.getElementById('f-state').value = '';
+    lockFilter = null;
+    syncLockChips();
     applyFilters();
   }
 
@@ -522,6 +559,55 @@
       return `<a href="${href}" onclick="event.stopPropagation()" class="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 hover:bg-amber-100">Review map →</a>`;
     }
     return `<span class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">Waiting for admin lock</span>`;
+  }
+
+  // ── Audit stamp (locked/added, who + when + revision count) ─────
+  const STALE_DAYS = 90;
+
+  function fmtShortDate(iso) {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
+  }
+  function daysAgo(iso) {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    return Math.floor((Date.now() - d.getTime()) / 86400000);
+  }
+  function shortActor(email) {
+    if (!email) return null;
+    return String(email).split('@')[0];
+  }
+
+  function auditStampHtml(t) {
+    const r = readinessById[t.id] || {};
+    const ready = !!r.ready;
+    const age = daysAgo(r.locked_at);
+    const stale = ready && age != null && age > STALE_DAYS;
+    const boxCls = ready
+      ? (stale ? 'border-amber-300 bg-amber-50' : 'border-emerald-300 bg-emerald-50')
+      : 'border-amber-300 bg-amber-50';
+    const labelCls = ready ? (stale ? 'text-amber-800' : 'text-emerald-800') : 'text-amber-800';
+    const label = ready ? 'LOCKED' : 'AWAITING LOCK';
+    const rev = r.revision_count ? `<span class="text-[10px] font-semibold ${labelCls} opacity-70">REV ${r.revision_count}</span>` : '';
+
+    const lockedLine = r.locked_at
+      ? `<div class="text-[10px] text-gray-600 mt-0.5">locked ${esc(fmtShortDate(r.locked_at))} · ${esc(shortActor(r.locked_by) || '—')}${stale ? ' · stale' : ''}</div>`
+      : '';
+    const addedLine = r.added_at
+      ? `<div class="text-[10px] text-gray-500">added ${esc(fmtShortDate(r.added_at))} · ${esc(shortActor(r.added_by) || '—')}</div>`
+      : '';
+
+    return `<div class="inline-block border rounded-lg px-2.5 py-1.5 font-mono ${boxCls}">
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-[10px] font-bold tracking-wide ${labelCls}">${label}</span>
+        ${rev}
+      </div>
+      ${lockedLine}
+      ${addedLine}
+    </div>`;
   }
 
   function renderLibrary(list) {
@@ -581,6 +667,7 @@
         <td>${t.category ? `<span class="chip">${esc(catLabel(t.category))}</span>` : '—'}</td>
         <td class="text-sm text-gray-700">${esc(t.state || '—')}</td>
         <td class="text-sm text-gray-700 tabular-nums">${n || '—'}</td>
+        <td>${auditStampHtml(t)}</td>
         <td class="text-right whitespace-nowrap">
           <button type="button" title="${t.pinned ? 'Unpin' : 'Pin to My forms'}"
             onclick="event.stopPropagation(); pinTemplate('${esc(t.id)}', ${t.pinned ? 'true' : 'false'})"
