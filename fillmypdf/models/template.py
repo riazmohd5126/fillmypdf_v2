@@ -192,6 +192,12 @@ class TemplateReadinessItem(BaseModel):
     revision_count: int = 0
     added_at: Optional[str] = None
     added_by: Optional[str] = None
+    # Field-level coverage from the canonical map (blank-form field names/
+    # types only — never patient data). None when no map exists yet.
+    mapped_count: Optional[int] = None
+    total_fields: Optional[int] = None
+    unmapped_count: Optional[int] = None
+    critical_unmapped: Optional[int] = None
 
 
 class TemplateReadinessResponse(BaseModel):

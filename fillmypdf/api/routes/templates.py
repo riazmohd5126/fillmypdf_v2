@@ -274,8 +274,10 @@ async def templates_readiness(request: Request):
     svc = _get_service()
     items = [t for t in svc.list() if template_visible(t, _principal(request))]
     cache = CanonicalMapCache()
-    # Identity + lock state only; the reviewer coverage stats are not used here.
-    entries = cache.list_index()
+    # list_entries() also carries mapped/unmapped coverage counts so the
+    # Template Library can show "N/M fields mapped" without a second,
+    # admin-only fetch of GET /mappings.
+    entries = cache.list_entries()
     # One pass over the whole audit log, not one scan per template below.
     mapping_audit, template_audit = ActivityAuditService().lock_and_upload_index()
 
@@ -292,6 +294,10 @@ async def templates_readiness(request: Request):
             "fingerprint": fp,
             "signature": sig or None,
             "form_label": label or None,
+            "mapped_count": e.get("mapped_count"),
+            "total_fields": e.get("total_fields"),
+            "unmapped_count": e.get("unmapped_count"),
+            "critical_unmapped": e.get("critical_unmapped"),
         }
         if sig:
             # Prefer a reviewed entry when multiple exist for one signature.
@@ -356,6 +362,10 @@ async def templates_readiness(request: Request):
                 # predate the audit log (no template.upload event on record).
                 added_at=tpl_a.get("added_at") or t.created_at,
                 added_by=tpl_a.get("added_by"),
+                mapped_count=hit.get("mapped_count"),
+                total_fields=hit.get("total_fields"),
+                unmapped_count=hit.get("unmapped_count"),
+                critical_unmapped=hit.get("critical_unmapped"),
             )
         )
 

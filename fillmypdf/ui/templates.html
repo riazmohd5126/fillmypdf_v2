@@ -157,6 +157,7 @@
         </div>
         <div id="d-description" class="text-sm text-gray-600 leading-relaxed"></div>
         <div id="d-tags" class="flex flex-wrap gap-1"></div>
+        <div id="d-mapping-status"></div>
         <a id="d-pdf-link" href="#" target="_blank" class="inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
           Preview PDF
@@ -419,6 +420,32 @@
   }
   function isReady(t) { return !!readinessById[t.id]?.ready; }
 
+  // ── Mapped vs. manual field status (visible to admins and clinic users) ──
+  // "Mapped" fields auto-fill from a matched profile/canonical field; the
+  // rest still need to be typed in by hand. Backed by GET /templates/readiness
+  // (total_fields/mapped_count from the canonical map's coverage stats).
+  function mappingStatusHtml(t, big) {
+    const r = readinessById[t.id] || {};
+    const total = r.total_fields;
+    if (total == null || total <= 0) return '';
+    const mapped = Math.min(r.mapped_count || 0, total);
+    const manual = Math.max(total - mapped, 0);
+    const pct = Math.round(mapped * 100 / total);
+    const barColor = r.ready ? 'bg-emerald-500' : (pct >= 50 ? 'bg-indigo-500' : 'bg-amber-500');
+    const gap = big ? 'mt-3' : 'mt-1.5';
+    const textCls = big ? 'text-xs' : 'text-[10px]';
+    const barH = big ? 'h-2' : 'h-1.5';
+    return `<div class="${gap}" title="${mapped} of ${total} fields mapped to auto-fill${manual ? '; ' + manual + ' need manual entry' : ''}">
+      <div class="flex items-center justify-between ${textCls} text-gray-500 mb-0.5">
+        <span class="font-medium text-gray-600">${mapped}/${total} fields mapped</span>
+        <span>${manual ? manual + ' manual' : 'all mapped'}</span>
+      </div>
+      <div class="w-full bg-gray-100 rounded-full ${barH}">
+        <div class="${barColor} ${barH} rounded-full transition-all" style="width:${pct}%"></div>
+      </div>
+    </div>`;
+  }
+
   function syncPinToggle() {
     const btn = document.getElementById('pin-toggle');
     if (!btn) return;
@@ -627,6 +654,7 @@
             <div class="min-w-0 flex-1">
               <h3 class="font-semibold text-gray-900 text-[15px] leading-snug">${esc(t.name)}</h3>
               <p class="text-xs text-gray-400 mt-1 truncate">${esc([tplPayer(t), (t.category || '').replace(/_/g, ' '), tplFields(t) ? tplFields(t) + ' fields' : ''].filter(Boolean).join(' · '))}</p>
+              ${mappingStatusHtml(t)}
             </div>
             <button type="button" title="Unpin" onclick="event.stopPropagation(); pinTemplate('${esc(t.id)}', true)"
               class="text-indigo-500 hover:text-indigo-700 text-sm leading-none px-1">★</button>
@@ -660,6 +688,7 @@
             <div class="min-w-0">
               <div class="font-semibold text-gray-900 text-sm">${esc(t.name)}</div>
               ${sub ? `<div class="text-xs text-gray-400 mt-0.5">${esc(sub)}</div>` : ''}
+              ${mappingStatusHtml(t)}
             </div>
           </div>
         </td>
@@ -694,6 +723,8 @@
     document.getElementById('d-pdf-link').href = `/api/v1/templates/${id}/pdf`;
     const tags = document.getElementById('d-tags');
     tags.innerHTML = (t.tags || []).map(tg => `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">${esc(tg)}</span>`).join('');
+    document.getElementById('d-mapping-status').innerHTML = mappingStatusHtml(t, true) ||
+      `<p class="text-xs text-gray-400 mt-3">This form hasn't started mapping yet — every field will need to be filled in manually.</p>`;
 
     document.getElementById('fields-list').innerHTML = '';
     document.getElementById('fill-error').classList.add('hidden');
