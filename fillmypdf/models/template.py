@@ -182,6 +182,12 @@ class TemplateReadinessItem(BaseModel):
     fingerprint: Optional[str] = None
     signature: Optional[str] = None
     form_label: Optional[str] = None
+    mapped_count: int = 0
+    unmapped_count: int = 0
+    other_count: int = 0
+    total_fields: int = 0
+    coverage_pct: float = 0.0
+    critical_unmapped: int = 0
     # Audit-log-derived — never the mapping cache's own actor/updated_at,
     # which get overwritten by any edit and so can't answer "when was THIS
     # actually locked" once someone touches the map again afterward.
@@ -198,6 +204,32 @@ class TemplateReadinessResponse(BaseModel):
     items: List[TemplateReadinessItem]
     ready_count: int = 0
     total: int = 0
+
+
+class TemplateMappingRow(BaseModel):
+    """One PHI-free widget row for the Templates Fields tab."""
+    field: str
+    label: str = ""
+    canonical: Optional[str] = None
+    status: Literal["mapped", "unmapped", "other"] = "unmapped"
+
+
+class TemplateMappingCoverage(BaseModel):
+    """Read-only mapped vs unresolved coverage for a clinic-visible template."""
+    template_id: str
+    has_mapping: bool = False
+    reviewed: bool = False
+    fingerprint: Optional[str] = None
+    signature: Optional[str] = None
+    form_label: Optional[str] = None
+    mapped_count: int = 0
+    unmapped_count: int = 0
+    other_count: int = 0
+    total_fields: int = 0
+    coverage_pct: float = 0.0
+    critical_unmapped: int = 0
+    rows: List[TemplateMappingRow] = Field(default_factory=list)
+    message: Optional[str] = None
 
 
 class TemplateFillResponse(BaseModel):

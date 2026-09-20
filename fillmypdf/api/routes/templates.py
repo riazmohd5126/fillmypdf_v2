@@ -7,6 +7,7 @@ Public (any valid API key):
   GET  /api/v1/templates                      List templates (filterable)
   GET  /api/v1/templates/{id}                 Get full manifest
   GET  /api/v1/templates/{id}/fields          Inspect detected fields (no AI)
+  GET  /api/v1/templates/{id}/mapping-coverage  Mapped vs unresolved (read-only)
   GET  /api/v1/templates/{id}/pdf             Stream the raw PDF
   POST /api/v1/templates/{id}/fill            Fill with one record → PDF
   POST /api/v1/templates/{id}/batch           Fill N records → ZIP
@@ -49,6 +50,8 @@ from ...models.template import (
     TemplateFillResponse,
     TemplateReadinessItem,
     TemplateReadinessResponse,
+    TemplateMappingCoverage,
+    TemplateMappingRow,
     SignatureField,
     SignatureFieldsResponse,
     TemplateSignResponse,
@@ -98,6 +101,98 @@ def _principal(request: Request) -> dict:
 def _norm_map_key(text: str) -> str:
     import re
     return re.sub(r"[^a-z0-9]+", "", (text or "").lower())
+
+
+def _empty_map_hit() -> dict:
+    return {
+        "ready": False,
+        "fingerprint": None,
+        "signature": None,
+        "form_label": None,
+        "mapped_count": 0,
+        "unmapped_count": 0,
+        "other_count": 0,
+        "total_fields": 0,
+        "coverage_pct": 0.0,
+        "critical_unmapped": 0,
+        "locked_at": None,
+        "locked_by": None,
+        "added_at": None,
+        "added_by": None,
+        "revision_count": 0,
+    }
+
+
+def _hit_from_entry(entry: dict) -> dict:
+    mapped = int(entry.get("mapped_count") or 0)
+    unmapped = int(entry.get("unmapped_count") or 0)
+    other = int(entry.get("other_count") or 0)
+    total = int(
+        entry.get("total_fields") or entry.get("field_count") or (mapped + unmapped + other)
+    )
+    crit = entry.get("critical_unmapped") or 0
+    if isinstance(crit, list):
+        crit = len(crit)
+    pct = round(100.0 * mapped / total, 1) if total else 0.0
+    ready = bool(entry.get("reviewed"))
+    actor = entry.get("actor") or None
+    rev = int(entry.get("revision_count") or 0)
+    if ready and not rev:
+        rev = 1
+    return {
+        "ready": ready,
+        "fingerprint": entry.get("fingerprint"),
+        "signature": (entry.get("signature") or "").strip() or None,
+        "form_label": entry.get("form_label") or None,
+        "mapped_count": mapped,
+        "unmapped_count": unmapped,
+        "other_count": other,
+        "total_fields": total,
+        "coverage_pct": pct,
+        "critical_unmapped": int(crit or 0),
+        "locked_at": entry.get("locked_at") or (entry.get("updated_at") if ready else None),
+        "locked_by": entry.get("locked_by") or (actor if ready else None),
+        "added_at": entry.get("added_at") or entry.get("cached_at"),
+        "added_by": entry.get("added_by"),
+        "revision_count": rev,
+    }
+
+
+def _prefer_reviewed(prev: Optional[dict], row: dict) -> dict:
+    if prev is None or (row.get("ready") and not prev.get("ready")):
+        return row
+    return prev
+
+
+def _index_map_hits(entries: list) -> tuple:
+    by_sig: dict = {}
+    by_label: dict = {}
+    by_tid: dict = {}
+    for entry in entries:
+        row = _hit_from_entry(entry)
+        sig = row.get("signature")
+        if sig:
+            by_sig[sig] = _prefer_reviewed(by_sig.get(sig), row)
+        nk = _norm_map_key(row.get("form_label") or "")
+        if nk:
+            by_label[nk] = _prefer_reviewed(by_label.get(nk), row)
+        etid = (entry.get("template_id") or "").strip()
+        if etid:
+            by_tid[etid] = _prefer_reviewed(by_tid.get(etid), row)
+    return by_sig, by_label, by_tid
+
+
+def _lookup_template_map(template, by_sig, by_label, by_tid, signatures) -> dict:
+    hit = (
+        by_tid.get(template.id)
+        or by_label.get(_norm_map_key(template.id))
+        or by_label.get(_norm_map_key(template.name))
+    )
+    if hit is None:
+        sig = signatures.get(template.id) if signatures else None
+        if sig:
+            hit = by_sig.get(sig) or {**_empty_map_hit(), "signature": sig}
+    return hit or _empty_map_hit()
 
 
 def _enrich_field_counts(items: list, signatures: dict) -> None:
@@ -262,11 +357,12 @@ async def list_templates(
     summary="Which templates have a locked map for Guided Fill",
 )
 async def templates_readiness(request: Request):
-    """Return Ready / Needs mapping status for every template.
+    """Return Ready / Needs mapping status and coverage for every template.
 
     Matches templates to canonical maps by structure signature when cheap, and
     falls back to normalizing ``form_label`` ↔ template id/name. Used by the
-    Template Library and Guided Fill pickers.
+    Template Library and Guided Fill pickers. Coverage counts come from
+    :meth:`CanonicalMapCache.list_entries` (same math as Mapping Review).
     """
     from ...services.activity_audit_service import ActivityAuditService
     from ...services.canonical_map_cache import CanonicalMapCache
@@ -274,40 +370,9 @@ async def templates_readiness(request: Request):
     svc = _get_service()
     items = [t for t in svc.list() if template_visible(t, _principal(request))]
     cache = CanonicalMapCache()
-    # Identity + lock state only; the reviewer coverage stats are not used here.
-    entries = cache.list_index()
+    by_sig, by_label, by_tid = _index_map_hits(cache.list_entries())
     # One pass over the whole audit log, not one scan per template below.
     mapping_audit, template_audit = ActivityAuditService().lock_and_upload_index()
-
-    by_sig: dict = {}
-    by_label: dict = {}
-    by_tid: dict = {}
-    for e in entries:
-        sig = (e.get("signature") or "").strip()
-        fp = e.get("fingerprint")
-        label = e.get("form_label") or ""
-        ready = bool(e.get("reviewed"))
-        row = {
-            "ready": ready,
-            "fingerprint": fp,
-            "signature": sig or None,
-            "form_label": label or None,
-        }
-        if sig:
-            # Prefer a reviewed entry when multiple exist for one signature.
-            prev = by_sig.get(sig)
-            if prev is None or (ready and not prev.get("ready")):
-                by_sig[sig] = row
-        nk = _norm_map_key(label)
-        if nk:
-            prev = by_label.get(nk)
-            if prev is None or (ready and not prev.get("ready")):
-                by_label[nk] = row
-        etid = (e.get("template_id") or "").strip()
-        if etid:
-            prev = by_tid.get(etid)
-            if prev is None or (ready and not prev.get("ready")):
-                by_tid[etid] = row
 
     # Signatures come from the persisted cache, so a warm library needs no PDF
     # opens at all. A form with no fillable version yet simply has no signature
@@ -318,27 +383,7 @@ async def templates_readiness(request: Request):
 
     out: list[TemplateReadinessItem] = []
     for t in items:
-        hit = (
-            by_tid.get(t.id)
-            or by_label.get(_norm_map_key(t.id))
-            or by_label.get(_norm_map_key(t.name))
-        )
-        if hit is None:
-            sig = signatures.get(t.id)
-            if sig:
-                hit = by_sig.get(sig) or {
-                    "ready": False,
-                    "fingerprint": None,
-                    "signature": sig,
-                    "form_label": None,
-                }
-        if hit is None:
-            hit = {
-                "ready": False,
-                "fingerprint": None,
-                "signature": None,
-                "form_label": None,
-            }
+        hit = _lookup_template_map(t, by_sig, by_label, by_tid, signatures)
         fp = (hit.get("fingerprint") or "").strip()
         m = mapping_audit.get(fp, {}) if fp else {}
         tpl_a = template_audit.get(t.id, {})
@@ -349,6 +394,12 @@ async def templates_readiness(request: Request):
                 fingerprint=hit.get("fingerprint"),
                 signature=hit.get("signature"),
                 form_label=hit.get("form_label"),
+                mapped_count=int(hit.get("mapped_count") or 0),
+                unmapped_count=int(hit.get("unmapped_count") or 0),
+                other_count=int(hit.get("other_count") or 0),
+                total_fields=int(hit.get("total_fields") or 0),
+                coverage_pct=float(hit.get("coverage_pct") or 0.0),
+                critical_unmapped=int(hit.get("critical_unmapped") or 0),
                 locked_at=m.get("locked_at"),
                 locked_by=m.get("locked_by"),
                 revision_count=int(m.get("revision_count") or 0),
@@ -449,6 +500,65 @@ async def inspect_template_fields(template_id: str, request: Request):
         raise HTTPException(500, f"Field inspection failed: {exc}")
 
     return data
+
+
+# ---------------------------------------------------------------------------
+# Mapping coverage (read-only, clinic-visible, PHI-free)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/{template_id}/mapping-coverage",
+    response_model=TemplateMappingCoverage,
+    summary="Mapped vs unresolved fields for a template (read-only)",
+)
+async def template_mapping_coverage(template_id: str, request: Request):
+    """Clinic-safe view of canonical coverage — labels and catalog paths only.
+
+    Same row filter as Mapping Review detail (data widgets, no section titles /
+    tables / signatures). No catalog dropdowns, no mapping edits, no field
+    values. Unmapped templates return empty rows with ``has_mapping=false``.
+    """
+    from ...services.canonical_map_cache import CanonicalMapCache
+
+    manifest = _ensure_visible(template_id, request)
+    svc = _get_service()
+    cache = CanonicalMapCache()
+    by_sig, by_label, by_tid = _index_map_hits(cache.list_entries())
+    signatures = template_signature_cache.get_many(
+        [template_id], service=svc, allow_convert=False
+    )
+    hit = _lookup_template_map(manifest, by_sig, by_label, by_tid, signatures)
+    fp = hit.get("fingerprint")
+    sig = hit.get("signature")
+    data = cache.get_full(fp) if fp else None
+    if data is None and sig:
+        data = cache.find_by_signature(sig)
+
+    if not data:
+        return TemplateMappingCoverage(
+            template_id=template_id,
+            has_mapping=False,
+            signature=sig,
+            message="No mapping draft yet. An admin needs to build and review this form.",
+        )
+
+    cov = cache.public_coverage(data)
+    return TemplateMappingCoverage(
+        template_id=template_id,
+        has_mapping=True,
+        reviewed=bool(data.get("reviewed")),
+        fingerprint=data.get("fingerprint") or fp,
+        signature=data.get("signature") or sig,
+        form_label=data.get("form_label") or hit.get("form_label"),
+        mapped_count=cov["mapped_count"],
+        unmapped_count=cov["unmapped_count"],
+        other_count=cov["other_count"],
+        total_fields=cov["total_fields"],
+        coverage_pct=cov["coverage_pct"],
+        critical_unmapped=cov["critical_unmapped"],
+        rows=[TemplateMappingRow(**row) for row in cov["rows"]],
+    )
 
 
 # ---------------------------------------------------------------------------

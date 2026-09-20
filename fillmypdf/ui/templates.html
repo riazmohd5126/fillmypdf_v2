@@ -35,13 +35,13 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
 
-  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
 
     <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
       <div>
         <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Template Library</h1>
         <p id="template-count" class="text-sm text-gray-500 mt-1">Loading…</p>
-        <p class="text-xs text-gray-500 mt-2">Locking is <span class="font-semibold text-indigo-700">admin-only</span> — clinics upload, admins lock.</p>
+        <p class="text-xs text-gray-500 mt-2">Locking is <span class="font-semibold text-indigo-700">admin-only</span> — clinics upload, admins lock. Autofill is mapped vs manual coverage.</p>
       </div>
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-2 text-sm text-gray-600 select-none">
@@ -105,8 +105,7 @@
               <th>Template</th>
               <th>Payer</th>
               <th>Category</th>
-              <th>State</th>
-              <th>Fields</th>
+              <th>Autofill</th>
               <th>Audit Stamp</th>
               <th></th>
             </tr>
@@ -127,7 +126,7 @@
 
   <!-- Template Detail + Fill Modal -->
   <div id="detail-modal" class="fixed inset-0 bg-black/40 flex items-start justify-center z-50 hidden overflow-y-auto py-8">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4">
       <div class="p-6 border-b border-gray-100 flex items-start justify-between">
         <div>
           <h2 id="d-name" class="text-lg font-bold text-gray-900"></h2>
@@ -149,6 +148,7 @@
 
       <!-- Info panel -->
       <div id="dpanel-info" class="p-6 space-y-3">
+        <div id="info-coverage" class="hidden"></div>
         <div class="grid grid-cols-2 gap-3 text-sm">
           <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-400 mb-1">Category</p><p id="d-category" class="font-medium text-gray-800"></p></div>
           <div class="bg-gray-50 rounded-lg p-3"><p class="text-xs text-gray-400 mb-1">Drug</p><p id="d-drug" class="font-medium text-gray-800"></p></div>
@@ -205,9 +205,10 @@
 
       <!-- Fields panel -->
       <div id="dpanel-fields" class="p-6 hidden">
-        <p class="text-xs text-gray-400 mb-3">Detected AcroForm fields in this template:</p>
+        <p class="text-xs text-gray-400 mb-3">Canonical coverage for this template (read-only). Admin edits live in Mapping Review.</p>
+        <div id="fields-coverage" class="mb-3"></div>
         <div id="fields-list" class="space-y-1.5 max-h-80 overflow-y-auto"></div>
-        <button onclick="loadFields()" id="fields-load-btn" class="mt-3 text-sm text-indigo-600 hover:underline">Load fields</button>
+        <button onclick="loadRawFields()" id="fields-load-btn" class="mt-3 hidden text-sm text-indigo-600 hover:underline">Show raw PDF fields</button>
       </div>
 
       <!-- Checklist panel -->
@@ -393,6 +394,45 @@
   function tplPayer(t) { return t.payer_name || t.payer?.name || ''; }
   function tplDrug(t) { return t.drug_name || t.drug?.name || ''; }
   function tplFields(t) { return t.field_count || t.question_count || 0; }
+  function readinessOf(t) { return readinessById[t.id] || {}; }
+  function coveragePct(r) {
+    if (!r) return 0;
+    if (r.coverage_pct != null && r.coverage_pct !== '') return Number(r.coverage_pct);
+    const total = Number(r.total_fields || 0);
+    const mapped = Number(r.mapped_count || 0);
+    return total ? Math.round(mapped * 1000 / total) / 10 : 0;
+  }
+  function fillBarHtml(r) {
+    const mapped = Number((r && r.mapped_count) || 0);
+    const unmapped = Number((r && r.unmapped_count) || 0);
+    const other = Number((r && r.other_count) || 0);
+    const total = Number((r && r.total_fields) || 0);
+    const hasMap = !!(r && (r.has_mapping || r.fingerprint || total));
+    if (!hasMap) {
+      return `<div class="min-w-[11rem] text-[11px] text-gray-400">No mapping yet</div>`;
+    }
+    const pct = total ? Math.round(mapped * 100 / total) : 0;
+    const manual = unmapped + other;
+    const manualHtml = manual
+      ? `<span class="text-[11px] font-semibold text-rose-600 tabular-nums">${manual} manual</span>`
+      : `<span class="text-[11px] font-semibold text-emerald-700">none manual</span>`;
+    const pending = unmapped
+      ? `<div class="text-[10px] text-gray-400 mt-1">${unmapped} of those not yet reviewed</div>`
+      : '';
+    return `<div class="min-w-[12rem] max-w-[16rem]">
+      <div class="flex items-baseline justify-between gap-2">
+        <span class="text-[13px] font-semibold text-emerald-800 tabular-nums">${mapped} <span class="text-gray-400 font-medium">/</span> ${total} <span class="text-[11px] font-medium text-emerald-700">autofill</span></span>
+        ${manualHtml}
+      </div>
+      <div class="mt-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+        <div class="h-full bg-emerald-700 rounded-full" style="width:${Math.min(100, pct)}%"></div>
+      </div>
+      ${pending}
+    </div>`;
+  }
+  function coverageBarHtml(r, extraClass) {
+    return `<div class="${extraClass || ''}">${fillBarHtml(r)}</div>`;
+  }
   function catLabel(c) {
     if (!c) return 'General';
     return String(c).replace(/[_-]+/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
@@ -563,7 +603,6 @@
 
   // ── Audit stamp (locked/added, who + when + revision count) ─────
   const STALE_DAYS = 90;
-
   function fmtShortDate(iso) {
     if (!iso) return null;
     const d = new Date(iso);
@@ -580,9 +619,8 @@
     if (!email) return null;
     return String(email).split('@')[0];
   }
-
   function auditStampHtml(t) {
-    const r = readinessById[t.id] || {};
+    const r = readinessOf(t);
     const ready = !!r.ready;
     const age = daysAgo(r.locked_at);
     const stale = ready && age != null && age > STALE_DAYS;
@@ -592,14 +630,12 @@
     const labelCls = ready ? (stale ? 'text-amber-800' : 'text-emerald-800') : 'text-amber-800';
     const label = ready ? 'LOCKED' : 'AWAITING LOCK';
     const rev = r.revision_count ? `<span class="text-[10px] font-semibold ${labelCls} opacity-70">REV ${r.revision_count}</span>` : '';
-
     const lockedLine = r.locked_at
       ? `<div class="text-[10px] text-gray-600 mt-0.5">locked ${esc(fmtShortDate(r.locked_at))} · ${esc(shortActor(r.locked_by) || '—')}${stale ? ' · stale' : ''}</div>`
       : '';
     const addedLine = r.added_at
       ? `<div class="text-[10px] text-gray-500">added ${esc(fmtShortDate(r.added_at))} · ${esc(shortActor(r.added_by) || '—')}</div>`
       : '';
-
     return `<div class="inline-block border rounded-lg px-2.5 py-1.5 font-mono ${boxCls}">
       <div class="flex items-center justify-between gap-3">
         <span class="text-[10px] font-bold tracking-wide ${labelCls}">${label}</span>
@@ -626,7 +662,8 @@
             <span class="tpl-ini" style="${iniStyle(t.name)}">${esc(initials(t.name))}</span>
             <div class="min-w-0 flex-1">
               <h3 class="font-semibold text-gray-900 text-[15px] leading-snug">${esc(t.name)}</h3>
-              <p class="text-xs text-gray-400 mt-1 truncate">${esc([tplPayer(t), (t.category || '').replace(/_/g, ' '), tplFields(t) ? tplFields(t) + ' fields' : ''].filter(Boolean).join(' · '))}</p>
+              <p class="text-xs text-gray-400 mt-1 truncate">${esc([tplPayer(t), (t.category || '').replace(/_/g, ' ')].filter(Boolean).join(' · '))}</p>
+              <div class="mt-1">${coverageBarHtml(readinessOf(t), '')}</div>
             </div>
             <button type="button" title="Unpin" onclick="event.stopPropagation(); pinTemplate('${esc(t.id)}', true)"
               class="text-indigo-500 hover:text-indigo-700 text-sm leading-none px-1">★</button>
@@ -651,7 +688,6 @@
       || Number(isReady(b)) - Number(isReady(a))
       || String(a.name || a.id).localeCompare(String(b.name || b.id)));
     tbody.innerHTML = sorted.map(t => {
-      const n = tplFields(t);
       const sub = tplSub(t);
       return `<tr class="tpl-row" onclick="openDetail('${esc(t.id)}')">
         <td>
@@ -665,8 +701,7 @@
         </td>
         <td class="text-sm text-gray-700">${esc(tplPayer(t) || '—')}</td>
         <td>${t.category ? `<span class="chip">${esc(catLabel(t.category))}</span>` : '—'}</td>
-        <td class="text-sm text-gray-700">${esc(t.state || '—')}</td>
-        <td class="text-sm text-gray-700 tabular-nums">${n || '—'}</td>
+        <td>${fillBarHtml(readinessOf(t))}</td>
         <td>${auditStampHtml(t)}</td>
         <td class="text-right whitespace-nowrap">
           <button type="button" title="${t.pinned ? 'Unpin' : 'Pin to My forms'}"
@@ -679,10 +714,13 @@
   }
 
   // ── Detail modal ──────────────────────────────────────────────
+  let currentCoverage = null;
+
   function openDetail(id, tab = 'info') {
     const t = allTemplates.find(x => x.id === id);
     if (!t) return;
     currentTemplateId = id;
+    currentCoverage = null;
 
     document.getElementById('d-name').textContent = t.name || id;
     document.getElementById('d-subtitle').textContent = t.description || '';
@@ -695,15 +733,27 @@
     const tags = document.getElementById('d-tags');
     tags.innerHTML = (t.tags || []).map(tg => `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">${esc(tg)}</span>`).join('');
 
-    document.getElementById('fields-list').innerHTML = '';
+    document.getElementById('fields-list').innerHTML = '<p class="text-xs text-gray-400">Loading coverage…</p>';
+    document.getElementById('fields-coverage').innerHTML = '';
+    document.getElementById('fields-load-btn').classList.add('hidden');
+    renderInfoCoverage(readinessOf(t));
     document.getElementById('fill-error').classList.add('hidden');
     document.getElementById('fill-success').classList.add('hidden');
     renderProfilePickers(t.category);
     document.getElementById('detail-modal').classList.remove('hidden');
     switchDetailTab(tab);
+    loadCoverage(id);
   }
 
-  function closeDetail() { document.getElementById('detail-modal').classList.add('hidden'); currentTemplateId = null; }
+  function closeDetail() { document.getElementById('detail-modal').classList.add('hidden'); currentTemplateId = null; currentCoverage = null; }
+
+  function renderInfoCoverage(r) {
+    const box = document.getElementById('info-coverage');
+    if (!box) return;
+    const src = r || readinessOf({ id: currentTemplateId }) || {};
+    box.innerHTML = coverageBarHtml(src);
+    box.classList.remove('hidden');
+  }
 
   function switchDetailTab(tab) {
     ['info','fill','fields','checklist','sign'].forEach(t => {
@@ -720,6 +770,9 @@
     }
     if (tab === 'checklist' && currentTemplateId) {
       loadChecklist(currentTemplateId);
+    }
+    if (tab === 'fields' && currentTemplateId && currentCoverage) {
+      renderFieldsCoverage(currentCoverage);
     }
   }
 
@@ -885,8 +938,70 @@
     el.textContent = msg; el.classList.remove('hidden');
   }
 
-  // ── Fields ────────────────────────────────────────────────────
-  async function loadFields() {
+  // ── Fields (mapped vs unresolved) ─────────────────────────────
+  async function loadCoverage(id) {
+    if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey()))) || !id) return;
+    try {
+      const r = await fetch(`/api/v1/templates/${id}/mapping-coverage`, { headers: fmpAuthHeaders(), credentials: 'same-origin' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (currentTemplateId !== id) return;
+      currentCoverage = await r.json();
+      renderInfoCoverage(currentCoverage);
+      renderFieldsCoverage(currentCoverage);
+    } catch (e) {
+      if (currentTemplateId !== id) return;
+      document.getElementById('fields-list').innerHTML = `<p class="text-red-500 text-xs">${esc(e.message)}</p>`;
+      document.getElementById('fields-load-btn').classList.remove('hidden');
+    }
+  }
+
+  function fieldRowHtml(row, tone) {
+    const tones = {
+      mapped: { wrap: 'bg-emerald-50', path: 'text-emerald-700' },
+      unmapped: { wrap: 'bg-amber-50', path: 'text-amber-700' },
+      other: { wrap: 'bg-slate-50', path: 'text-slate-500' },
+    };
+    const t = tones[tone] || tones.unmapped;
+    const right = row.canonical || (tone === 'other' ? 'other' : row.field);
+    return `<div class="flex items-center gap-2 text-xs ${t.wrap} rounded-lg px-3 py-2">
+      <span class="text-gray-800 flex-1 truncate">${esc(row.label || row.field)}</span>
+      <span class="${t.path} font-mono truncate max-w-[14rem]">${esc(right)}</span>
+    </div>`;
+  }
+
+  function fieldSection(title, rows, tone) {
+    if (!rows.length) return '';
+    return `<p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mt-3 mb-1">${esc(title)} (${rows.length})</p>` +
+      rows.map(r => fieldRowHtml(r, tone)).join('');
+  }
+
+  function renderFieldsCoverage(cov) {
+    const list = document.getElementById('fields-list');
+    const bar = document.getElementById('fields-coverage');
+    const rawBtn = document.getElementById('fields-load-btn');
+    if (!cov || !cov.has_mapping) {
+      bar.innerHTML = coverageBarHtml(cov || {});
+      list.innerHTML = `<p class="text-xs text-gray-500">${esc((cov && cov.message) || 'No mapping yet for this template.')}</p>`;
+      rawBtn.classList.remove('hidden');
+      rawBtn.textContent = 'Show raw PDF fields';
+      return;
+    }
+    bar.innerHTML = coverageBarHtml(cov);
+    const rows = cov.rows || [];
+    const mapped = rows.filter(r => r.status === 'mapped');
+    const unresolved = rows.filter(r => r.status === 'unmapped');
+    const other = rows.filter(r => r.status === 'other');
+    const html = [
+      fieldSection('Mapped', mapped, 'mapped'),
+      fieldSection('Unresolved', unresolved, 'unmapped'),
+      fieldSection('Marked other', other, 'other'),
+    ].join('');
+    list.innerHTML = html || '<p class="text-xs text-gray-400">No data fields in this mapping.</p>';
+    rawBtn.classList.remove('hidden');
+    rawBtn.textContent = 'Show raw PDF fields';
+  }
+
+  async function loadRawFields() {
     if (!(await (window.fmpHasAuth ? fmpHasAuth() : Promise.resolve(!!getKey()))) || !currentTemplateId) return;
     document.getElementById('fields-load-btn').textContent = 'Loading…';
     try {
@@ -904,7 +1019,10 @@
           </div>`).join('')
         : '<p class="text-gray-400 text-xs">No fields found.</p>';
       document.getElementById('fields-load-btn').classList.add('hidden');
-    } catch (e) { document.getElementById('fields-list').innerHTML = `<p class="text-red-500 text-xs">${e.message}</p>`; document.getElementById('fields-load-btn').textContent = 'Retry'; }
+    } catch (e) {
+      document.getElementById('fields-list').innerHTML = `<p class="text-red-500 text-xs">${esc(e.message)}</p>`;
+      document.getElementById('fields-load-btn').textContent = 'Retry';
+    }
   }
 
   // ── Upload Template ───────────────────────────────────────────

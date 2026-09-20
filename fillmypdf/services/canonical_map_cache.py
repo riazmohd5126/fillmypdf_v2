@@ -310,7 +310,13 @@ class CanonicalMapCache:
         data = self.get_full(fp)
         if data is None:
             return False
+        now = datetime.now().isoformat()
+        becoming_locked = bool(reviewed) and not bool(data.get("reviewed"))
         data["reviewed"] = bool(reviewed)
+        if bool(reviewed):
+            data["locked_at"] = now
+            if becoming_locked:
+                data["revision_count"] = int(data.get("revision_count") or 0) + 1
         return self.save_full(fp, data)
 
     def invalidate(self, fp: str) -> bool:
@@ -435,6 +441,13 @@ class CanonicalMapCache:
                     "cached_at": data.get("cached_at"),
                     "updated_at": data.get("updated_at"),
                     "reviewed": bool(data.get("reviewed", False)),
+                    "locked_at": data.get("locked_at"),
+                    "locked_by": data.get("locked_by") or (
+                        data.get("actor") if data.get("reviewed") else None
+                    ),
+                    "added_at": data.get("added_at") or data.get("cached_at"),
+                    "added_by": data.get("added_by"),
+                    "revision_count": int(data.get("revision_count") or 0),
                     "field_count": total,
                     "total_fields": total,
                     "form_specific_count": form_specific,
@@ -445,3 +458,75 @@ class CanonicalMapCache:
                 }
             )
         return sorted(entries, key=lambda e: e.get("updated_at") or e.get("cached_at") or "", reverse=True)
+
+    def public_coverage(self, data: dict) -> dict:
+        """PHI-free mapped vs unresolved rows, matching Mapping Review detail.
+
+        Skips form-specific widgets, table cells, signature keys, and section
+        titles. ``canonical == "other"`` is a deliberate skip, not pending work.
+        """
+        from .field_classifier import DATA, is_section_title_field
+        from .form_spec_builder import signature_field_keys
+        from .form_spec_cache import FormSpecCache
+
+        labels = data.get("field_labels") or {}
+        mappings = data.get("mappings") or {}
+        kinds = data.get("field_kinds") or {}
+        signature = data.get("signature") or ""
+        spec = FormSpecCache().get(signature) if signature else None
+        table_keys = set(spec.table_field_keys) if spec is not None else set()
+        sig_keys = signature_field_keys(spec) if spec is not None else set()
+
+        seen: set = set()
+        names: list = []
+        for field in list(labels.keys()) + list(mappings.keys()):
+            if field not in seen:
+                names.append(field)
+                seen.add(field)
+
+        rows = []
+        mapped_count = 0
+        unmapped_count = 0
+        other_count = 0
+        mapped_paths: set = set()
+        for field in names:
+            if kinds and kinds.get(field, DATA) != DATA:
+                continue
+            if field in table_keys or field in sig_keys:
+                continue
+            label = labels.get(field, "")
+            if is_section_title_field(field, label):
+                continue
+            m = mappings.get(field) if isinstance(mappings.get(field), dict) else {}
+            canon = (m or {}).get("canonical")
+            if canon == "other":
+                status = "other"
+                other_count += 1
+                shown = None
+            elif canon:
+                status = "mapped"
+                mapped_count += 1
+                shown = canon
+                if canon in BY_PATH:
+                    mapped_paths.add(canon)
+            else:
+                status = "unmapped"
+                unmapped_count += 1
+                shown = None
+            rows.append({
+                "field": field,
+                "label": label,
+                "canonical": shown,
+                "status": status,
+            })
+        total = mapped_count + unmapped_count + other_count
+        pct = round(100.0 * mapped_count / total, 1) if total else 0.0
+        return {
+            "mapped_count": mapped_count,
+            "unmapped_count": unmapped_count,
+            "other_count": other_count,
+            "total_fields": total,
+            "coverage_pct": pct,
+            "critical_unmapped": len(set(CRITICAL_FIELDS) - mapped_paths) if CRITICAL_FIELDS else 0,
+            "rows": rows,
+        }
