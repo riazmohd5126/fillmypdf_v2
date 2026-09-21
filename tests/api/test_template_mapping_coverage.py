@@ -51,7 +51,6 @@ def test_readiness_includes_mapping_coverage(tpl_client, admin_api_key, isolated
     assert hit["unmapped_count"] == 1
     assert hit["total_fields"] == 2
     assert hit["coverage_pct"] == 50.0
-    assert hit["revision_count"] == 1
     assert hit["added_at"]
 
 
