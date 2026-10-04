@@ -1,0 +1,13 @@
+{
+  "first_name": "Jane", "last_name": "Doe", "middle_initial": "A",
+  "date_of_birth": "04/12/1988", "sex": "Female", "ssn": "123-45-6789",
+  "street_address": "742 Evergreen Terrace", "city": "Springfield", "state": "IL", "zip_code": "62704",
+  "phone": "(217) 555-0142", "email": "jane.doe@example.com",
+  "emergency_contact_name": "John Doe", "emergency_contact_relationship": "Spouse", "emergency_contact_phone": "(217) 555-0199",
+  "insurance_provider": "Blue Cross Blue Shield", "policy_number": "BCB123456789", "group_number": "GRP-0042",
+  "policy_holder_name": "Jane A. Doe",
+  "conditions": ["Asthma", "Allergies"],
+  "current_medications": "Albuterol inhaler as needed", "known_allergies": "Penicillin",
+  "reason_for_visit": "Annual physical and asthma follow-up",
+  "patient_signature": "Jane A. Doe", "signature_date": "10/04/2026"
+}

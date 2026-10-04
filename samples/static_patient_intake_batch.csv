@@ -1,0 +1,4 @@
+first_name,last_name,date_of_birth,sex,phone,email,city,state,zip_code,insurance_provider,policy_number
+Jane,Doe,04/12/1988,Female,(217) 555-0142,jane.doe@example.com,Springfield,IL,62704,Blue Cross Blue Shield,BCB123456789
+Carlos,Rivera,11/30/1975,Male,(312) 555-0177,c.rivera@example.com,Chicago,IL,60601,Aetna,AET987654321
+Priya,Shah,07/08/1995,Female,(415) 555-0123,priya.shah@example.com,San Francisco,CA,94103,Kaiser Permanente,KP555000111
